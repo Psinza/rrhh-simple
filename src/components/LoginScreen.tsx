@@ -359,7 +359,7 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
           <span>Cumplimiento Legal LOTTT • Gaceta Oficial de la República Bolivariana de Venezuela</span>
         </div>
         <div className="flex items-center gap-4">
-          <span>Soporte Técnico: soporte@talentove.com</span>
+          <span>Soporte Técnico: petersinza@gmail.com</span>
           <span className="hidden sm:inline">•</span>
           <span className="hidden sm:inline">Caracas, Venezuela</span>
         </div>
