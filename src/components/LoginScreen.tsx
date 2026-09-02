@@ -14,18 +14,27 @@ import {
   CheckCircle2,
   AlertCircle,
 } from 'lucide-react';
-import { AppUser } from '../types';
+import { AppUser, CompanySettings } from '../types';
 import { predefinedUsers } from '../data/authUsers';
 
 interface LoginScreenProps {
   onLogin: (user: AppUser) => void;
   defaultRole?: string;
+  users?: AppUser[];
+  company?: CompanySettings;
 }
 
-export function LoginScreen({ onLogin }: LoginScreenProps) {
+export function LoginScreen({ onLogin, users, company }: LoginScreenProps) {
+  const activeUsers = users && users.length > 0 ? users : predefinedUsers;
   const [selectedRole, setSelectedRole] = useState<'admin_sistema' | 'rrhh' | 'dueno'>('admin_sistema');
-  const [identifier, setIdentifier] = useState('admin');
-  const [password, setPassword] = useState('admin');
+  const [identifier, setIdentifier] = useState(() => {
+    const admin = activeUsers.find((u) => u.rol === 'admin_sistema');
+    return admin ? admin.username : 'admin';
+  });
+  const [password, setPassword] = useState(() => {
+    const admin = activeUsers.find((u) => u.rol === 'admin_sistema');
+    return admin ? admin.password : 'admin';
+  });
   const [showPassword, setShowPassword] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [rememberMe, setRememberMe] = useState(true);
@@ -34,7 +43,7 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
   const handleSelectRole = (role: 'admin_sistema' | 'rrhh' | 'dueno') => {
     setSelectedRole(role);
     setErrorMsg(null);
-    const targetUser = predefinedUsers.find((u) => u.rol === role);
+    const targetUser = activeUsers.find((u) => u.rol === role);
     if (targetUser) {
       setIdentifier(targetUser.username);
       setPassword(targetUser.password);
@@ -46,7 +55,7 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
     setErrorMsg(null);
 
     const cleanId = identifier.trim().toLowerCase();
-    const userFound = predefinedUsers.find(
+    const userFound = activeUsers.find(
       (u) =>
         (u.username.toLowerCase() === cleanId || u.email.toLowerCase() === cleanId) &&
         u.password === password
@@ -65,7 +74,7 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
   };
 
   const handleDirectQuickLogin = (role: 'admin_sistema' | 'rrhh' | 'dueno') => {
-    const targetUser = predefinedUsers.find((u) => u.rol === role);
+    const targetUser = activeUsers.find((u) => u.rol === role);
     if (targetUser) {
       if (rememberMe) {
         localStorage.setItem('ven_nomina_session_user', JSON.stringify(targetUser));
@@ -74,20 +83,34 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
     }
   };
 
-  const currentUserConfig = predefinedUsers.find((u) => u.rol === selectedRole) || predefinedUsers[0];
+  const currentUserConfig = activeUsers.find((u) => u.rol === selectedRole) || activeUsers[0];
+
+  const adminRoleUser = activeUsers.find((u) => u.rol === 'admin_sistema');
+  const rrhhRoleUser = activeUsers.find((u) => u.rol === 'rrhh');
+  const duenoRoleUser = activeUsers.find((u) => u.rol === 'dueno');
 
   return (
     <div className="min-h-screen w-full bg-slate-900 text-slate-100 flex flex-col justify-between selection:bg-blue-600 selection:text-white font-sans">
       {/* Top Header Bar */}
       <header className="h-16 border-b border-slate-800/80 px-6 sm:px-12 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 bg-blue-600 rounded flex items-center justify-center font-black text-xl text-white shadow-sm">
-            V
-          </div>
+          {company?.logoUrl ? (
+            <img
+              src={company.logoUrl}
+              alt="Logo de la Empresa"
+              className="h-9 w-auto max-w-[120px] object-contain rounded bg-white/10 p-0.5 border border-slate-700/50"
+            />
+          ) : (
+            <div className="w-9 h-9 bg-blue-600 rounded flex items-center justify-center font-black text-xl text-white shadow-sm">
+              {company?.razonSocial ? company.razonSocial.charAt(0).toUpperCase() : 'V'}
+            </div>
+          )}
           <div>
             <div className="font-bold text-white tracking-tight flex items-center gap-2">
-              <span>VEN-Nomina</span>
-              <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-300 font-mono border border-blue-500/30">
+              <span className="truncate max-w-[200px] sm:max-w-xs">
+                {company?.razonSocial || 'VEN-Nomina'}
+              </span>
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-300 font-mono border border-blue-500/30 shrink-0">
                 PRO v3.2
               </span>
             </div>
@@ -153,9 +176,11 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
                   )}
                 </div>
                 <div className="font-bold text-white text-sm">Administrador del Sistema</div>
-                <div className="text-[11px] text-blue-300 font-medium">TI, Parámetros & Auditoría</div>
+                <div className="text-[11px] text-blue-300 font-semibold truncate">
+                  {adminRoleUser?.nombre || 'Ing. Pedro Sinza'}
+                </div>
                 <div className="text-[10px] text-slate-400 mt-1 line-clamp-2">
-                  Respaldos cifrados, control de tasas BCV y seguridad global.
+                  {adminRoleUser?.cargo || 'TI, Respaldos, Base de Datos Ligera y Seguridad'}
                 </div>
               </button>
 
@@ -180,9 +205,11 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
                   )}
                 </div>
                 <div className="font-bold text-white text-sm">Gerente de RRHH</div>
-                <div className="text-[11px] text-emerald-300 font-medium">Personal, Nómina & LOTTT</div>
+                <div className="text-[11px] text-emerald-300 font-semibold truncate">
+                  {rrhhRoleUser?.nombre || 'Lic. Valentina Silva'}
+                </div>
                 <div className="text-[10px] text-slate-400 mt-1 line-clamp-2">
-                  Expedientes 14-02, recibos digitales, prestaciones y archivos IVSS.
+                  {rrhhRoleUser?.cargo || 'Expedientes 14-02, recibos digitales, prestaciones y archivos IVSS.'}
                 </div>
               </button>
 
@@ -207,9 +234,11 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
                   )}
                 </div>
                 <div className="font-bold text-white text-sm">Dueño de la Empresa</div>
-                <div className="text-[11px] text-amber-300 font-medium">Dirección General & Finanzas</div>
+                <div className="text-[11px] text-amber-300 font-semibold truncate">
+                  {duenoRoleUser?.nombre || 'Dr. Alejandro Ramos'}
+                </div>
                 <div className="text-[10px] text-slate-400 mt-1 line-clamp-2">
-                  Aprobación de nómina, costos en USD/Bs. y pasivos laborales.
+                  {duenoRoleUser?.cargo || 'Dirección General, aprobación de nómina y costos BCV.'}
                 </div>
               </button>
             </div>

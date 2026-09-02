@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   X,
   Building2,
@@ -6,6 +6,11 @@ import {
   DollarSign,
   ShieldCheck,
   Check,
+  Upload,
+  Trash2,
+  Users,
+  ExternalLink,
+  Image as ImageIcon,
 } from 'lucide-react';
 import { CompanySettings, IvssRiskLevel } from '../types';
 
@@ -13,12 +18,14 @@ interface CompanySettingsModalProps {
   company: CompanySettings;
   onClose: () => void;
   onSave: (updated: CompanySettings) => void;
+  onOpenIdentityModule?: () => void;
 }
 
 export function CompanySettingsModal({
   company,
   onClose,
   onSave,
+  onOpenIdentityModule,
 }: CompanySettingsModalProps) {
   const [razonSocial, setRazonSocial] = useState(company.razonSocial);
   const [rif, setRif] = useState(company.rif);
@@ -30,6 +37,7 @@ export function CompanySettingsModal({
   const [telefono, setTelefono] = useState(company.telefono);
   const [representanteLegal, setRepresentanteLegal] = useState(company.representanteLegal);
   const [cargoRepresentante, setCargoRepresentante] = useState(company.cargoRepresentante);
+  const [logoUrl, setLogoUrl] = useState(company.logoUrl || '');
 
   // Parámetros fiscales y laborales
   const [nivelRiesgoIVSS, setNivelRiesgoIVSS] = useState<IvssRiskLevel>(company.nivelRiesgoIVSS);
@@ -40,6 +48,24 @@ export function CompanySettingsModal({
     String(company.tasaInteresPrestacionesBCV)
   );
   const [diasUtilidadesEmpresa, setDiasUtilidadesEmpresa] = useState(String(company.diasUtilidadesEmpresa));
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleLogoFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 2.5 * 1024 * 1024) {
+      alert('La imagen del logo no debe superar los 2.5 MB.');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const res = event.target?.result as string;
+      if (res) {
+        setLogoUrl(res);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -62,6 +88,7 @@ export function CompanySettingsModal({
       tasaBCV_USD: parseFloat(tasaBCV_USD) || 45.5,
       tasaInteresPrestacionesBCV: parseFloat(tasaInteresPrestacionesBCV) || 53.2,
       diasUtilidadesEmpresa: parseInt(diasUtilidadesEmpresa) || 30,
+      logoUrl: logoUrl || undefined,
     };
 
     onSave(updated);
@@ -94,7 +121,96 @@ export function CompanySettingsModal({
           </button>
         </div>
 
+        {onOpenIdentityModule && (
+          <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl flex items-center justify-between gap-3 text-xs">
+            <div className="flex items-center gap-2">
+              <Users className="w-4 h-4 text-blue-600 shrink-0" />
+              <div>
+                <strong className="text-blue-900 block font-semibold">¿Desea cambiar los 3 roles directivos?</strong>
+                <span className="text-blue-700 text-[11px]">
+                  Administrador de Sistemas TI, Gerente de RRHH y Dueño de la Empresa.
+                </span>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={onOpenIdentityModule}
+              className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold shrink-0 flex items-center gap-1.5 transition-colors shadow-xs"
+            >
+              <span>Abrir Módulo</span>
+              <ExternalLink className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
+
         <form onSubmit={handleSubmit} className="space-y-4 text-xs">
+          {/* Logotipo de la Empresa */}
+          <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-3">
+            <div className="flex items-center justify-between">
+              <h3 className="font-bold text-slate-900 text-xs uppercase tracking-wider flex items-center gap-1.5">
+                <ImageIcon className="w-4 h-4 text-blue-600" /> Logotipo Oficial de la Compañía
+              </h3>
+              {logoUrl && (
+                <span className="text-[10px] font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                  Logo Activo
+                </span>
+              )}
+            </div>
+
+            <div className="flex items-center gap-4">
+              <div className="w-20 h-16 bg-white rounded-lg border border-slate-200 p-1 flex items-center justify-center shrink-0 shadow-2xs">
+                {logoUrl ? (
+                  <img
+                    src={logoUrl}
+                    alt="Logo Empresa"
+                    className="max-h-full max-w-full object-contain"
+                  />
+                ) : (
+                  <div className="w-10 h-10 bg-blue-600 rounded flex items-center justify-center font-bold text-white text-lg">
+                    {razonSocial ? razonSocial.charAt(0).toUpperCase() : 'V'}
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-1.5 flex-1">
+                <div className="flex items-center gap-2">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handleLogoFile}
+                    className="hidden"
+                    id="modal-quick-logo"
+                  />
+                  <label
+                    htmlFor="modal-quick-logo"
+                    className="cursor-pointer px-3 py-1.5 bg-slate-800 hover:bg-slate-900 text-white rounded-lg font-semibold flex items-center gap-1.5 text-xs transition-colors"
+                  >
+                    <Upload className="w-3.5 h-3.5" />
+                    <span>Subir Logo</span>
+                  </label>
+
+                  {logoUrl && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setLogoUrl('');
+                        if (fileInputRef.current) fileInputRef.current.value = '';
+                      }}
+                      className="px-2.5 py-1.5 text-rose-600 hover:bg-rose-50 border border-rose-200 rounded-lg font-semibold flex items-center gap-1 text-xs transition-colors"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>Quitar</span>
+                    </button>
+                  )}
+                </div>
+                <p className="text-[11px] text-slate-500">
+                  Aparecerá en el encabezado, recibos de pago y constancias de trabajo.
+                </p>
+              </div>
+            </div>
+          </div>
+
           {/* Identificación de la Empresa */}
           <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-3">
             <h3 className="font-bold text-slate-900 text-xs uppercase tracking-wider flex items-center gap-1.5">

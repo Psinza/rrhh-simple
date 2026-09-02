@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Users,
   FileSpreadsheet,
@@ -19,6 +19,9 @@ import {
   CheckCircle2,
   ArrowRight,
   UserCheck,
+  CloudUpload,
+  Database,
+  Building2,
 } from 'lucide-react';
 import {
   Employee,
@@ -38,6 +41,7 @@ import {
   initialAuditLogs,
 } from './data/initialData';
 import { predefinedUsers } from './data/authUsers';
+import { lightweightDb, DatabaseState } from './services/lightweightDb';
 
 // Subcomponents
 import { LoginScreen } from './components/LoginScreen';
@@ -52,6 +56,9 @@ import { WorkCertificateModal } from './components/WorkCertificateModal';
 import { LegalNotificationsModal } from './components/LegalNotificationsModal';
 import { SecurityAndCloudModal } from './components/SecurityAndCloudModal';
 import { CompanySettingsModal } from './components/CompanySettingsModal';
+import { CompanyIdentityAndUsersModule } from './components/CompanyIdentityAndUsersModule';
+import { DatabaseManagerModal } from './components/DatabaseManagerModal';
+import { RenderDeployModal } from './components/RenderDeployModal';
 
 export default function App() {
   // Authentication & Session
@@ -72,7 +79,7 @@ export default function App() {
 
   // Navigation
   const [activeTab, setActiveTab] = useState<
-    'dashboard' | 'employees' | 'payroll' | 'benefits' | 'government_files'
+    'dashboard' | 'employees' | 'payroll' | 'benefits' | 'government_files' | 'company_identity'
   >('dashboard');
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
@@ -82,6 +89,15 @@ export default function App() {
   const [payroll, setPayroll] = useState<PayrollPeriod>(() =>
     buildInitialPayrollPeriod(initialCompanySettings, initialEmployees)
   );
+  const [users, setUsers] = useState<AppUser[]>(() => {
+    try {
+      const stored = localStorage.getItem('ven_nomina_users');
+      if (stored) return JSON.parse(stored);
+    } catch (e) {
+      console.error(e);
+    }
+    return predefinedUsers;
+  });
   const [notifications, setNotifications] = useState<LegalNotification[]>(
     initialLegalNotifications
   );
@@ -95,6 +111,60 @@ export default function App() {
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [isSecurityOpen, setIsSecurityOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isDatabaseModalOpen, setIsDatabaseModalOpen] = useState(false);
+  const [isRenderModalOpen, setIsRenderModalOpen] = useState(false);
+
+  // Synchronize with Lightweight DB on Mount
+  useEffect(() => {
+    lightweightDb.initDatabase().then((dbState) => {
+      if (dbState) {
+        if (dbState.company) setCompany(dbState.company);
+        if (dbState.employees && dbState.employees.length > 0) setEmployees(dbState.employees);
+        if (dbState.users && dbState.users.length > 0) {
+          setUsers(dbState.users);
+          // Sync current logged in user if match exists
+          if (currentUser) {
+            const updatedMe = dbState.users.find((u) => u.id === currentUser.id);
+            if (updatedMe) setCurrentUser(updatedMe);
+          }
+        }
+      }
+    });
+  }, []);
+
+  // Save changes locally in lightweight DB
+  useEffect(() => {
+    lightweightDb.saveLocal({
+      version: '3.2.0',
+      timestamp: new Date().toISOString(),
+      company,
+      employees,
+      users,
+      payrolls: [payroll],
+      socialBenefits: [],
+      auditLogs,
+    });
+    try {
+      localStorage.setItem('ven_nomina_users', JSON.stringify(users));
+      localStorage.setItem('ven_nomina_company', JSON.stringify(company));
+    } catch (e) {
+      // Ignore quota error
+    }
+  }, [company, employees, users, payroll, auditLogs]);
+
+  const handleDataRestored = (restored: DatabaseState) => {
+    if (restored.company) setCompany(restored.company);
+    if (restored.employees) setEmployees(restored.employees);
+    if (restored.users) {
+      setUsers(restored.users);
+      if (currentUser) {
+        const updatedMe = restored.users.find((u) => u.id === currentUser.id);
+        if (updatedMe) setCurrentUser(updatedMe);
+      }
+    }
+    setLastBackupTime(new Date().toLocaleTimeString('es-VE', { hour: '2-digit', minute: '2-digit' }));
+    addAuditLog('Restauración de Base de Datos', 'Seguridad', 'Base de datos restaurada correctamente');
+  };
 
   const unreadCount = notifications.filter((n) => !n.leida).length;
 
@@ -223,12 +293,13 @@ export default function App() {
     { id: 'payroll', label: 'Cálculo de Nómina', icon: FileSpreadsheet },
     { id: 'government_files', label: 'Parafiscales (IVSS/FAOV)', icon: FileCheck },
     { id: 'benefits', label: 'Prestaciones Sociales', icon: Coins },
+    { id: 'company_identity', label: 'Identidad & Usuarios', icon: Building2 },
     { id: 'audit_reports', label: 'Reportes y Auditoría', icon: ShieldCheck },
   ];
 
   // If no user is authenticated, display the dedicated Login Portal
   if (!currentUser) {
-    return <LoginScreen onLogin={handleLogin} />;
+    return <LoginScreen onLogin={handleLogin} users={users} company={company} />;
   }
 
   return (
@@ -454,6 +525,26 @@ export default function App() {
               title="Configuración de la Empresa"
             >
               <Settings className="w-4 h-4 text-slate-600" />
+            </button>
+
+            {/* Lightweight Database Manager Button */}
+            <button
+              onClick={() => setIsDatabaseModalOpen(true)}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 text-xs font-semibold transition-colors"
+              title="Base de Datos Ligera & Nube (Exportar SQL / JSON / Sincronización)"
+            >
+              <Database className="w-4 h-4 text-emerald-600 shrink-0" />
+              <span className="hidden md:inline">Base de Datos</span>
+            </button>
+
+            {/* Render Deploy Guide Button */}
+            <button
+              onClick={() => setIsRenderModalOpen(true)}
+              className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-xs font-semibold transition-colors"
+              title="Subir a Render (Guía y Parámetros)"
+            >
+              <CloudUpload className="w-4 h-4 text-blue-600 shrink-0" />
+              <span>Subir a Render</span>
             </button>
 
             {/* User Session Profile & Dropdown in Header */}
@@ -712,6 +803,22 @@ export default function App() {
               employees={employees}
             />
           )}
+
+          {activeTab === 'company_identity' && (
+            <CompanyIdentityAndUsersModule
+              company={company}
+              users={users}
+              onSaveCompany={handleSaveCompany}
+              onSaveUsers={(updatedUsers) => {
+                setUsers(updatedUsers);
+                if (currentUser) {
+                  const updatedMe = updatedUsers.find((u) => u.id === currentUser.id);
+                  if (updatedMe) setCurrentUser(updatedMe);
+                }
+                addAuditLog('Actualización de Directivos', 'Seguridad', 'Perfiles y accesos directivos actualizados');
+              }}
+            />
+          )}
         </div>
 
         {/* Footer (Professional Polish) */}
@@ -786,8 +893,28 @@ export default function App() {
           company={company}
           onClose={() => setIsSettingsOpen(false)}
           onSave={handleSaveCompany}
+          onOpenIdentityModule={() => {
+            setIsSettingsOpen(false);
+            setActiveTab('company_identity' as any);
+          }}
         />
       )}
+
+      {isDatabaseModalOpen && (
+        <DatabaseManagerModal
+          isOpen={isDatabaseModalOpen}
+          onClose={() => setIsDatabaseModalOpen(false)}
+          company={company}
+          employees={employees}
+          users={users}
+          onDataRestored={handleDataRestored}
+        />
+      )}
+
+      <RenderDeployModal
+        isOpen={isRenderModalOpen}
+        onClose={() => setIsRenderModalOpen(false)}
+      />
     </div>
   );
 }

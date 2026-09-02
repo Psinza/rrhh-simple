@@ -72,23 +72,32 @@ export function DigitalPaySlipModal({
         <div className="space-y-4 text-xs font-sans text-slate-900 border border-slate-200 p-6 rounded-xl bg-white shadow-xs">
           {/* Header */}
           <div className="border-b-2 border-slate-900 pb-4">
-            <div className="flex items-start justify-between">
-              <div>
-                <h2 className="text-base font-black uppercase tracking-tight text-slate-900">
-                  {company.razonSocial}
-                </h2>
-                <div className="text-[11px] text-slate-600 space-y-0.5 mt-0.5">
-                  <p>
-                    <strong>R.I.F.:</strong> {company.rif} • <strong>N° Patronal IVSS:</strong> {company.numeroPatronalIVSS}
-                  </p>
-                  <p>
-                    <strong>Código FAOV:</strong> {company.codigoAportanteFAOV} • <strong>INCES:</strong> {company.codigoInces}
-                  </p>
-                  <p>{company.direccionFiscal}, {company.ciudad}, Venezuela</p>
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex items-start gap-3">
+                {company.logoUrl && (
+                  <img
+                    src={company.logoUrl}
+                    alt="Logo Empresa"
+                    className="h-12 w-auto max-w-[120px] object-contain shrink-0 rounded border border-slate-200 p-0.5"
+                  />
+                )}
+                <div>
+                  <h2 className="text-base font-black uppercase tracking-tight text-slate-900">
+                    {company.razonSocial}
+                  </h2>
+                  <div className="text-[11px] text-slate-600 space-y-0.5 mt-0.5">
+                    <p>
+                      <strong>R.I.F.:</strong> {company.rif} • <strong>N° Patronal IVSS:</strong> {company.numeroPatronalIVSS}
+                    </p>
+                    <p>
+                      <strong>Código FAOV:</strong> {company.codigoAportanteFAOV} • <strong>INCES:</strong> {company.codigoInces}
+                    </p>
+                    <p>{company.direccionFiscal}, {company.ciudad}, Venezuela</p>
+                  </div>
                 </div>
               </div>
 
-              <div className="text-right">
+              <div className="text-right shrink-0">
                 <span className="inline-block bg-slate-900 text-white font-extrabold text-[11px] px-3 py-1 rounded">
                   RECIBO DE PAGO
                 </span>

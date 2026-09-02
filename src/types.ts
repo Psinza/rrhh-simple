@@ -96,6 +96,7 @@ export interface CompanySettings {
   representanteLegal: string;
   cedulaRepresentante: string;
   cargoRepresentante: string;
+  logoUrl?: string; // URL o DataURL (base64) del logo corporativo de la empresa
 
   // Parámetros Laborales Venezolanos
   nivelRiesgoIVSS: IvssRiskLevel; // 9, 10 o 11%
@@ -246,6 +247,7 @@ export interface AppUser {
   password: string;
   nombre: string;
   cargo: string;
+  telefono?: string;
   rol: AppUserRole;
   rolTitulo: string;
   avatar: string;

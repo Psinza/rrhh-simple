@@ -129,7 +129,16 @@ export function WorkCertificateModal({
         {/* --- OFFICIAL CERTIFICATE PRINTABLE AREA --- */}
         <div className="p-8 sm:p-12 border border-slate-200 rounded-xl bg-white space-y-8 font-serif text-slate-900 leading-relaxed text-sm shadow-xs">
           {/* Official Letterhead */}
-          <div className="text-center border-b-2 border-slate-900 pb-6 space-y-1">
+          <div className="text-center border-b-2 border-slate-900 pb-6 space-y-2">
+            {company.logoUrl && (
+              <div className="flex justify-center mb-2">
+                <img
+                  src={company.logoUrl}
+                  alt="Logo Empresa"
+                  className="h-14 w-auto max-w-[160px] object-contain"
+                />
+              </div>
+            )}
             <h1 className="text-lg font-bold tracking-wider uppercase font-sans text-slate-900">
               {company.razonSocial}
             </h1>
