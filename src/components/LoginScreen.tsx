@@ -45,7 +45,8 @@ export function LoginScreen({ onLogin, users, company }: LoginScreenProps) {
     setErrorMsg(null);
 
     try {
-      const resp = await fetch('/api/login', {
+      const API_BASE = (import.meta as any).env.VITE_API_BASE || '';
+      const resp = await fetch(`${API_BASE}/api/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',

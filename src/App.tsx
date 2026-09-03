@@ -122,7 +122,8 @@ export default function App() {
     // On mount, try to load authoritative session from backend (/api/me)
     (async () => {
       try {
-        const resp = await fetch('/api/me', { credentials: 'include' });
+        const API_BASE = (import.meta as any).env.VITE_API_BASE || '';
+        const resp = await fetch(`${API_BASE}/api/me`, { credentials: 'include' });
         if (resp.ok) {
           const body = await resp.json();
           if (body?.user) {
@@ -201,7 +202,8 @@ export default function App() {
   const handleLogin = async (user: AppUser) => {
     // After login, verify authoritative session from backend (in case cookie is set)
     try {
-      const resp = await fetch('/api/me', { credentials: 'include' });
+      const API_BASE = (import.meta as any).env.VITE_API_BASE || '';
+      const resp = await fetch(`${API_BASE}/api/me`, { credentials: 'include' });
       if (resp.ok) {
         const body = await resp.json();
         if (body?.user) {
@@ -239,7 +241,8 @@ export default function App() {
     }
     // Notify backend to clear cookie
     try {
-      await fetch('/api/logout', { method: 'POST', credentials: 'include' });
+      const API_BASE = (import.meta as any).env.VITE_API_BASE || '';
+      await fetch(`${API_BASE}/api/logout`, { method: 'POST', credentials: 'include' });
     } catch (e) {
       // ignore
     }
