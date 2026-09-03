@@ -13,6 +13,7 @@ import {
   Image as ImageIcon,
 } from 'lucide-react';
 import { CompanySettings, IvssRiskLevel } from '../types';
+import { lightweightDb } from '../services/lightweightDb';
 
 interface CompanySettingsModalProps {
   company: CompanySettings;
@@ -70,6 +71,8 @@ export function CompanySettingsModal({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
+    const newTasa = parseFloat(tasaBCV_USD) || 45.5;
+
     const updated: CompanySettings = {
       ...company,
       razonSocial,
@@ -85,11 +88,20 @@ export function CompanySettingsModal({
       nivelRiesgoIVSS,
       salarioMinimoNacional: parseFloat(salarioMinimoNacional) || 130,
       montoCestaticketNacional: parseFloat(montoCestaticketNacional) || 1820,
-      tasaBCV_USD: parseFloat(tasaBCV_USD) || 45.5,
+      tasaBCV_USD: newTasa,
       tasaInteresPrestacionesBCV: parseFloat(tasaInteresPrestacionesBCV) || 53.2,
       diasUtilidadesEmpresa: parseInt(diasUtilidadesEmpresa) || 30,
       logoUrl: logoUrl || undefined,
     };
+
+    // Si la tasa cambió, guardarla en el histórico local y actualizar la configuración
+    try {
+      if (newTasa !== company.tasaBCV_USD) {
+        lightweightDb.addCurrencyRate(newTasa, 'manual');
+      }
+    } catch (e) {
+      console.error('No se pudo registrar la tasa BCV en el historial local:', e);
+    }
 
     onSave(updated);
     onClose();

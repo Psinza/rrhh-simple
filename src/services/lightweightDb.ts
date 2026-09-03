@@ -13,6 +13,7 @@ export interface DatabaseState {
   payrolls: PayrollPeriod[];
   socialBenefits: any[];
   auditLogs: AuditLog[];
+  currencyRates: { date: string; rate: number; source?: string }[];
 }
 
 export type DbSyncStatus = 'local_active' | 'cloud_connected' | 'syncing' | 'synced' | 'error';
@@ -24,6 +25,40 @@ class LightweightDatabase {
 
   constructor() {
     this.initDatabase();
+  }
+
+  public addCurrencyRate(rate: number, source: string = 'manual', date?: string) {
+    try {
+      const state = this.loadLocal() || {
+        version: '3.2.0',
+        timestamp: new Date().toISOString(),
+        company: initialCompanySettings,
+        employees: initialEmployees,
+        users: predefinedUsers,
+        payrolls: [],
+        socialBenefits: [],
+        auditLogs: [],
+        currencyRates: [],
+      } as DatabaseState;
+
+      const record = { date: date || new Date().toISOString(), rate, source };
+      state.currencyRates = state.currencyRates || [];
+      state.currencyRates.push(record);
+
+      // Also update company current tasaBCV_USD for backward compatibility
+      state.company.tasaBCV_USD = rate;
+
+      this.saveLocal(state);
+      this.syncToCloud(state).catch(() => {});
+    } catch (e) {
+      console.error('Error al agregar tasa BCV:', e);
+    }
+  }
+
+  public getLatestCurrencyRate(): { date: string; rate: number; source?: string } | null {
+    const state = this.loadLocal();
+    if (!state || !state.currencyRates || state.currencyRates.length === 0) return null;
+    return state.currencyRates[state.currencyRates.length - 1];
   }
 
   public subscribeStatus(listener: (status: DbSyncStatus, message?: string) => void) {
@@ -303,6 +338,22 @@ class LightweightDatabase {
       sql += `  ${e.salarioMensualBase}, ${e.cestaticketMensual}, '${e.frecuenciaPago}',\n`;
       sql += `  '${e.banco.replace(/'/g, "''")}', '${e.numeroCuenta.replace(/'/g, "''")}'\n`;
       sql += `);\n`;
+    }
+
+    // Agregar tabla e inserciones de currency_rates al dump si existen registros locales
+    if (state && (state as any).currencyRates && (state as any).currencyRates.length) {
+      sql += `\n-- Tabla: currency_rates (histórico de tasas BCV)\n`;
+      sql += `CREATE TABLE IF NOT EXISTS currency_rates (\n`;
+      sql += `  id VARCHAR(50) PRIMARY KEY,\n`;
+      sql += `  fecha TIMESTAMP NOT NULL,\n`;
+      sql += `  tasa_bcv_usd NUMERIC(12,4) NOT NULL,\n`;
+      sql += `  origen VARCHAR(100)\n`;
+      sql += `);\n\n`;
+      for (const cr of (state as any).currencyRates) {
+        const id = `cr-${cr.date}`.replace(/[^0-9A-Za-z\-]/g, '_');
+        sql += `INSERT INTO currency_rates VALUES ('${id}', '${cr.date}', ${cr.rate}, '${(cr.source || '').replace(/'/g, "''")}');\n`;
+      }
+      sql += `\n`;
     }
 
     return sql;

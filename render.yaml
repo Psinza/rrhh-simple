@@ -17,3 +17,13 @@ services:
       - path: /*
         name: X-Content-Type-Options
         value: nosniff
+
+  - type: web
+    name: rrhh-backend
+    env: docker
+    dockerfilePath: server/Dockerfile
+    branch: psinza-roles-y-permisos
+    plan: free
+    envVars:
+      - key: PORT
+        value: "4000"

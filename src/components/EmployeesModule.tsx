@@ -14,12 +14,13 @@ import {
   X,
   Eye,
 } from 'lucide-react';
-import { Employee, CompanySettings } from '../types';
+import { Employee, CompanySettings, AppUser } from '../types';
 import { formatBs, formatUSD, calculateTenure, calculateIntegralSalary } from '../utils/venezuelaLaborCalculations';
 
 interface EmployeesModuleProps {
   employees: Employee[];
   company: CompanySettings;
+  currentUser?: AppUser | null;
   onOpenDetail: (employee: Employee) => void;
   onGenerateCertificate: (employee: Employee) => void;
   onSaveEmployee: (newOrUpdated: Employee) => void;
@@ -28,6 +29,7 @@ interface EmployeesModuleProps {
 export function EmployeesModule({
   employees,
   company,
+  currentUser,
   onOpenDetail,
   onGenerateCertificate,
   onSaveEmployee,
@@ -167,13 +169,15 @@ export function EmployeesModule({
           </p>
         </div>
 
-        <button
-          onClick={() => setIsNewEmployeeModalOpen(true)}
-          className="flex items-center gap-2 bg-sky-600 hover:bg-sky-500 text-white font-medium text-sm px-4 py-2.5 rounded-xl shadow-sm transition-all"
-        >
-          <UserPlus className="w-4 h-4" />
-          Registrar Colaborador
-        </button>
+        {(currentUser?.rol === 'rrhh' || currentUser?.rol === 'admin_sistema') && (
+          <button
+            onClick={() => setIsNewEmployeeModalOpen(true)}
+            className="flex items-center gap-2 bg-sky-600 hover:bg-sky-500 text-white font-medium text-sm px-4 py-2.5 rounded-xl shadow-sm transition-all"
+          >
+            <UserPlus className="w-4 h-4" />
+            Registrar Colaborador
+          </button>
+        )}
       </div>
 
       {/* Filter and Search Controls */}

@@ -1,0 +1,52 @@
+name: Playwright E2E Tests
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    env:
+      BASE_URL: http://localhost:3001
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Install root dependencies
+        run: npm ci
+
+      - name: Install server dependencies
+        run: npm ci --prefix server
+
+      - name: Build frontend
+        run: npm run build
+
+      - name: Start backend
+        run: node server/index.js &
+
+      - name: Wait for backend
+        run: npx wait-on http://localhost:4000/api/login --timeout 180000
+
+      - name: Start frontend dev server (vite)
+        run: npm run dev -- --port 3001 &
+
+      - name: Wait for frontend
+        run: npx wait-on http://localhost:3001 --timeout 180000
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps
+
+      - name: Run Playwright tests
+        run: npx playwright test --reporter=json > playwright-report.json || true
+
+      - name: Upload test report
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report.json

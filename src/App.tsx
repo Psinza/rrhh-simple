@@ -197,6 +197,10 @@ export default function App() {
 
   const handleLogin = (user: AppUser) => {
     setCurrentUser(user);
+    // Set default landing tab according to role
+    const defaultTab = user.rol === 'admin_sistema' ? 'company_identity' : user.rol === 'rrhh' ? 'employees' : 'payroll';
+    setActiveTab(defaultTab as any);
+    setIsRoleDropdownOpen(false);
     addAuditLog(
       'Inicio de Sesión',
       'Seguridad',
@@ -266,6 +270,17 @@ export default function App() {
     });
   };
 
+  const handleDeleteEmployee = (employeeId: string) => {
+    const toDelete = employees.find((e) => e.id === employeeId);
+    if (!toDelete) return;
+    setEmployees((prev) => prev.filter((e) => e.id !== employeeId));
+    addAuditLog(
+      'Eliminación de Colaborador',
+      'Expedientes',
+      `Registro de ${toDelete.primerNombre} ${toDelete.primerApellido} (${toDelete.cedula}) eliminado por ${currentUser?.nombre || 'Sistema'}`
+    );
+  };
+
   const handleUpdatePayroll = (updatedPayroll: PayrollPeriod) => {
     setPayroll(updatedPayroll);
     addAuditLog('Cálculo de Nómina', 'Nómina', `Recálculo de la nómina: ${updatedPayroll.nombre}`);
@@ -296,6 +311,18 @@ export default function App() {
     { id: 'company_identity', label: 'Identidad & Usuarios', icon: Building2 },
     { id: 'audit_reports', label: 'Reportes y Auditoría', icon: ShieldCheck },
   ];
+
+  // Role-based navigation permissions
+  const roleAllowedTabs: Record<string, string[]> = {
+    admin_sistema: ['dashboard', 'employees', 'payroll', 'government_files', 'benefits', 'company_identity', 'audit_reports'],
+    rrhh: ['dashboard', 'employees', 'payroll', 'benefits'],
+    dueno: ['dashboard', 'payroll', 'government_files'],
+  };
+
+  const getAllowedNavItems = (role?: string) => {
+    const allowedIds = role && roleAllowedTabs[role] ? roleAllowedTabs[role] : ['dashboard'];
+    return navItems.filter((n) => allowedIds.includes(n.id));
+  };
 
   // If no user is authenticated, display the dedicated Login Portal
   if (!currentUser) {
@@ -340,7 +367,7 @@ export default function App() {
 
         {/* Navigation Items */}
         <nav className="flex-1 px-4 py-2 space-y-1 overflow-y-auto">
-          {navItems.map((item) => {
+          {getAllowedNavItems(currentUser?.rol).map((item) => {
             const isAudit = item.id === 'audit_reports';
             const isActive = isAudit ? isSecurityOpen : activeTab === item.id;
             return (
@@ -400,50 +427,53 @@ export default function App() {
             </div>
           </div>
 
-          {/* Quick Access Switcher for the 3 requested roles */}
-          <div className="space-y-1">
-            <div className="text-[9px] text-slate-400 uppercase tracking-wider font-semibold">
-              Cambiar Acceso Rápido:
+          {/* Quick Access Switcher for the 3 requested roles (visible only to Admin) */}
+          {currentUser.rol === 'admin_sistema' && (
+            <div className="space-y-1">
+              <div className="text-[9px] text-slate-400 uppercase tracking-wider font-semibold">
+                Cambiar Acceso Rápido:
+              </div>
+              <div className="grid grid-cols-3 gap-1">
+                <button
+                  type="button"
+                  onClick={() => handleSwitchRole('admin_sistema')}
+                  title="Acceso Administrador del Sistema"
+                  className={`px-1 py-1 rounded text-[10px] font-bold transition-all text-center truncate ${
+                    currentUser.rol === 'admin_sistema'
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-slate-800 hover:bg-slate-700 text-slate-300'
+                  }`}
+                >
+                  Admin
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSwitchRole('rrhh')}
+                  title="Acceso Gerente de RRHH"
+                  className={`px-1 py-1 rounded text-[10px] font-bold transition-all text-center truncate ${
+                    currentUser.rol === 'rrhh'
+                      ? 'bg-emerald-600 text-white'
+                      : 'bg-slate-800 hover:bg-slate-700 text-slate-300'
+                  }`}
+                >
+                  RRHH
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSwitchRole('dueno')}
+                  title="Acceso Dueño de la Empresa"
+                  className={`px-1 py-1 rounded text-[10px] font-bold transition-all text-center truncate ${
+                    currentUser.rol === 'dueno'
+                      ? 'bg-amber-600 text-white'
+                      : 'bg-slate-800 hover:bg-slate-700 text-slate-300'
+                  }`}
+                >
+                  Dueño
+                </button>
+              </div>
             </div>
-            <div className="grid grid-cols-3 gap-1">
-              <button
-                type="button"
-                onClick={() => handleSwitchRole('admin_sistema')}
-                title="Acceso Administrador del Sistema"
-                className={`px-1 py-1 rounded text-[10px] font-bold transition-all text-center truncate ${
-                  currentUser.rol === 'admin_sistema'
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-slate-800 hover:bg-slate-700 text-slate-300'
-                }`}
-              >
-                Admin
-              </button>
-              <button
-                type="button"
-                onClick={() => handleSwitchRole('rrhh')}
-                title="Acceso Gerente de RRHH"
-                className={`px-1 py-1 rounded text-[10px] font-bold transition-all text-center truncate ${
-                  currentUser.rol === 'rrhh'
-                    ? 'bg-emerald-600 text-white'
-                    : 'bg-slate-800 hover:bg-slate-700 text-slate-300'
-                }`}
-              >
-                RRHH
-              </button>
-              <button
-                type="button"
-                onClick={() => handleSwitchRole('dueno')}
-                title="Acceso Dueño de la Empresa"
-                className={`px-1 py-1 rounded text-[10px] font-bold transition-all text-center truncate ${
-                  currentUser.rol === 'dueno'
-                    ? 'bg-amber-600 text-white'
-                    : 'bg-slate-800 hover:bg-slate-700 text-slate-300'
-                }`}
-              >
-                Dueño
-              </button>
-            </div>
-          </div>
+          )}
+          
 
           {/* Logout button */}
           <button
@@ -773,10 +803,11 @@ export default function App() {
             <EmployeesModule
               employees={employees}
               company={company}
-              onOpenDetail={(emp) => setSelectedDetailEmployee(emp)}
-              onGenerateCertificate={(emp) => setSelectedCertEmployee(emp)}
-              onSaveEmployee={handleSaveEmployee}
-            />
+                          currentUser={currentUser}
+                          onOpenDetail={(emp) => setSelectedDetailEmployee(emp)}
+                          onGenerateCertificate={(emp) => setSelectedCertEmployee(emp)}
+                          onSaveEmployee={handleSaveEmployee}
+                        />
           )}
 
           {activeTab === 'payroll' && (
@@ -784,9 +815,11 @@ export default function App() {
               payroll={payroll}
               company={company}
               employees={employees}
-              onOpenSlip={(item) => setSelectedSlip(item)}
-              onUpdatePayroll={handleUpdatePayroll}
-            />
+                          currentUser={currentUser}
+                          onOpenSlip={(item) => setSelectedSlip(item)}
+                          onUpdatePayroll={handleUpdatePayroll}
+                          onApprovePayroll={handleApprovePayrollByOwner}
+                        />
           )}
 
           {activeTab === 'benefits' && (
@@ -808,16 +841,17 @@ export default function App() {
             <CompanyIdentityAndUsersModule
               company={company}
               users={users}
-              onSaveCompany={handleSaveCompany}
-              onSaveUsers={(updatedUsers) => {
-                setUsers(updatedUsers);
-                if (currentUser) {
-                  const updatedMe = updatedUsers.find((u) => u.id === currentUser.id);
-                  if (updatedMe) setCurrentUser(updatedMe);
-                }
-                addAuditLog('Actualización de Directivos', 'Seguridad', 'Perfiles y accesos directivos actualizados');
-              }}
-            />
+                          currentUser={currentUser}
+                          onSaveCompany={handleSaveCompany}
+                          onSaveUsers={(updatedUsers) => {
+                            setUsers(updatedUsers);
+                            if (currentUser) {
+                              const updatedMe = updatedUsers.find((u) => u.id === currentUser.id);
+                              if (updatedMe) setCurrentUser(updatedMe);
+                            }
+                            addAuditLog('Actualización de Directivos', 'Seguridad', 'Perfiles y accesos directivos actualizados');
+                          }}
+                        />
           )}
         </div>
 
@@ -850,13 +884,15 @@ export default function App() {
         <EmployeeDetailModal
           employee={selectedDetailEmployee}
           company={company}
-          onClose={() => setSelectedDetailEmployee(null)}
-          onGenerateCertificate={(emp) => {
-            setSelectedDetailEmployee(null);
-            setSelectedCertEmployee(emp);
-          }}
-          onUpdateEmployee={handleSaveEmployee}
-        />
+                  currentUser={currentUser}
+                  onClose={() => setSelectedDetailEmployee(null)}
+                  onGenerateCertificate={(emp) => {
+                    setSelectedDetailEmployee(null);
+                    setSelectedCertEmployee(emp);
+                  }}
+                  onUpdateEmployee={handleSaveEmployee}
+                  onDeleteEmployee={handleDeleteEmployee}
+                />
       )}
 
       {selectedCertEmployee && (
