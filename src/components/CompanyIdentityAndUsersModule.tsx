@@ -240,7 +240,7 @@ export function CompanyIdentityAndUsersModule({
                   <ImageIcon className="w-4 h-4" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-slate-900 text-sm">Logo de la CompaÃ±Ã­a</h3>
+                  <h3 className="font-bold text-slate-900 text-sm">Logo de la Compañia</h3>
                   <p className="text-[11px] text-slate-400">Marca gráfica para cabeceras y documentos</p>
                 </div>
               </div>
@@ -349,7 +349,7 @@ export function CompanyIdentityAndUsersModule({
                     </button>
                   </div>
                   <span className="text-[10px] text-slate-400 block">
-                    Pegue una URL pÃºblica y directa de la imagen del logotipo.
+                    Pegue una URL pública y directa de la imagen del logotipo.
                   </span>
                 </div>
               )}
@@ -361,7 +361,7 @@ export function CompanyIdentityAndUsersModule({
                   className="w-full flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-xs font-semibold text-rose-600 hover:bg-rose-50 border border-rose-200 transition-colors"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
-                  <span>Eliminar Logo / Restaurar Emblema EstÃ¡ndar</span>
+                  <span>Eliminar Logo / Restaurar Emblema Estándar</span>
                 </button>
               )}
             </div>
@@ -369,16 +369,16 @@ export function CompanyIdentityAndUsersModule({
             {/* Visibility Indicators */}
             <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-xs space-y-2">
               <span className="font-bold text-[11px] text-slate-700 uppercase tracking-wider block">
-                Â¿DÃ³nde se reflejarÃ¡ el logotipo?
+                Â¿DÃ³nde se reflejará¡ el logotipo?
               </span>
               <ul className="space-y-1 text-[11px] text-slate-600">
                 <li className="flex items-center gap-1.5">
                   <Check className="w-3.5 h-3.5 text-blue-600 shrink-0" />
-                  <span>Barra superior y menÃº lateral del sistema</span>
+                  <span>Barra superior y menú lateral del sistema</span>
                 </li>
                 <li className="flex items-center gap-1.5">
                   <Check className="w-3.5 h-3.5 text-blue-600 shrink-0" />
-                  <span>Portal corporativo de inicio de sesiÃ³n</span>
+                  <span>Portal corporativo de inicio de sesión</span>
                 </li>
                 <li className="flex items-center gap-1.5">
                   <Check className="w-3.5 h-3.5 text-blue-600 shrink-0" />
@@ -927,7 +927,7 @@ export function CompanyIdentityAndUsersModule({
               <Building className="w-4 h-4" />
             </div>
             <div>
-              <h3 className="font-bold text-slate-900 text-sm">IdentificaciÃ³n Institucional & Representante Legal</h3>
+              <h3 className="font-bold text-slate-900 text-sm">Identificación Institucional & Representante Legal</h3>
               <p className="text-[11px] text-slate-400">
                 Datos que aparecen en los membretes, recibos de pago y constancias de trabajo oficiales
               </p>
