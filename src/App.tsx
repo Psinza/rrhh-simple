@@ -854,13 +854,14 @@ export default function App() {
         <EmployeeDetailModal
           employee={selectedDetailEmployee}
           company={company}
-          onClose={() => setSelectedDetailEmployee(null)}
-          onGenerateCertificate={(emp) => {
-            setSelectedDetailEmployee(null);
-            setSelectedCertEmployee(emp);
-          }}
-          onUpdateEmployee={handleSaveEmployee}
-        />
+                  currentUser={currentUser}
+                  onClose={() => setSelectedDetailEmployee(null)}
+                  onGenerateCertificate={(emp) => {
+                    setSelectedDetailEmployee(null);
+                    setSelectedCertEmployee(emp);
+                  }}
+                  onUpdateEmployee={handleSaveEmployee}
+                />
       )}
 
       {selectedCertEmployee && (

@@ -28,6 +28,7 @@ import {
 interface EmployeeDetailModalProps {
   employee: Employee;
   company: CompanySettings;
+  currentUser?: import('../types').AppUser | null;
   onClose: () => void;
   onGenerateCertificate: (employee: Employee) => void;
   onUpdateEmployee: (updated: Employee) => void;
@@ -36,6 +37,7 @@ interface EmployeeDetailModalProps {
 export function EmployeeDetailModal({
   employee,
   company,
+  currentUser,
   onClose,
   onGenerateCertificate,
   onUpdateEmployee,
@@ -66,6 +68,12 @@ export function EmployeeDetailModal({
     e.preventDefault();
     if (!eventTitulo) return;
 
+    // Permission check: only RRHH or Admin can add events
+    if (!(currentUser?.rol === 'rrhh' || currentUser?.rol === 'admin_sistema')) {
+      alert('Acceso denegado: Solo el Gerente de RRHH o el Administrador del Sistema pueden registrar eventos en el expediente.');
+      return;
+    }
+
     const newSalaryNum = eventNuevoSalario ? parseFloat(eventNuevoSalario) : undefined;
 
     const newEvent: WorkHistoryEvent = {
@@ -76,7 +84,7 @@ export function EmployeeDetailModal({
       descripcion: eventDescripcion,
       salarioAnterior: newSalaryNum ? employee.salarioMensualBase : undefined,
       nuevoSalario: newSalaryNum,
-      registradoPor: 'Administrador RRHH',
+      registradoPor: currentUser?.nombre || 'RRHH Sistema',
     };
 
     const updatedEmployee: Employee = {
@@ -94,6 +102,12 @@ export function EmployeeDetailModal({
 
   const handleAddAdvance = (e: React.FormEvent) => {
     e.preventDefault();
+    // Permission check: only RRHH or Admin can register advances
+    if (!(currentUser?.rol === 'rrhh' || currentUser?.rol === 'admin_sistema')) {
+      alert('Acceso denegado: Solo el Gerente de RRHH o el Administrador pueden autorizar y registrar anticipos.');
+      return;
+    }
+
     const monto = parseFloat(advanceMonto);
     if (!monto || monto <= 0) return;
 
@@ -114,7 +128,7 @@ export function EmployeeDetailModal({
       monto,
       motivo: advanceMotivo,
       porcentajeDelFondo: pct,
-      aprobadoPor: 'Dirección de Talento Humano',
+      aprobadoPor: currentUser?.nombre || 'Dirección de Talento Humano',
     };
 
     const updatedEmployee: Employee = {
@@ -308,12 +322,22 @@ export function EmployeeDetailModal({
                     Límite máximo por ley: hasta el 75% del fondo acumulado para fines de vivienda, hipoteca, educación o salud.
                   </p>
                 </div>
-                <button
-                  onClick={() => setShowAddAdvance(!showAddAdvance)}
-                  className="flex items-center gap-1 text-xs font-semibold px-3 py-1.5 bg-sky-600 hover:bg-sky-500 text-white rounded-lg transition-all"
-                >
-                  <Plus className="w-3.5 h-3.5" /> Solicitar Anticipo
-                </button>
+                {(currentUser?.rol === 'rrhh' || currentUser?.rol === 'admin_sistema') ? (
+                  <button
+                    onClick={() => setShowAddAdvance(!showAddAdvance)}
+                    className="flex items-center gap-1 text-xs font-semibold px-3 py-1.5 bg-sky-600 hover:bg-sky-500 text-white rounded-lg transition-all"
+                  >
+                    <Plus className="w-3.5 h-3.5" /> Solicitar Anticipo
+                  </button>
+                ) : (
+                  <button
+                    disabled
+                    title="Solo Gerente de RRHH o Administrador puede solicitar/autorizar anticipos"
+                    className="flex items-center gap-1 text-xs font-semibold px-3 py-1.5 bg-slate-200 text-slate-500 rounded-lg"
+                  >
+                    <Plus className="w-3.5 h-3.5" /> Solicitar Anticipo
+                  </button>
+                )}
               </div>
 
               {/* Formulario nuevo anticipo */}
@@ -434,12 +458,22 @@ export function EmployeeDetailModal({
                   Registro fidedigno de ingresos, ajustes de sueldo, ascensos, permisos y amonestaciones.
                 </p>
               </div>
-              <button
-                onClick={() => setShowAddEvent(!showAddEvent)}
-                className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 bg-sky-600 hover:bg-sky-500 text-white rounded-lg transition-all"
-              >
-                <Plus className="w-3.5 h-3.5" /> Registrar Evento
-              </button>
+              {(currentUser?.rol === 'rrhh' || currentUser?.rol === 'admin_sistema') ? (
+                <button
+                  onClick={() => setShowAddEvent(!showAddEvent)}
+                  className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 bg-sky-600 hover:bg-sky-500 text-white rounded-lg transition-all"
+                >
+                  <Plus className="w-3.5 h-3.5" /> Registrar Evento
+                </button>
+              ) : (
+                <button
+                  disabled
+                  title="Solo Gerente de RRHH o Administrador puede registrar eventos en el expediente"
+                  className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 bg-slate-200 text-slate-500 rounded-lg"
+                >
+                  <Plus className="w-3.5 h-3.5" /> Registrar Evento
+                </button>
+              )}
             </div>
 
             {/* Formulario nuevo evento */}
