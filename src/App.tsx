@@ -147,10 +147,7 @@ export default function App() {
       payrolls: [payroll],
       socialBenefits: [],
       auditLogs,
-<<<<<<< HEAD
       currencyRates: lightweightDb.loadLocal()?.currencyRates || [],
-=======
->>>>>>> fb5f23abb61f2ec94b04b0cbd565dcf57c3185af
     });
     try {
       localStorage.setItem('ven_nomina_users', JSON.stringify(users));
@@ -176,7 +173,6 @@ export default function App() {
 
   const unreadCount = notifications.filter((n) => !n.leida).length;
 
-<<<<<<< HEAD
   const getCompleteUserProfile = (user: AppUser): AppUser => {
     const predefinedProfile = predefinedUsers.find((u) => u.id === user.id || u.rol === user.rol);
     return {
@@ -197,8 +193,6 @@ export default function App() {
     return 'dashboard';
   };
 
-=======
->>>>>>> fb5f23abb61f2ec94b04b0cbd565dcf57c3185af
   // Helper to record audit logs
   const addAuditLog = (
     accion: string,
@@ -234,25 +228,15 @@ export default function App() {
       if (resp.ok) {
         const body = await resp.json();
         if (body?.user) {
-<<<<<<< HEAD
           const completeUser = getCompleteUserProfile(body.user);
           setCurrentUser(completeUser);
           localStorage.setItem('ven_nomina_session_user', JSON.stringify(completeUser));
           setActiveTab(getDefaultTabForRole(completeUser.rol));
-=======
-          setCurrentUser(body.user);
-          const defaultTab = body.user.rol === 'admin_sistema' ? 'company_identity' : body.user.rol === 'rrhh' ? 'employees' : 'payroll';
-          setActiveTab(defaultTab as any);
->>>>>>> fb5f23abb61f2ec94b04b0cbd565dcf57c3185af
           setIsRoleDropdownOpen(false);
           addAuditLog(
             'Inicio de Sesión',
             'Seguridad',
-<<<<<<< HEAD
             `Acceso autorizado como ${completeUser.rolTitulo} (${completeUser.nombre}) - ${completeUser.nivelAcceso}`
-=======
-            `Acceso autorizado como ${body.user.rolTitulo} (${body.user.nombre}) - ${body.user.nivelAcceso}`
->>>>>>> fb5f23abb61f2ec94b04b0cbd565dcf57c3185af
           );
           return;
         }
@@ -262,20 +246,12 @@ export default function App() {
     }
 
     // Fallback if /api/me failed
-<<<<<<< HEAD
     const completeUser = getCompleteUserProfile(user);
     setCurrentUser(completeUser);
     localStorage.setItem('ven_nomina_session_user', JSON.stringify(completeUser));
     setActiveTab(getDefaultTabForRole(completeUser.rol));
     setIsRoleDropdownOpen(false);
     addAuditLog('Inicio de Sesión', 'Seguridad', `Acceso autorizado como ${completeUser.rolTitulo} (${completeUser.nombre}) - ${completeUser.nivelAcceso}`);
-=======
-    setCurrentUser(user);
-    const defaultTab = user.rol === 'admin_sistema' ? 'company_identity' : user.rol === 'rrhh' ? 'employees' : 'payroll';
-    setActiveTab(defaultTab as any);
-    setIsRoleDropdownOpen(false);
-    addAuditLog('Inicio de Sesión', 'Seguridad', `Acceso autorizado como ${user.rolTitulo} (${user.nombre}) - ${user.nivelAcceso}`);
->>>>>>> fb5f23abb61f2ec94b04b0cbd565dcf57c3185af
   };
 
   const handleLogout = async () => {
@@ -294,21 +270,14 @@ export default function App() {
       // ignore
     }
     setCurrentUser(null);
-<<<<<<< HEAD
     localStorage.removeItem('ven_nomina_session_user');
     sessionStorage.removeItem('ven_nomina_session_user');
-=======
->>>>>>> fb5f23abb61f2ec94b04b0cbd565dcf57c3185af
     setIsRoleDropdownOpen(false);
   };
 
   const handleSwitchRole = (targetRole: AppUserRole) => {
     const target = predefinedUsers.find((u) => u.rol === targetRole);
-<<<<<<< HEAD
     if (target && currentUser?.rol === 'admin_sistema') {
-=======
-    if (target) {
->>>>>>> fb5f23abb61f2ec94b04b0cbd565dcf57c3185af
       setCurrentUser(target);
       setIsRoleDropdownOpen(false);
       addAuditLog(
@@ -398,13 +367,8 @@ export default function App() {
   // Role-based navigation permissions
   const roleAllowedTabs: Record<string, string[]> = {
     admin_sistema: ['dashboard', 'employees', 'payroll', 'government_files', 'benefits', 'company_identity', 'audit_reports'],
-<<<<<<< HEAD
     rrhh: ['dashboard', 'employees', 'payroll', 'government_files', 'benefits'],
     dueno: ['dashboard', 'employees', 'payroll', 'government_files', 'benefits'],
-=======
-    rrhh: ['dashboard', 'employees', 'payroll', 'benefits'],
-    dueno: ['dashboard', 'payroll', 'government_files'],
->>>>>>> fb5f23abb61f2ec94b04b0cbd565dcf57c3185af
   };
 
   const getAllowedNavItems = (role?: string) => {
@@ -696,7 +660,6 @@ export default function App() {
                     </div>
                   </div>
 
-<<<<<<< HEAD
                   {currentUser.rol === 'admin_sistema' && (
                     <>
                       <div className="px-3 py-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
@@ -729,36 +692,6 @@ export default function App() {
                       })}
                     </>
                   )}
-=======
-                  <div className="px-3 py-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                    Cambiar Perfil de Acceso
-                  </div>
-
-                  {predefinedUsers.map((u) => {
-                    const isSelected = u.rol === currentUser.rol;
-                    return (
-                      <button
-                        key={u.id}
-                        type="button"
-                        onClick={() => handleSwitchRole(u.rol)}
-                        className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-left transition-colors ${
-                          isSelected ? 'bg-blue-50 text-blue-900 font-semibold' : 'hover:bg-slate-50 text-slate-700'
-                        }`}
-                      >
-                        <div className="flex items-center gap-2">
-                          <div className={`w-6 h-6 rounded flex items-center justify-center text-[10px] font-bold ${u.badgeColor}`}>
-                            {u.avatar}
-                          </div>
-                          <div>
-                            <div className="text-xs font-bold">{u.rolTitulo}</div>
-                            <div className="text-[10px] text-slate-400">{u.cargo}</div>
-                          </div>
-                        </div>
-                        {isSelected && <Check className="w-4 h-4 text-blue-600" />}
-                      </button>
-                    );
-                  })}
->>>>>>> fb5f23abb61f2ec94b04b0cbd565dcf57c3185af
 
                   <div className="border-t border-slate-100 pt-1 mt-1">
                     <button

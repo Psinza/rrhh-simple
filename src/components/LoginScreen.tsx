@@ -311,11 +311,7 @@ export function LoginScreen({ onLogin, users, company }: LoginScreenProps) {
                                           data-testid="login-identifier"
                                           value={identifier}
                                           onChange={(e) => setIdentifier(e.target.value)}
-<<<<<<< HEAD
                                           placeholder="Ej. psinza, rrhh, dueno"
-=======
-                                          placeholder="Ej. admin, rrhh, dueno"
->>>>>>> fb5f23abb61f2ec94b04b0cbd565dcf57c3185af
                                           required
                                           className="w-full pl-10 pr-4 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all font-mono"
                                         />

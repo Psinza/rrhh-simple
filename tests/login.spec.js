@@ -29,13 +29,8 @@ test.describe('Login RBAC smoke tests', () => {
 
   test('Dueño login with admin credentials must fail (role mismatch)', async ({ page }) => {
     await page.getByTestId('role-dueno').click();
-<<<<<<< HEAD
     await page.fill('[data-testid="login-identifier"]', 'psinza');
     await page.fill('[data-testid="login-password"]', 'psinza');
-=======
-    await page.fill('[data-testid="login-identifier"]', 'admin');
-    await page.fill('[data-testid="login-password"]', 'admin');
->>>>>>> fb5f23abb61f2ec94b04b0cbd565dcf57c3185af
     const [resp2] = await Promise.all([
       page.waitForResponse((r) => r.url().endsWith('/api/login')),
       page.getByTestId('login-submit').click(),
@@ -48,13 +43,8 @@ test.describe('Login RBAC smoke tests', () => {
 
   test('Admin login should succeed and store admin user', async ({ page }) => {
     await page.getByTestId('role-admin').click();
-<<<<<<< HEAD
     await page.fill('[data-testid="login-identifier"]', 'psinza');
     await page.fill('[data-testid="login-password"]', 'psinza');
-=======
-    await page.fill('[data-testid="login-identifier"]', 'admin');
-    await page.fill('[data-testid="login-password"]', 'admin');
->>>>>>> fb5f23abb61f2ec94b04b0cbd565dcf57c3185af
     const [resp3] = await Promise.all([
       page.waitForResponse((r) => r.url().endsWith('/api/login')),
       page.getByTestId('login-submit').click(),

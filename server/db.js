@@ -48,24 +48,12 @@ async function init() {
     permisos TEXT
   );`);
 
-<<<<<<< HEAD
   const seedUsers = [
       {
         id: 'user-admin',
         username: 'psinza',
         email: 'petersinza@gmail.com',
         password: 'psinza',
-=======
-  const existing = await allAsync('SELECT COUNT(1) as c FROM users');
-  if (existing && existing[0] && existing[0].c === 0) {
-    // Seed default users
-    const seedUsers = [
-      {
-        id: 'user-admin',
-        username: 'admin',
-        email: 'petersinza@gmail.com',
-        password: 'admin',
->>>>>>> fb5f23abb61f2ec94b04b0cbd565dcf57c3185af
         nombre: 'Ing. Pedro Sinza',
         cargo: 'Administrador de Sistemas & TI',
         rol: 'admin_sistema',
@@ -81,10 +69,7 @@ async function init() {
           'Configuración de Empresa y Tasas BCV',
           'Monitoreo de Integridad del Sistema',
           'Acceso Global a Todos los Módulos',
-<<<<<<< HEAD
           'Dashboard de RRHH y Dashboard de Dueño',
-=======
->>>>>>> fb5f23abb61f2ec94b04b0cbd565dcf57c3185af
         ]),
       },
       {
@@ -114,13 +99,8 @@ async function init() {
         username: 'dueno',
         email: 'dueno@talentove.com',
         password: 'dueno',
-<<<<<<< HEAD
         nombre: 'Dueño de la Empresa',
         cargo: 'Dirección General & Propietario',
-=======
-        nombre: 'Dr. Alejandro Ramos',
-        cargo: 'Director General & Propietario',
->>>>>>> fb5f23abb61f2ec94b04b0cbd565dcf57c3185af
         rol: 'dueno',
         rolTitulo: 'Dueño / Propietario',
         avatar: 'AR',
@@ -129,10 +109,7 @@ async function init() {
         descripcionAcceso: 'Visión ejecutiva de costos laborales (Bs. y USD BCV), aprobación de nómina, supervisión de pasivos laborales acumulados y reportes financieros.',
         permisos: JSON.stringify([
           'Dashboard Ejecutivo con Costos BCV (USD / Bs.)',
-<<<<<<< HEAD
           'Visualización del módulo de RRHH',
-=======
->>>>>>> fb5f23abb61f2ec94b04b0cbd565dcf57c3185af
           'Aprobación y Autorización de Desembolso de Nómina',
           'Supervisión de Pasivos Laborales y Fideicomiso',
           'Auditoría Financiera de Parafiscales (IVSS/FAOV/INCES)',
@@ -141,7 +118,6 @@ async function init() {
       },
     ];
 
-<<<<<<< HEAD
   for (const u of seedUsers) {
     const hash = await bcrypt.hash(u.password, 10);
     await runAsync(
@@ -176,29 +152,6 @@ async function init() {
         u.permisos,
       ]
     );
-=======
-    for (const u of seedUsers) {
-      const hash = await bcrypt.hash(u.password, 10);
-      await runAsync(
-        `INSERT INTO users (id, username, email, password_hash, nombre, cargo, rol, rolTitulo, avatar, badgeColor, nivelAcceso, descripcionAcceso, permisos) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-        [
-          u.id,
-          u.username,
-          u.email,
-          hash,
-          u.nombre,
-          u.cargo,
-          u.rol,
-          u.rolTitulo,
-          u.avatar,
-          u.badgeColor,
-          u.nivelAcceso,
-          u.descripcionAcceso,
-          u.permisos,
-        ]
-      );
-    }
->>>>>>> fb5f23abb61f2ec94b04b0cbd565dcf57c3185af
   }
 }
 

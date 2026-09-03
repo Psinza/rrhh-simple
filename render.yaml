@@ -22,9 +22,5 @@ services:
       - type: rewrite
         source: /*
         destination: /index.html
-<<<<<<< HEAD
     healthCheckPath: /health
-=======
-    healthCheckPath: /api/me
->>>>>>> fb5f23abb61f2ec94b04b0cbd565dcf57c3185af
     pullRequestPreviewsEnabled: false

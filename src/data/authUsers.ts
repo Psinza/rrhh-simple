@@ -3,15 +3,9 @@ import { AppUser } from '../types';
 export const predefinedUsers: AppUser[] = [
   {
     id: 'user-admin',
-<<<<<<< HEAD
     username: 'psinza',
     email: 'petersinza@gmail.com',
     password: 'psinza',
-=======
-    username: 'admin',
-    email: 'petersinza@gmail.com',
-    password: 'admin',
->>>>>>> fb5f23abb61f2ec94b04b0cbd565dcf57c3185af
     nombre: 'Ing. Pedro Sinza',
     cargo: 'Administrador de Sistemas & TI',
     telefono: '04127310361',
@@ -28,10 +22,7 @@ export const predefinedUsers: AppUser[] = [
       'Configuración de Empresa y Tasas BCV',
       'Monitoreo de Integridad del Sistema',
       'Acceso Global a Todos los Módulos',
-<<<<<<< HEAD
       'Dashboard de RRHH y Dashboard de Dueño',
-=======
->>>>>>> fb5f23abb61f2ec94b04b0cbd565dcf57c3185af
     ],
   },
   {
@@ -61,13 +52,8 @@ export const predefinedUsers: AppUser[] = [
     username: 'dueno',
     email: 'dueno@talentove.com',
     password: 'dueno',
-<<<<<<< HEAD
     nombre: 'Dueño de la Empresa',
     cargo: 'Dirección General & Propietario',
-=======
-    nombre: 'Dr. Alejandro Ramos',
-    cargo: 'Director General & Propietario',
->>>>>>> fb5f23abb61f2ec94b04b0cbd565dcf57c3185af
     rol: 'dueno',
     rolTitulo: 'Dueño / Propietario',
     avatar: 'AR',
@@ -76,10 +62,7 @@ export const predefinedUsers: AppUser[] = [
     descripcionAcceso: 'Visión ejecutiva de costos laborales (Bs. y USD BCV), aprobación de nómina, supervisión de pasivos laborales acumulados y reportes financieros.',
     permisos: [
       'Dashboard Ejecutivo con Costos BCV (USD / Bs.)',
-<<<<<<< HEAD
       'Visualización del módulo de RRHH',
-=======
->>>>>>> fb5f23abb61f2ec94b04b0cbd565dcf57c3185af
       'Aprobación y Autorización de Desembolso de Nómina',
       'Supervisión de Pasivos Laborales y Fideicomiso',
       'Auditoría Financiera de Parafiscales (IVSS/FAOV/INCES)',
