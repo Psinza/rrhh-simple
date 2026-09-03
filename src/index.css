@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+@source "../index.html";
+@source "./**/*.{ts,tsx,js,jsx}";
+
 @layer utilities {
   @media print {
     .no-print {

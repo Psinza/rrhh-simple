@@ -221,38 +221,35 @@ export default function App() {
     setAuditLogs((prev) => [newLog, ...prev]);
   };
 
-  const handleLogin = async (user: AppUser) => {
-    // After login, verify authoritative session from backend (in case cookie is set)
-    try {
-      const API_BASE = getApiBase();
-      const resp = await fetch(`${API_BASE}/api/me`, { credentials: 'include' });
-      if (resp.ok) {
-        const body = await resp.json();
-        if (body?.user) {
-          const completeUser = getCompleteUserProfile(body.user);
-          setCurrentUser(completeUser);
-          localStorage.setItem('ven_nomina_session_user', JSON.stringify(completeUser));
-          setActiveTab(getDefaultTabForRole(completeUser.rol));
-          setIsRoleDropdownOpen(false);
-          addAuditLog(
-            'Inicio de Sesión',
-            'Seguridad',
-            `Acceso autorizado como ${completeUser.rolTitulo} (${completeUser.nombre}) - ${completeUser.nivelAcceso}`
-          );
-          return;
-        }
-      }
-    } catch (e) {
-      // fallback to provided user
-    }
-
-    // Fallback if /api/me failed
+  const handleLogin = (user: AppUser) => {
+    // Usar el usuario local de forma inmediata (sin esperar backend)
     const completeUser = getCompleteUserProfile(user);
     setCurrentUser(completeUser);
     localStorage.setItem('ven_nomina_session_user', JSON.stringify(completeUser));
     setActiveTab(getDefaultTabForRole(completeUser.rol));
     setIsRoleDropdownOpen(false);
-    addAuditLog('Inicio de Sesión', 'Seguridad', `Acceso autorizado como ${completeUser.rolTitulo} (${completeUser.nombre}) - ${completeUser.nivelAcceso}`);
+    addAuditLog(
+      'Inicio de Sesión',
+      'Seguridad',
+      `Acceso autorizado como ${completeUser.rolTitulo} (${completeUser.nombre}) - ${completeUser.nivelAcceso}`
+    );
+    // Intentar /api/me en segundo plano (no bloqueante)
+    (async () => {
+      try {
+        const API_BASE = getApiBase();
+        const resp = await fetch(`${API_BASE}/api/me`, { credentials: 'include' });
+        if (resp.ok) {
+          const body = await resp.json();
+          if (body?.user) {
+            const serverUser = getCompleteUserProfile(body.user);
+            setCurrentUser(serverUser);
+            localStorage.setItem('ven_nomina_session_user', JSON.stringify(serverUser));
+          }
+        }
+      } catch {
+        // ignorar — el usuario local ya está activo
+      }
+    })();
   };
 
   const handleLogout = async () => {
@@ -267,7 +264,7 @@ export default function App() {
     try {
       const API_BASE = getApiBase();
       await fetch(`${API_BASE}/api/logout`, { method: 'POST', credentials: 'include' });
-    } catch (e) {
+    } catch {
       // ignore
     }
     setCurrentUser(null);

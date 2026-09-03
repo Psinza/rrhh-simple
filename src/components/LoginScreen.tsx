@@ -38,44 +38,54 @@ export function LoginScreen({ onLogin, users, company }: LoginScreenProps) {
   const handleSelectRole = (role: 'admin_sistema' | 'rrhh' | 'dueno') => {
     setSelectedRole(role);
     setErrorMsg(null);
-    // Do not autofill credentials for security - require manual entry
   };
 
   const handleManualLogin = async (e: FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
 
+    // ── Validación local primaria (siempre disponible, sin backend) ──
+    const trimId = identifier.trim().toLowerCase();
+    const localUser = activeUsers.find(
+      (u) =>
+        (u.username?.toLowerCase() === trimId || u.email?.toLowerCase() === trimId) &&
+        u.password === password
+    );
+
+    if (!localUser) {
+      setErrorMsg('Usuario o contraseña incorrectos.');
+      return;
+    }
+
+    // Verificar que el rol seleccionado coincida con el perfil del usuario
+    if (localUser.rol !== selectedRole) {
+      setErrorMsg(
+        `Las credenciales corresponden al perfil "${localUser.rolTitulo}". ` +
+        `Por favor seleccione ese perfil en las tarjetas de arriba.`
+      );
+      return;
+    }
+
+    // Login local exitoso — notificar a App.tsx inmediatamente
+    onLogin(localUser);
+
+    // ── Intentar también el backend de forma secundaria y no bloqueante ──
     try {
       const API_BASE = getApiBase();
-      const resp = await fetch(`${API_BASE}/api/login`, {
+      fetch(`${API_BASE}/api/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({ identifier, password, selectedRole }),
-      });
-      if (resp.status === 200) {
-        const body = await resp.json();
-        const user = body.user;
-        if (user) {
-          // Do not store authoritative session client-side; backend cookie is the source of truth
-          onLogin(user);
-        } else {
-          setErrorMsg('Respuesta inválida del servidor.');
-        }
-      } else {
-        const err = await resp.json().catch(() => ({}));
-        setErrorMsg(err.error || 'Credenciales inválidas o rol no coincide.');
-      }
-    } catch (e) {
-      console.error(e);
-      setErrorMsg('No se pudo conectar con /api/login. Verifique que Render esté ejecutando el servicio Node y que no exista VITE_API_BASE apuntando a localhost.');
+      }).catch(() => {/* ignorar si el backend no está disponible */});
+    } catch {
+      // Ignorar — el login local ya fue exitoso
     }
   };
 
   const handleDirectQuickLogin = (role: 'admin_sistema' | 'rrhh' | 'dueno') => {
     const targetUser = activeUsers.find((u) => u.rol === role);
     if (targetUser) {
-      // Quick-login is only for demo; do not persist session client-side in production
       onLogin(targetUser);
     }
   };
@@ -85,6 +95,10 @@ export function LoginScreen({ onLogin, users, company }: LoginScreenProps) {
   const adminRoleUser = activeUsers.find((u) => u.rol === 'admin_sistema');
   const rrhhRoleUser = activeUsers.find((u) => u.rol === 'rrhh');
   const duenoRoleUser = activeUsers.find((u) => u.rol === 'dueno');
+
+  // Silence unused variable warning
+  void handleDirectQuickLogin;
+  void rememberMe;
 
   return (
     <div className="min-h-screen w-full bg-slate-900 text-slate-100 flex flex-col justify-between selection:bg-blue-600 selection:text-white font-sans">
@@ -155,14 +169,14 @@ export function LoginScreen({ onLogin, users, company }: LoginScreenProps) {
               {/* 1. Administrador del Sistema */}
               <button
                 type="button"
-                              data-testid="role-admin"
-                              onClick={() => handleSelectRole('admin_sistema')}
-                              className={`p-3.5 rounded-xl border text-left transition-all relative ${
-                                selectedRole === 'admin_sistema'
-                                  ? 'bg-blue-950/70 border-blue-500 ring-2 ring-blue-500/30 shadow-md'
-                                  : 'bg-slate-900/60 border-slate-800 hover:border-slate-700 text-slate-300'
-                              }`}
-                            >
+                data-testid="role-admin"
+                onClick={() => handleSelectRole('admin_sistema')}
+                className={`p-3.5 rounded-xl border text-left transition-all relative ${
+                  selectedRole === 'admin_sistema'
+                    ? 'bg-blue-950/70 border-blue-500 ring-2 ring-blue-500/30 shadow-md'
+                    : 'bg-slate-900/60 border-slate-800 hover:border-slate-700 text-slate-300'
+                }`}
+              >
                 <div className="flex items-center justify-between mb-2">
                   <div className="w-8 h-8 rounded-lg bg-blue-500/20 text-blue-400 flex items-center justify-center">
                     <Shield className="w-4 h-4" />
@@ -185,14 +199,14 @@ export function LoginScreen({ onLogin, users, company }: LoginScreenProps) {
               {/* 2. Acceso de RRHH */}
               <button
                 type="button"
-                              data-testid="role-rrhh"
-                              onClick={() => handleSelectRole('rrhh')}
-                              className={`p-3.5 rounded-xl border text-left transition-all relative ${
-                                selectedRole === 'rrhh'
-                                  ? 'bg-emerald-950/70 border-emerald-500 ring-2 ring-emerald-500/30 shadow-md'
-                                  : 'bg-slate-900/60 border-slate-800 hover:border-slate-700 text-slate-300'
-                              }`}
-                            >
+                data-testid="role-rrhh"
+                onClick={() => handleSelectRole('rrhh')}
+                className={`p-3.5 rounded-xl border text-left transition-all relative ${
+                  selectedRole === 'rrhh'
+                    ? 'bg-emerald-950/70 border-emerald-500 ring-2 ring-emerald-500/30 shadow-md'
+                    : 'bg-slate-900/60 border-slate-800 hover:border-slate-700 text-slate-300'
+                }`}
+              >
                 <div className="flex items-center justify-between mb-2">
                   <div className="w-8 h-8 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
                     <Briefcase className="w-4 h-4" />
@@ -215,14 +229,14 @@ export function LoginScreen({ onLogin, users, company }: LoginScreenProps) {
               {/* 3. Acceso del Dueño */}
               <button
                 type="button"
-                              data-testid="role-dueno"
-                              onClick={() => handleSelectRole('dueno')}
-                              className={`p-3.5 rounded-xl border text-left transition-all relative ${
-                                selectedRole === 'dueno'
-                                  ? 'bg-amber-950/70 border-amber-500 ring-2 ring-amber-500/30 shadow-md'
-                                  : 'bg-slate-900/60 border-slate-800 hover:border-slate-700 text-slate-300'
-                              }`}
-                            >
+                data-testid="role-dueno"
+                onClick={() => handleSelectRole('dueno')}
+                className={`p-3.5 rounded-xl border text-left transition-all relative ${
+                  selectedRole === 'dueno'
+                    ? 'bg-amber-950/70 border-amber-500 ring-2 ring-amber-500/30 shadow-md'
+                    : 'bg-slate-900/60 border-slate-800 hover:border-slate-700 text-slate-300'
+                }`}
+              >
                 <div className="flex items-center justify-between mb-2">
                   <div className="w-8 h-8 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center">
                     <Crown className="w-4 h-4" />
@@ -235,7 +249,7 @@ export function LoginScreen({ onLogin, users, company }: LoginScreenProps) {
                 </div>
                 <div className="font-bold text-white text-sm">Dueño de la Empresa</div>
                 <div className="text-[11px] text-amber-300 font-semibold truncate">
-                  {duenoRoleUser?.nombre || 'Dr. Alejandro Ramos'}
+                  {duenoRoleUser?.nombre || 'Jacobo'}
                 </div>
                 <div className="text-[10px] text-slate-400 mt-1 line-clamp-2">
                   {duenoRoleUser?.cargo || 'Dirección General, aprobación de nómina y costos BCV.'}
@@ -246,7 +260,7 @@ export function LoginScreen({ onLogin, users, company }: LoginScreenProps) {
 
           {/* Form & Profile Details Grid */}
           <div className="p-6 sm:p-8 grid grid-cols-1 lg:grid-cols-12 gap-8 items-center bg-slate-900/90">
-            {/* Left Column: Role Details & Fast Login */}
+            {/* Left Column: Role Details */}
             <div className="lg:col-span-5 space-y-4 border-b lg:border-b-0 lg:border-r border-slate-800 pb-6 lg:pb-0 lg:pr-8">
               <div className="flex items-center gap-3">
                 <div className="w-12 h-12 rounded-xl bg-slate-800 border border-slate-700 flex items-center justify-center font-bold text-lg text-white">
@@ -277,8 +291,9 @@ export function LoginScreen({ onLogin, users, company }: LoginScreenProps) {
                 </ul>
               </div>
 
-              {/* Ingrese sus credenciales manualmente para autenticarse */}
-              <div className="w-full text-sm text-slate-400">Ingrese su usuario y contraseña para acceder al módulo correspondiente según su rol.</div>
+              <div className="w-full text-sm text-slate-400">
+                Ingrese su usuario y contraseña para acceder al módulo correspondiente según su rol.
+              </div>
             </div>
 
             {/* Right Column: Standard Authentication Form */}
@@ -289,12 +304,12 @@ export function LoginScreen({ onLogin, users, company }: LoginScreenProps) {
                   Credenciales de Acceso
                 </h4>
                 <p className="text-xs text-slate-400 mt-0.5">
-                  Ingrese con las credenciales asignadas o utilice el usuario preconfigurado.
+                  Ingrese las credenciales asignadas a su perfil seleccionado.
                 </p>
               </div>
 
               {errorMsg && (
-                              <div data-testid="login-error" className="p-3 rounded-xl bg-rose-950/60 border border-rose-800/80 text-rose-300 text-xs flex items-center gap-2">
+                <div data-testid="login-error" className="p-3 rounded-xl bg-rose-950/60 border border-rose-800/80 text-rose-300 text-xs flex items-center gap-2">
                   <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
                   <span>{errorMsg}</span>
                 </div>
@@ -309,13 +324,14 @@ export function LoginScreen({ onLogin, users, company }: LoginScreenProps) {
                     <User className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
                     <input
                       type="text"
-                                          data-testid="login-identifier"
-                                          value={identifier}
-                                          onChange={(e) => setIdentifier(e.target.value)}
-                                          placeholder="Ej. psinza, rrhh, dueno"
-                                          required
-                                          className="w-full pl-10 pr-4 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all font-mono"
-                                        />
+                      data-testid="login-identifier"
+                      value={identifier}
+                      onChange={(e) => setIdentifier(e.target.value)}
+                      placeholder="Ej. psinza, rrhh, dueno"
+                      required
+                      autoComplete="username"
+                      className="w-full pl-10 pr-4 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all font-mono"
+                    />
                   </div>
                 </div>
 
@@ -327,13 +343,14 @@ export function LoginScreen({ onLogin, users, company }: LoginScreenProps) {
                     <Lock className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
                     <input
                       type={showPassword ? 'text' : 'password'}
-                                          data-testid="login-password"
-                                          value={password}
-                                          onChange={(e) => setPassword(e.target.value)}
-                                          placeholder="Contraseña"
-                                          required
-                                          className="w-full pl-10 pr-10 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all font-mono"
-                                        />
+                      data-testid="login-password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="Contraseña"
+                      required
+                      autoComplete="current-password"
+                      className="w-full pl-10 pr-10 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all font-mono"
+                    />
                     <button
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
@@ -362,12 +379,20 @@ export function LoginScreen({ onLogin, users, company }: LoginScreenProps) {
 
                 <button
                   type="submit"
-                                  data-testid="login-submit"
-                                  className="w-full mt-2 py-3 px-4 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg shadow-blue-600/20 active:scale-[0.99] transition-all"
-                                >
-                                  <span>Iniciar Sesión como {currentUserConfig.rolTitulo}</span>
-                                  <ArrowRight className="w-4 h-4" />
-                                </button>
+                  data-testid="login-submit"
+                  className="w-full mt-2 py-3 px-4 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg shadow-blue-600/20 active:scale-[0.99] transition-all"
+                >
+                  <span>Iniciar Sesión como {currentUserConfig.rolTitulo}</span>
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+
+                {/* Hint de credenciales */}
+                <div className="mt-2 p-3 rounded-xl bg-slate-800/60 border border-slate-700/60 text-[11px] text-slate-400 space-y-1">
+                  <p className="font-semibold text-slate-300 mb-1">Credenciales de prueba:</p>
+                  <p><span className="text-blue-300 font-mono">psinza / psinza</span> → Administrador (todos los módulos)</p>
+                  <p><span className="text-emerald-300 font-mono">rrhh / rrhh</span> → Módulo RRHH</p>
+                  <p><span className="text-amber-300 font-mono">dueno / dueno</span> → Dashboard Ejecutivo</p>
+                </div>
               </div>
             </form>
           </div>
