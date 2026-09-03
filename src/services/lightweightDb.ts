@@ -340,6 +340,22 @@ class LightweightDatabase {
       sql += `);\n`;
     }
 
+    // Agregar tabla e inserciones de currency_rates al dump si existen registros locales
+    if (state && (state as any).currencyRates && (state as any).currencyRates.length) {
+      sql += `\n-- Tabla: currency_rates (histórico de tasas BCV)\n`;
+      sql += `CREATE TABLE IF NOT EXISTS currency_rates (\n`;
+      sql += `  id VARCHAR(50) PRIMARY KEY,\n`;
+      sql += `  fecha TIMESTAMP NOT NULL,\n`;
+      sql += `  tasa_bcv_usd NUMERIC(12,4) NOT NULL,\n`;
+      sql += `  origen VARCHAR(100)\n`;
+      sql += `);\n\n`;
+      for (const cr of (state as any).currencyRates) {
+        const id = `cr-${cr.date}`.replace(/[^0-9A-Za-z\-]/g, '_');
+        sql += `INSERT INTO currency_rates VALUES ('${id}', '${cr.date}', ${cr.rate}, '${(cr.source || '').replace(/'/g, "''")}');\n`;
+      }
+      sql += `\n`;
+    }
+
     return sql;
   }
 

@@ -28,6 +28,7 @@ import { CompanySettings, AppUser } from '../types';
 interface CompanyIdentityAndUsersModuleProps {
   company: CompanySettings;
   users: AppUser[];
+  currentUser?: AppUser | null;
   onSaveCompany: (updatedCompany: CompanySettings) => void;
   onSaveUsers: (updatedUsers: AppUser[]) => void;
 }
@@ -35,6 +36,7 @@ interface CompanyIdentityAndUsersModuleProps {
 export function CompanyIdentityAndUsersModule({
   company,
   users,
+  currentUser,
   onSaveCompany,
   onSaveUsers,
 }: CompanyIdentityAndUsersModuleProps) {
@@ -217,7 +219,9 @@ export function CompanyIdentityAndUsersModule({
         <div className="flex items-center gap-2 shrink-0">
           <button
             onClick={() => handleSaveAllUsers()}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-sm transition-all"
+            disabled={!(currentUser?.rol === 'admin_sistema')}
+            title={!(currentUser?.rol === 'admin_sistema') ? 'Solo el Administrador del Sistema puede modificar usuarios y roles' : undefined}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold shadow-sm transition-all ${currentUser?.rol === 'admin_sistema' ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-slate-200 text-slate-500 cursor-not-allowed'}`}
           >
             <Save className="w-4 h-4" />
             <span>Guardar Todos los Cambios</span>
@@ -596,21 +600,25 @@ export function CompanyIdentityAndUsersModule({
                     <label className="block font-semibold text-slate-700 mb-1">
                       Contraseña de Acceso
                     </label>
-                    <div className="relative">
-                      <input
-                        type={showAdminPass ? 'text' : 'password'}
-                        value={adminUser.password}
-                        onChange={(e) => setAdminUser((prev) => ({ ...prev, password: e.target.value }))}
-                        className="w-full p-2 pr-9 bg-white border border-slate-300 rounded-lg font-mono"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowAdminPass(!showAdminPass)}
-                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                      >
-                        {showAdminPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                      </button>
-                    </div>
+                    {currentUser?.rol === 'admin_sistema' ? (
+                      <div className="relative">
+                        <input
+                          type={showAdminPass ? 'text' : 'password'}
+                          value={adminUser.password}
+                          onChange={(e) => setAdminUser((prev) => ({ ...prev, password: e.target.value }))}
+                          className="w-full p-2 pr-9 bg-white border border-slate-300 rounded-lg font-mono"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowAdminPass(!showAdminPass)}
+                          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                        >
+                          {showAdminPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="p-2 bg-slate-100 rounded-lg text-slate-600">****** (Acceso restringido)</div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -730,19 +738,25 @@ export function CompanyIdentityAndUsersModule({
                       Contraseña de Acceso
                     </label>
                     <div className="relative">
-                      <input
-                        type={showRrhhPass ? 'text' : 'password'}
-                        value={rrhhUser.password}
-                        onChange={(e) => setRrhhUser((prev) => ({ ...prev, password: e.target.value }))}
-                        className="w-full p-2 pr-9 bg-white border border-slate-300 rounded-lg font-mono"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowRrhhPass(!showRrhhPass)}
-                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                      >
-                        {showRrhhPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                      </button>
+                      {currentUser?.rol === 'admin_sistema' ? (
+                        <>
+                          <input
+                            type={showRrhhPass ? 'text' : 'password'}
+                            value={rrhhUser.password}
+                            onChange={(e) => setRrhhUser((prev) => ({ ...prev, password: e.target.value }))}
+                            className="w-full p-2 pr-9 bg-white border border-slate-300 rounded-lg font-mono"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowRrhhPass(!showRrhhPass)}
+                            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                          >
+                            {showRrhhPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                          </button>
+                        </>
+                      ) : (
+                        <div className="p-2 bg-slate-100 rounded-lg text-slate-600">****** (Acceso restringido)</div>
+                      )
                     </div>
                   </div>
                 </div>
@@ -863,19 +877,25 @@ export function CompanyIdentityAndUsersModule({
                       Contraseña de Acceso
                     </label>
                     <div className="relative">
-                      <input
-                        type={showDuenoPass ? 'text' : 'password'}
-                        value={duenoUser.password}
-                        onChange={(e) => setDuenoUser((prev) => ({ ...prev, password: e.target.value }))}
-                        className="w-full p-2 pr-9 bg-white border border-slate-300 rounded-lg font-mono"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowDuenoPass(!showDuenoPass)}
-                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                      >
-                        {showDuenoPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                      </button>
+                      {currentUser?.rol === 'admin_sistema' ? (
+                        <>
+                          <input
+                            type={showDuenoPass ? 'text' : 'password'}
+                            value={duenoUser.password}
+                            onChange={(e) => setDuenoUser((prev) => ({ ...prev, password: e.target.value }))}
+                            className="w-full p-2 pr-9 bg-white border border-slate-300 rounded-lg font-mono"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowDuenoPass(!showDuenoPass)}
+                            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                          >
+                            {showDuenoPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                          </button>
+                        </>
+                      ) : (
+                        <div className="p-2 bg-slate-100 rounded-lg text-slate-600">****** (Acceso restringido)</div>
+                      )
                     </div>
                   </div>
                 </div>

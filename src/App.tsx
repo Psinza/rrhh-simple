@@ -773,10 +773,11 @@ export default function App() {
             <EmployeesModule
               employees={employees}
               company={company}
-              onOpenDetail={(emp) => setSelectedDetailEmployee(emp)}
-              onGenerateCertificate={(emp) => setSelectedCertEmployee(emp)}
-              onSaveEmployee={handleSaveEmployee}
-            />
+                          currentUser={currentUser}
+                          onOpenDetail={(emp) => setSelectedDetailEmployee(emp)}
+                          onGenerateCertificate={(emp) => setSelectedCertEmployee(emp)}
+                          onSaveEmployee={handleSaveEmployee}
+                        />
           )}
 
           {activeTab === 'payroll' && (
@@ -784,9 +785,11 @@ export default function App() {
               payroll={payroll}
               company={company}
               employees={employees}
-              onOpenSlip={(item) => setSelectedSlip(item)}
-              onUpdatePayroll={handleUpdatePayroll}
-            />
+                          currentUser={currentUser}
+                          onOpenSlip={(item) => setSelectedSlip(item)}
+                          onUpdatePayroll={handleUpdatePayroll}
+                          onApprovePayroll={handleApprovePayrollByOwner}
+                        />
           )}
 
           {activeTab === 'benefits' && (
@@ -808,16 +811,17 @@ export default function App() {
             <CompanyIdentityAndUsersModule
               company={company}
               users={users}
-              onSaveCompany={handleSaveCompany}
-              onSaveUsers={(updatedUsers) => {
-                setUsers(updatedUsers);
-                if (currentUser) {
-                  const updatedMe = updatedUsers.find((u) => u.id === currentUser.id);
-                  if (updatedMe) setCurrentUser(updatedMe);
-                }
-                addAuditLog('Actualización de Directivos', 'Seguridad', 'Perfiles y accesos directivos actualizados');
-              }}
-            />
+                          currentUser={currentUser}
+                          onSaveCompany={handleSaveCompany}
+                          onSaveUsers={(updatedUsers) => {
+                            setUsers(updatedUsers);
+                            if (currentUser) {
+                              const updatedMe = updatedUsers.find((u) => u.id === currentUser.id);
+                              if (updatedMe) setCurrentUser(updatedMe);
+                            }
+                            addAuditLog('Actualización de Directivos', 'Seguridad', 'Perfiles y accesos directivos actualizados');
+                          }}
+                        />
           )}
         </div>
 

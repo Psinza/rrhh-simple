@@ -12,7 +12,7 @@ import {
   Calendar,
   Lock,
 } from 'lucide-react';
-import { PayrollPeriod, Employee, CompanySettings, PayrollItem } from '../types';
+import { PayrollPeriod, Employee, CompanySettings, PayrollItem, AppUser } from '../types';
 import {
   formatBs,
   formatUSD,
@@ -23,16 +23,20 @@ interface PayrollModuleProps {
   payroll: PayrollPeriod;
   company: CompanySettings;
   employees: Employee[];
+  currentUser?: AppUser | null;
   onOpenSlip: (item: PayrollItem) => void;
   onUpdatePayroll: (newPayroll: PayrollPeriod) => void;
+  onApprovePayroll?: () => void;
 }
 
 export function PayrollModule({
   payroll,
   company,
   employees,
+  currentUser,
   onOpenSlip,
   onUpdatePayroll,
+  onApprovePayroll,
 }: PayrollModuleProps) {
   const [activeFrequency, setActiveFrequency] = useState<'quincenal' | 'mensual'>('quincenal');
   const [filterDept, setFilterDept] = useState('todos');
@@ -40,6 +44,10 @@ export function PayrollModule({
 
   // Recalculate payroll with latest employee figures if needed
   const handleRecalculate = () => {
+    if (!(currentUser?.rol === 'rrhh' || currentUser?.rol === 'admin_sistema')) {
+      alert('Acceso denegado: solo el Gerente de RRHH o Administrador pueden recalcular la nómina.');
+      return;
+    }
     const updatedItems: PayrollItem[] = employees
       .filter((e) => e.status === 'activo')
       .map((emp) => {
@@ -119,21 +127,37 @@ export function PayrollModule({
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
-          <button
-            onClick={handleRecalculate}
-            className="px-3 py-2 text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 rounded transition-colors border border-slate-200"
-          >
-            Recalcular Nómina
-          </button>
+          {(currentUser?.rol === 'rrhh' || currentUser?.rol === 'admin_sistema') && (
+            <button
+              onClick={handleRecalculate}
+              className="px-3 py-2 text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 rounded transition-colors border border-slate-200"
+            >
+              Recalcular Nómina
+            </button>
+          )}
 
           {payroll.estatus !== 'Aprobada' ? (
-            <button
-              onClick={handleApprovePayroll}
-              className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white rounded shadow-sm transition-all"
-            >
-              <CheckCircle className="w-4 h-4" />
-              Aprobar y Sellar Nómina
-            </button>
+            (currentUser?.rol === 'dueno' || currentUser?.rol === 'admin_sistema') ? (
+              <button
+                onClick={() => {
+                  if (onApprovePayroll) onApprovePayroll();
+                  else handleApprovePayroll();
+                }}
+                className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white rounded shadow-sm transition-all"
+              >
+                <CheckCircle className="w-4 h-4" />
+                Aprobar y Sellar Nómina
+              </button>
+            ) : (
+              <button
+                disabled
+                title="Solo el Dueño o Administrador puede aprobar la nómina"
+                className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold bg-slate-200 text-slate-500 rounded border border-slate-200"
+              >
+                <CheckCircle className="w-4 h-4" />
+                Aprobar y Sellar Nómina
+              </button>
+            )
           ) : (
             <span className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold bg-emerald-100 text-emerald-800 rounded border border-emerald-200">
               <ShieldCheck className="w-4 h-4" /> Nómina Aprobada y Sellada
