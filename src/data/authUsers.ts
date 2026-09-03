@@ -28,7 +28,7 @@ export const predefinedUsers: AppUser[] = [
   {
     id: 'user-rrhh',
     username: 'rrhh',
-    email: 'rrhh@talentove.com',
+    email: 'industriacouture@gmail.com',
     password: 'rrhh',
     nombre: 'Lic. Dubraska',
     cargo: 'Gerente de Recursos Humanos',
@@ -49,9 +49,9 @@ export const predefinedUsers: AppUser[] = [
   },
   {
     id: 'user-dueno',
-    username: 'dueno',
-    email: 'dueno@talentove.com',
-    password: 'dueno',
+    username: 'jacobo',
+    email: 'industriacouture@gmail.com',
+    password: 'jacobo',
     nombre: 'JACOB AGAI BENZAQUEN',
     cargo: 'Director General & Propietario',
     rol: 'dueno',
