@@ -1,37 +1,41 @@
-const sqlite3 = require('sqlite3').verbose();
-const path = require('path');
+const { Pool } = require('pg');
 const bcrypt = require('bcrypt');
 
-const DB_PATH = path.join(__dirname, 'data', 'db.sqlite');
-const fs = require('fs');
+// The DATABASE_URL (or POSTGRES_URL) will be used if provided, otherwise it will fail or try defaults.
+// In Supabase, you can find the connection string and set it in your environment variables.
+const connectionString = process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.POSTGRES_PRISMA_URL;
 
-function ensureDir(dir) {
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+const pool = new Pool({
+  connectionString,
+  ssl: {
+    rejectUnauthorized: false // Required for Supabase / Render connections usually
+  }
+});
+
+// Helper to convert SQLite `?` params into Postgres `$1, $2, ...`
+function replaceParams(sql) {
+  let i = 1;
+  return sql.replace(/\?/g, () => `$${i++}`);
 }
 
-ensureDir(path.join(__dirname, 'data'));
-
-const db = new sqlite3.Database(DB_PATH);
-
-function runAsync(sql, params = []) {
-  return new Promise((res, rej) => {
-    db.run(sql, params, function (err) {
-      if (err) rej(err);
-      else res(this);
-    });
-  });
+async function runAsync(sql, params = []) {
+  const pgSql = replaceParams(sql);
+  const result = await pool.query(pgSql, params);
+  return result;
 }
 
-function allAsync(sql, params = []) {
-  return new Promise((res, rej) => {
-    db.all(sql, params, (err, rows) => {
-      if (err) rej(err);
-      else res(rows);
-    });
-  });
+async function allAsync(sql, params = []) {
+  const pgSql = replaceParams(sql);
+  const result = await pool.query(pgSql, params);
+  return result.rows;
 }
 
 async function init() {
+  if (!connectionString) {
+    console.warn("WARNING: No DATABASE_URL or POSTGRES_URL found. Please set it to connect to Supabase.");
+  }
+
+  // Use runAsync with the postgres syntax for table creation
   await runAsync(`CREATE TABLE IF NOT EXISTS users (
     id TEXT PRIMARY KEY,
     username TEXT UNIQUE,
@@ -124,18 +128,18 @@ async function init() {
       `INSERT INTO users (id, username, email, password_hash, nombre, cargo, rol, rolTitulo, avatar, badgeColor, nivelAcceso, descripcionAcceso, permisos)
        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
        ON CONFLICT(id) DO UPDATE SET
-        username = excluded.username,
-        email = excluded.email,
-        password_hash = excluded.password_hash,
-        nombre = excluded.nombre,
-        cargo = excluded.cargo,
-        rol = excluded.rol,
-        rolTitulo = excluded.rolTitulo,
-        avatar = excluded.avatar,
-        badgeColor = excluded.badgeColor,
-        nivelAcceso = excluded.nivelAcceso,
-        descripcionAcceso = excluded.descripcionAcceso,
-        permisos = excluded.permisos`,
+        username = EXCLUDED.username,
+        email = EXCLUDED.email,
+        password_hash = EXCLUDED.password_hash,
+        nombre = EXCLUDED.nombre,
+        cargo = EXCLUDED.cargo,
+        rol = EXCLUDED.rol,
+        rolTitulo = EXCLUDED.rolTitulo,
+        avatar = EXCLUDED.avatar,
+        badgeColor = EXCLUDED.badgeColor,
+        nivelAcceso = EXCLUDED.nivelAcceso,
+        descripcionAcceso = EXCLUDED.descripcionAcceso,
+        permisos = EXCLUDED.permisos`,
       [
         u.id,
         u.username,
@@ -155,4 +159,5 @@ async function init() {
   }
 }
 
-module.exports = { db, init, runAsync, allAsync };
+// Export db as pool just in case index.js references it, although we use runAsync/allAsync
+module.exports = { db: pool, init, runAsync, allAsync };
