@@ -756,7 +756,7 @@ export function CompanyIdentityAndUsersModule({
                         </>
                       ) : (
                         <div className="p-2 bg-slate-100 rounded-lg text-slate-600">****** (Acceso restringido)</div>
-                      )
+                      )}
                     </div>
                   </div>
                 </div>
