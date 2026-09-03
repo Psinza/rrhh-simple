@@ -219,7 +219,7 @@ export function LoginScreen({ onLogin, users, company }: LoginScreenProps) {
                 </div>
                 <div className="font-bold text-white text-sm">Gerente de RRHH</div>
                 <div className="text-[11px] text-emerald-300 font-semibold truncate">
-                  {rrhhRoleUser?.nombre || 'Lic. Valentina Silva'}
+                  {rrhhRoleUser?.nombre || 'Lic. Dubraska'}
                 </div>
                 <div className="text-[10px] text-slate-400 mt-1 line-clamp-2">
                   {rrhhRoleUser?.cargo || 'Expedientes 14-02, recibos digitales, prestaciones y archivos IVSS.'}
@@ -249,7 +249,7 @@ export function LoginScreen({ onLogin, users, company }: LoginScreenProps) {
                 </div>
                 <div className="font-bold text-white text-sm">Dueño de la Empresa</div>
                 <div className="text-[11px] text-amber-300 font-semibold truncate">
-                  {duenoRoleUser?.nombre || 'Jacobo'}
+                  {duenoRoleUser?.nombre || 'JACOB AGAI BENZAQUEN'}
                 </div>
                 <div className="text-[10px] text-slate-400 mt-1 line-clamp-2">
                   {duenoRoleUser?.cargo || 'Dirección General, aprobación de nómina y costos BCV.'}
