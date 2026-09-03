@@ -93,7 +93,10 @@ class LightweightDatabase {
         payrolls: [],
         socialBenefits: [],
         auditLogs: [],
+<<<<<<< HEAD
         currencyRates: [],
+=======
+>>>>>>> fb5f23abb61f2ec94b04b0cbd565dcf57c3185af
       };
       this.saveLocal(state);
     }
@@ -207,7 +210,10 @@ class LightweightDatabase {
       payrolls: [],
       socialBenefits: [],
       auditLogs: [],
+<<<<<<< HEAD
       currencyRates: [],
+=======
+>>>>>>> fb5f23abb61f2ec94b04b0cbd565dcf57c3185af
     };
 
     const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
