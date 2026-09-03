@@ -1,0 +1,83 @@
+{
+  "entities": {
+    "company": {
+      "title": "Company Settings",
+      "description": "Company corporate identification and fiscal parameters in Venezuela",
+      "type": "object",
+      "properties": {
+        "razonSocial": { "type": "string" },
+        "rif": { "type": "string" },
+        "numeroPatronalIVSS": { "type": "string" },
+        "codigoAportanteFAOV": { "type": "string" },
+        "codigoInces": { "type": "string" },
+        "direccionFiscal": { "type": "string" },
+        "ciudad": { "type": "string" },
+        "estado": { "type": "string" },
+        "telefono": { "type": "string" },
+        "email": { "type": "string" },
+        "representanteLegal": { "type": "string" },
+        "cedulaRepresentante": { "type": "string" },
+        "cargoRepresentante": { "type": "string" },
+        "nivelRiesgoIVSS": { "type": "string" },
+        "sueldoMinimoNacional": { "type": "number" },
+        "cestaTicketMensual": { "type": "number" },
+        "tasaBCV_USD": { "type": "number" },
+        "tasaInteresPrestacionesBCV": { "type": "number" },
+        "diasUtilidadesEmpresa": { "type": "number" },
+        "logoUrl": { "type": "string" }
+      },
+      "required": ["razonSocial", "rif"]
+    },
+    "employee": {
+      "title": "Employee Expediente",
+      "description": "Employee record under LOTTT and IVSS 14-02",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "cedula": { "type": "string" },
+        "nombres": { "type": "string" },
+        "apellidos": { "type": "string" },
+        "cargo": { "type": "string" },
+        "departamento": { "type": "string" },
+        "fechaIngreso": { "type": "string" },
+        "sueldoBaseMensualBs": { "type": "number" },
+        "sueldoBasePactadoUSD": { "type": "number" },
+        "tipoSalario": { "type": "string" },
+        "estadoEmpleado": { "type": "string" },
+        "bancoPago": { "type": "string" },
+        "numeroCuenta": { "type": "string" }
+      },
+      "required": ["id", "cedula", "nombres", "apellidos"]
+    },
+    "user": {
+      "title": "App User",
+      "description": "Authorized role account for system management",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "username": { "type": "string" },
+        "email": { "type": "string" },
+        "nombre": { "type": "string" },
+        "cargo": { "type": "string" },
+        "telefono": { "type": "string" },
+        "rol": { "type": "string" },
+        "avatar": { "type": "string" }
+      },
+      "required": ["id", "username", "rol"]
+    }
+  },
+  "firestore": {
+    "/company/current": {
+      "schema": "company",
+      "description": "Corporate settings and fiscal parameters"
+    },
+    "/employees/{employeeId}": {
+      "schema": "employee",
+      "description": "Employee dossiers and contracts"
+    },
+    "/users/{userId}": {
+      "schema": "user",
+      "description": "System access accounts"
+    }
+  }
+}
