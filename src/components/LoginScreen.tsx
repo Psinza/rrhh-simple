@@ -40,34 +40,35 @@ export function LoginScreen({ onLogin, users, company }: LoginScreenProps) {
     // Do not autofill credentials for security - require manual entry
   };
 
-  const handleManualLogin = (e: FormEvent) => {
+  const handleManualLogin = async (e: FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
 
-    const cleanId = identifier.trim().toLowerCase();
-    const userFound = activeUsers.find(
-      (u) =>
-        (u.username.toLowerCase() === cleanId || u.email.toLowerCase() === cleanId) &&
-        u.password === password
-    );
-
-    if (userFound) {
-      // Enforce role match with selected profile for stricter access control
-      if (userFound.rol !== selectedRole) {
-        setErrorMsg(
-          `El usuario ingresado no pertenece al perfil seleccionado (${selectedRole}). Seleccione el perfil correcto o use las credenciales correspondientes.`
-        );
-        return;
-      }
-
-      if (rememberMe) {
-        localStorage.setItem('ven_nomina_session_user', JSON.stringify(userFound));
+    try {
+      const resp = await fetch('/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ identifier, password, selectedRole }),
+      });
+      if (resp.status === 200) {
+        const body = await resp.json();
+        const user = body.user;
+        if (user) {
+          if (rememberMe) {
+            localStorage.setItem('ven_nomina_session_user', JSON.stringify(user));
+          }
+          onLogin(user);
+        } else {
+          setErrorMsg('Respuesta inválida del servidor.');
+        }
       } else {
-        sessionStorage.setItem('ven_nomina_session_user', JSON.stringify(userFound));
+        const err = await resp.json().catch(() => ({}));
+        setErrorMsg(err.error || 'Credenciales inválidas o rol no coincide.');
       }
-      onLogin(userFound);
-    } else {
-      setErrorMsg('Credenciales inválidas. Por favor verifique el usuario y la contraseña ingresada.');
+    } catch (e) {
+      console.error(e);
+      setErrorMsg('Error de conexión al servidor de autenticación.');
     }
   };
 
