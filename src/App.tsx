@@ -62,19 +62,7 @@ import { RenderDeployModal } from './components/RenderDeployModal';
 
 export default function App() {
   // Authentication & Session
-  const [currentUser, setCurrentUser] = useState<AppUser | null>(() => {
-    try {
-      const stored = localStorage.getItem('ven_nomina_session_user') || sessionStorage.getItem('ven_nomina_session_user');
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        const match = predefinedUsers.find((u) => u.id === parsed.id || u.username === parsed.username);
-        return match || parsed;
-      }
-    } catch (e) {
-      console.error('Error cargando sesión previa', e);
-    }
-    return null;
-  });
+  const [currentUser, setCurrentUser] = useState<AppUser | null>(null);
   const [isRoleDropdownOpen, setIsRoleDropdownOpen] = useState(false);
 
   // Navigation
@@ -130,6 +118,21 @@ export default function App() {
         }
       }
     });
+
+    // On mount, try to load authoritative session from backend (/api/me)
+    (async () => {
+      try {
+        const resp = await fetch('/api/me', { credentials: 'include' });
+        if (resp.ok) {
+          const body = await resp.json();
+          if (body?.user) {
+            setCurrentUser(body.user);
+          }
+        }
+      } catch (e) {
+        // ignore, user not logged in server-side
+      }
+    })();
   }, []);
 
   // Save changes locally in lightweight DB
@@ -195,20 +198,38 @@ export default function App() {
     setAuditLogs((prev) => [newLog, ...prev]);
   };
 
-  const handleLogin = (user: AppUser) => {
+  const handleLogin = async (user: AppUser) => {
+    // After login, verify authoritative session from backend (in case cookie is set)
+    try {
+      const resp = await fetch('/api/me', { credentials: 'include' });
+      if (resp.ok) {
+        const body = await resp.json();
+        if (body?.user) {
+          setCurrentUser(body.user);
+          const defaultTab = body.user.rol === 'admin_sistema' ? 'company_identity' : body.user.rol === 'rrhh' ? 'employees' : 'payroll';
+          setActiveTab(defaultTab as any);
+          setIsRoleDropdownOpen(false);
+          addAuditLog(
+            'Inicio de Sesión',
+            'Seguridad',
+            `Acceso autorizado como ${body.user.rolTitulo} (${body.user.nombre}) - ${body.user.nivelAcceso}`
+          );
+          return;
+        }
+      }
+    } catch (e) {
+      // fallback to provided user
+    }
+
+    // Fallback if /api/me failed
     setCurrentUser(user);
-    // Set default landing tab according to role
     const defaultTab = user.rol === 'admin_sistema' ? 'company_identity' : user.rol === 'rrhh' ? 'employees' : 'payroll';
     setActiveTab(defaultTab as any);
     setIsRoleDropdownOpen(false);
-    addAuditLog(
-      'Inicio de Sesión',
-      'Seguridad',
-      `Acceso autorizado como ${user.rolTitulo} (${user.nombre}) - ${user.nivelAcceso}`
-    );
+    addAuditLog('Inicio de Sesión', 'Seguridad', `Acceso autorizado como ${user.rolTitulo} (${user.nombre}) - ${user.nivelAcceso}`);
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     if (currentUser) {
       addAuditLog(
         'Cierre de Sesión',
@@ -216,8 +237,12 @@ export default function App() {
         `Cierre de sesión seguro de ${currentUser.nombre} (${currentUser.rolTitulo})`
       );
     }
-    localStorage.removeItem('ven_nomina_session_user');
-    sessionStorage.removeItem('ven_nomina_session_user');
+    // Notify backend to clear cookie
+    try {
+      await fetch('/api/logout', { method: 'POST', credentials: 'include' });
+    } catch (e) {
+      // ignore
+    }
     setCurrentUser(null);
     setIsRoleDropdownOpen(false);
   };
@@ -226,7 +251,6 @@ export default function App() {
     const target = predefinedUsers.find((u) => u.rol === targetRole);
     if (target) {
       setCurrentUser(target);
-      localStorage.setItem('ven_nomina_session_user', JSON.stringify(target));
       setIsRoleDropdownOpen(false);
       addAuditLog(
         'Cambio de Acceso Activo',

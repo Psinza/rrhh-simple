@@ -55,9 +55,7 @@ export function LoginScreen({ onLogin, users, company }: LoginScreenProps) {
         const body = await resp.json();
         const user = body.user;
         if (user) {
-          if (rememberMe) {
-            localStorage.setItem('ven_nomina_session_user', JSON.stringify(user));
-          }
+          // Do not store authoritative session client-side; backend cookie is the source of truth
           onLogin(user);
         } else {
           setErrorMsg('Respuesta inválida del servidor.');
@@ -75,9 +73,7 @@ export function LoginScreen({ onLogin, users, company }: LoginScreenProps) {
   const handleDirectQuickLogin = (role: 'admin_sistema' | 'rrhh' | 'dueno') => {
     const targetUser = activeUsers.find((u) => u.rol === role);
     if (targetUser) {
-      if (rememberMe) {
-        localStorage.setItem('ven_nomina_session_user', JSON.stringify(targetUser));
-      }
+      // Quick-login is only for demo; do not persist session client-side in production
       onLogin(targetUser);
     }
   };
