@@ -27,14 +27,8 @@ interface LoginScreenProps {
 export function LoginScreen({ onLogin, users, company }: LoginScreenProps) {
   const activeUsers = users && users.length > 0 ? users : predefinedUsers;
   const [selectedRole, setSelectedRole] = useState<'admin_sistema' | 'rrhh' | 'dueno'>('admin_sistema');
-  const [identifier, setIdentifier] = useState(() => {
-    const admin = activeUsers.find((u) => u.rol === 'admin_sistema');
-    return admin ? admin.username : 'admin';
-  });
-  const [password, setPassword] = useState(() => {
-    const admin = activeUsers.find((u) => u.rol === 'admin_sistema');
-    return admin ? admin.password : 'admin';
-  });
+  const [identifier, setIdentifier] = useState<string>('');
+  const [password, setPassword] = useState<string>('');
   const [showPassword, setShowPassword] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [rememberMe, setRememberMe] = useState(true);
@@ -43,11 +37,7 @@ export function LoginScreen({ onLogin, users, company }: LoginScreenProps) {
   const handleSelectRole = (role: 'admin_sistema' | 'rrhh' | 'dueno') => {
     setSelectedRole(role);
     setErrorMsg(null);
-    const targetUser = activeUsers.find((u) => u.rol === role);
-    if (targetUser) {
-      setIdentifier(targetUser.username);
-      setPassword(targetUser.password);
-    }
+    // Do not autofill credentials for security - require manual entry
   };
 
   const handleManualLogin = (e: FormEvent) => {
@@ -277,15 +267,8 @@ export function LoginScreen({ onLogin, users, company }: LoginScreenProps) {
                 </ul>
               </div>
 
-              {/* Direct 1-Click Fast Enter Button for testing */}
-              <button
-                type="button"
-                onClick={() => handleDirectQuickLogin(selectedRole)}
-                className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-100 font-semibold text-xs border border-slate-700 transition-all"
-              >
-                <span>Acceso Rápido Directo como {currentUserConfig.rolTitulo}</span>
-                <ArrowRight className="w-3.5 h-3.5" />
-              </button>
+              {/* Ingrese sus credenciales manualmente para autenticarse */}
+              <div className="w-full text-sm text-slate-400">Ingrese su usuario y contraseña para acceder al módulo correspondiente según su rol.</div>
             </div>
 
             {/* Right Column: Standard Authentication Form */}
@@ -328,9 +311,6 @@ export function LoginScreen({ onLogin, users, company }: LoginScreenProps) {
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
                     <label className="block text-slate-300 font-medium">Contraseña de Seguridad</label>
-                    <span className="text-[10px] text-slate-500 font-mono">
-                      Demo clave: <strong className="text-slate-400">{currentUserConfig.password}</strong>
-                    </span>
                   </div>
                   <div className="relative">
                     <Lock className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
