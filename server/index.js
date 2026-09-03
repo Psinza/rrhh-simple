@@ -8,9 +8,21 @@ const app = express();
 const PORT = process.env.PORT || 4000;
 const JWT_SECRET = process.env.JWT_SECRET || 'replace_this_with_secure_secret';
 
-app.use(cors({ origin: true, credentials: true }));
+// Configure CORS dynamically. In production set ALLOWED_ORIGIN to your frontend URL (e.g. https://rrhh-simple.onrender.com)
+const allowedOrigin = process.env.ALLOWED_ORIGIN || true;
+app.use(cors({ origin: allowedOrigin, credentials: true }));
 app.use(express.json());
 app.use(cookieParser());
+
+// Serve static frontend when running as a single fullstack service (recommended for Render)
+if (process.env.SERVE_STATIC === 'true') {
+  const path = require('path');
+  const staticPath = path.join(__dirname, '..', 'dist');
+  app.use(express.static(staticPath));
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(staticPath, 'index.html'));
+  });
+}
 
 // Initialize DB
 init().catch((e) => {
@@ -60,13 +72,16 @@ app.post('/api/login', async (req, res) => {
     const rows = await allAsync('SELECT * FROM users WHERE lower(username)=lower(?) OR lower(email)=lower(?) LIMIT 1', [identifier, identifier]);
     if (!rows || rows.length === 0) return res.status(401).json({ error: 'Credenciales inválidas' });
     const user = rows[0];
-    const bcrypt = require('bcrypt');
+    const bcrypt = require('bcryptjs');
     const match = await bcrypt.compare(password, user.password_hash);
     if (!match) return res.status(401).json({ error: 'Credenciales inválidas' });
     if (selectedRole && user.rol !== selectedRole) return res.status(403).json({ error: 'Rol no coincide con perfil seleccionado' });
 
     const token = signUserPayload(user);
-    res.cookie('token', token, { httpOnly: true, sameSite: 'lax' });
+    // Cookie security options: use secure & sameSite none in production when serving across domains
+    const cookieOptions = { httpOnly: true, sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax' };
+    if (process.env.NODE_ENV === 'production') cookieOptions.secure = true;
+    res.cookie('token', token, cookieOptions);
     // Return safe user info
     const safe = {
       id: user.id,
@@ -109,7 +124,7 @@ app.post('/api/users', authMiddleware, async (req, res) => {
   if (req.user.rol !== 'admin_sistema') return res.status(403).json({ error: 'Forbidden' });
   const u = req.body;
   if (!u.username || !u.password || !u.rol) return res.status(400).json({ error: 'Missing fields' });
-  const bcrypt = require('bcrypt');
+  const bcrypt = require('bcryptjs');
   const hash = await bcrypt.hash(u.password, 10);
   const id = u.id || `user-${Date.now()}`;
   try {
@@ -142,7 +157,7 @@ app.put('/api/users/:id', authMiddleware, async (req, res) => {
   const u = req.body;
   try {
     if (u.password) {
-      const bcrypt = require('bcrypt');
+    const bcrypt = require('bcryptjs');
       const hash = await bcrypt.hash(u.password, 10);
       await runAsync('UPDATE users SET password_hash = ? WHERE id = ?', [hash, id]);
     }
