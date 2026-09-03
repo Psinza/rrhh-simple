@@ -266,6 +266,17 @@ export default function App() {
     });
   };
 
+  const handleDeleteEmployee = (employeeId: string) => {
+    const toDelete = employees.find((e) => e.id === employeeId);
+    if (!toDelete) return;
+    setEmployees((prev) => prev.filter((e) => e.id !== employeeId));
+    addAuditLog(
+      'Eliminación de Colaborador',
+      'Expedientes',
+      `Registro de ${toDelete.primerNombre} ${toDelete.primerApellido} (${toDelete.cedula}) eliminado por ${currentUser?.nombre || 'Sistema'}`
+    );
+  };
+
   const handleUpdatePayroll = (updatedPayroll: PayrollPeriod) => {
     setPayroll(updatedPayroll);
     addAuditLog('Cálculo de Nómina', 'Nómina', `Recálculo de la nómina: ${updatedPayroll.nombre}`);
@@ -861,6 +872,7 @@ export default function App() {
                     setSelectedCertEmployee(emp);
                   }}
                   onUpdateEmployee={handleSaveEmployee}
+                  onDeleteEmployee={handleDeleteEmployee}
                 />
       )}
 

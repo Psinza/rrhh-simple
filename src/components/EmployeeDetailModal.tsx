@@ -32,6 +32,7 @@ interface EmployeeDetailModalProps {
   onClose: () => void;
   onGenerateCertificate: (employee: Employee) => void;
   onUpdateEmployee: (updated: Employee) => void;
+  onDeleteEmployee?: (id: string) => void;
 }
 
 export function EmployeeDetailModal({
@@ -41,6 +42,7 @@ export function EmployeeDetailModal({
   onClose,
   onGenerateCertificate,
   onUpdateEmployee,
+  onDeleteEmployee,
 }: EmployeeDetailModalProps) {
   const [activeTab, setActiveTab] = useState<'info' | 'history' | 'benefits' | 'vacations'>('benefits');
 
@@ -55,6 +57,18 @@ export function EmployeeDetailModal({
   const [showAddAdvance, setShowAddAdvance] = useState(false);
   const [advanceMonto, setAdvanceMonto] = useState('');
   const [advanceMotivo, setAdvanceMotivo] = useState<SocialBenefitsAdvance['motivo']>('Adquisición de Vivienda');
+
+  // Editable personal data state (for RRHH/Admin)
+  const [editMode, setEditMode] = useState(false);
+  const [editEmail, setEditEmail] = useState(employee.email || '');
+  const [editTelefono, setEditTelefono] = useState(employee.telefono || '');
+  const [editDireccion, setEditDireccion] = useState(employee.direccion || '');
+  const [editCiudad, setEditCiudad] = useState(employee.ciudad || '');
+  const [editEstado, setEditEstado] = useState(employee.estado || '');
+  const [editBanco, setEditBanco] = useState(employee.banco || '');
+  const [editNumeroCuenta, setEditNumeroCuenta] = useState(employee.numeroCuenta || '');
+  const [editTipoCuenta, setEditTipoCuenta] = useState(employee.tipoCuenta || '');
+  const [editCargasFamiliares, setEditCargasFamiliares] = useState(String(employee.cargasFamiliares || 0));
 
   const tenure = calculateTenure(employee.fechaIngreso);
   const integral = calculateIntegralSalary(
@@ -177,6 +191,80 @@ export function EmployeeDetailModal({
               <FileText className="w-3.5 h-3.5 text-slate-600" />
               Constancia Laboral
             </button>
+
+            {/* Edit / Save personal data (RRHH/Admin) */}
+            {(currentUser?.rol === 'rrhh' || currentUser?.rol === 'admin_sistema') ? (
+              <>
+                {!editMode ? (
+                  <button
+                    onClick={() => setEditMode(true)}
+                    className="px-3 py-2 text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-800 rounded transition-colors border border-slate-200"
+                  >
+                    Editar Datos
+                  </button>
+                ) : (
+                  <>
+                    <button
+                      onClick={() => {
+                        // Save edits
+                        const updated: Employee = {
+                          ...employee,
+                          email: editEmail,
+                          telefono: editTelefono,
+                          direccion: editDireccion,
+                          ciudad: editCiudad,
+                          estado: editEstado,
+                          banco: editBanco,
+                          numeroCuenta: editNumeroCuenta,
+                          tipoCuenta: editTipoCuenta,
+                          cargasFamiliares: parseInt(editCargasFamiliares) || 0,
+                        };
+                        onUpdateEmployee(updated);
+                        setEditMode(false);
+                      }}
+                      className="px-3 py-2 text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white rounded transition-colors border border-emerald-200"
+                    >
+                      Guardar Cambios
+                    </button>
+                    <button
+                      onClick={() => {
+                        // Revert edits
+                        setEditMode(false);
+                        setEditEmail(employee.email || '');
+                        setEditTelefono(employee.telefono || '');
+                        setEditDireccion(employee.direccion || '');
+                        setEditCiudad(employee.ciudad || '');
+                        setEditEstado(employee.estado || '');
+                        setEditBanco(employee.banco || '');
+                        setEditNumeroCuenta(employee.numeroCuenta || '');
+                        setEditTipoCuenta(employee.tipoCuenta || '');
+                        setEditCargasFamiliares(String(employee.cargasFamiliares || 0));
+                      }}
+                      className="px-3 py-2 text-xs font-semibold bg-slate-200 hover:bg-slate-300 text-slate-700 rounded transition-colors border border-slate-200"
+                    >
+                      Cancelar
+                    </button>
+                  </>
+                )}
+              </>
+            ) : null}
+
+            {/* Delete (Admin only) */}
+            {currentUser?.rol === 'admin_sistema' && onDeleteEmployee ? (
+              <button
+                onClick={() => {
+                  const ok = confirm(`Confirma eliminar al colaborador ${employee.primerNombre} ${employee.primerApellido} (${employee.cedula})? Esta acción es irreversible.`);
+                  if (!ok) return;
+                  onDeleteEmployee(employee.id);
+                  onClose();
+                }}
+                className="px-3 py-2 text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white rounded transition-colors border border-rose-200"
+                title="Eliminar Colaborador (Administrador)"
+              >
+                Eliminar Colaborador
+              </button>
+            ) : null}
+
             <button
               onClick={onClose}
               className="p-2 rounded text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
@@ -639,10 +727,43 @@ export function EmployeeDetailModal({
                 <div className="space-y-1 text-slate-600">
                   <p><strong className="text-slate-800">Cédula:</strong> {employee.cedula}</p>
                   <p><strong className="text-slate-800">R.I.F.:</strong> {employee.rif}</p>
-                  <p><strong className="text-slate-800">Correo Electrónico:</strong> {employee.email}</p>
-                  <p><strong className="text-slate-800">Teléfono:</strong> {employee.telefono}</p>
-                  <p><strong className="text-slate-800">Dirección:</strong> {employee.direccion}, {employee.ciudad}, {employee.estado}</p>
-                  <p><strong className="text-slate-800">Cargas Familiares:</strong> {employee.cargasFamiliares} personas</p>
+                  {editMode ? (
+                    <>
+                      <div>
+                        <label className="block text-[11px] font-medium text-slate-700">Correo Electrónico</label>
+                        <input value={editEmail} onChange={(e) => setEditEmail(e.target.value)} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-sm" />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-medium text-slate-700">Teléfono</label>
+                        <input value={editTelefono} onChange={(e) => setEditTelefono(e.target.value)} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-sm" />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-medium text-slate-700">Dirección</label>
+                        <input value={editDireccion} onChange={(e) => setEditDireccion(e.target.value)} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-sm" />
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="block text-[11px] font-medium text-slate-700">Ciudad</label>
+                          <input value={editCiudad} onChange={(e) => setEditCiudad(e.target.value)} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-sm" />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-medium text-slate-700">Estado</label>
+                          <input value={editEstado} onChange={(e) => setEditEstado(e.target.value)} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-sm" />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-medium text-slate-700">Cargas Familiares</label>
+                        <input type="number" value={editCargasFamiliares} min="0" onChange={(e) => setEditCargasFamiliares(e.target.value)} className="w-32 p-2 bg-white border border-slate-200 rounded-lg text-sm" />
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <p><strong className="text-slate-800">Correo Electrónico:</strong> {employee.email}</p>
+                      <p><strong className="text-slate-800">Teléfono:</strong> {employee.telefono}</p>
+                      <p><strong className="text-slate-800">Dirección:</strong> {employee.direccion}, {employee.ciudad}, {employee.estado}</p>
+                      <p><strong className="text-slate-800">Cargas Familiares:</strong> {employee.cargasFamiliares} personas</p>
+                    </>
+                  )}
                 </div>
               </div>
 
@@ -651,11 +772,32 @@ export function EmployeeDetailModal({
                   <CreditCard className="w-4 h-4 text-sky-600" /> Datos Bancarios y Parafiscales
                 </h4>
                 <div className="space-y-1 text-slate-600">
-                  <p><strong className="text-slate-800">Banco Receptor:</strong> {employee.banco}</p>
-                  <p><strong className="text-slate-800">Número de Cuenta:</strong> <span className="font-mono">{employee.numeroCuenta}</span></p>
-                  <p><strong className="text-slate-800">Tipo de Cuenta:</strong> {employee.tipoCuenta}</p>
-                  <p><strong className="text-slate-800">Afiliación IVSS:</strong> <span className="font-mono">{employee.numeroAfiliacionIVSS}</span></p>
-                  <p><strong className="text-slate-800">Retención ISLR (AR-I):</strong> {employee.porcentajeRetencionISLR}%</p>
+                  {editMode ? (
+                    <>
+                      <div>
+                        <label className="block text-[11px] font-medium text-slate-700">Banco Receptor</label>
+                        <input value={editBanco} onChange={(e) => setEditBanco(e.target.value)} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-sm" />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-medium text-slate-700">Número de Cuenta</label>
+                        <input value={editNumeroCuenta} onChange={(e) => setEditNumeroCuenta(e.target.value)} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-sm font-mono" />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-medium text-slate-700">Tipo de Cuenta</label>
+                        <input value={editTipoCuenta} onChange={(e) => setEditTipoCuenta(e.target.value)} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-sm" />
+                      </div>
+                      <p><strong className="text-slate-800">Afiliación IVSS:</strong> <span className="font-mono">{employee.numeroAfiliacionIVSS}</span></p>
+                      <p><strong className="text-slate-800">Retención ISLR (AR-I):</strong> {employee.porcentajeRetencionISLR}%</p>
+                    </>
+                  ) : (
+                    <>
+                      <p><strong className="text-slate-800">Banco Receptor:</strong> {employee.banco}</p>
+                      <p><strong className="text-slate-800">Número de Cuenta:</strong> <span className="font-mono">{employee.numeroCuenta}</span></p>
+                      <p><strong className="text-slate-800">Tipo de Cuenta:</strong> {employee.tipoCuenta}</p>
+                      <p><strong className="text-slate-800">Afiliación IVSS:</strong> <span className="font-mono">{employee.numeroAfiliacionIVSS}</span></p>
+                      <p><strong className="text-slate-800">Retención ISLR (AR-I):</strong> {employee.porcentajeRetencionISLR}%</p>
+                    </>
+                  )}
                 </div>
               </div>
             </div>
