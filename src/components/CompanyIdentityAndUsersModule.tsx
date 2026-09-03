@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+﻿import React, { useState, useRef } from 'react';
 import {
   Building2,
   Upload,
@@ -86,7 +86,7 @@ export function CompanyIdentityAndUsersModule({
 
     // Check size limit (max 2MB for base64)
     if (file.size > 2.5 * 1024 * 1024) {
-      alert('La imagen no debe superar los 2.5 MB para un óptimo rendimiento.');
+      alert('La imagen no debe superar los 2.5 MB para un Ã³ptimo rendimiento.');
       return;
     }
 
@@ -97,7 +97,7 @@ export function CompanyIdentityAndUsersModule({
         setLogoUrl(result);
         const updated = { ...company, logoUrl: result };
         onSaveCompany(updated);
-        showNotification('¡Logotipo de la empresa cargado y actualizado correctamente!');
+        showNotification('Â¡Logotipo de la empresa cargado y actualizado correctamente!');
       }
     };
     reader.readAsDataURL(file);
@@ -109,7 +109,7 @@ export function CompanyIdentityAndUsersModule({
     const updated = { ...company, logoUrl: logoUrlInput.trim() };
     onSaveCompany(updated);
     setLogoUrlInput('');
-    showNotification('¡URL de logotipo asignada y guardada exitosamente!');
+    showNotification('Â¡URL de logotipo asignada y guardada exitosamente!');
   };
 
   const handleRemoveLogo = () => {
@@ -117,7 +117,7 @@ export function CompanyIdentityAndUsersModule({
     const updated = { ...company, logoUrl: undefined };
     onSaveCompany(updated);
     if (fileInputRef.current) fileInputRef.current.value = '';
-    showNotification('Logotipo eliminado. Se utilizará el emblema estándar.');
+    showNotification('Logotipo eliminado. Se utilizarÃ¡ el emblema estÃ¡ndar.');
   };
 
   // Auto-generate avatar initials from name
@@ -149,7 +149,7 @@ export function CompanyIdentityAndUsersModule({
 
     const newUsersList = [updatedAdmin, updatedRrhh, updatedDueno];
     onSaveUsers(newUsersList);
-    showNotification('¡Perfiles de los 3 usuarios directivos guardados y actualizados con éxito!');
+    showNotification('Â¡Perfiles de los 3 usuarios directivos guardados y actualizados con Ã©xito!');
   };
 
   // Save Company Data
@@ -170,7 +170,7 @@ export function CompanyIdentityAndUsersModule({
       logoUrl: logoUrl || undefined,
     };
     onSaveCompany(updated);
-    showNotification('¡Información institucional de la empresa actualizada con éxito!');
+    showNotification('Â¡InformaciÃ³n institucional de la empresa actualizada con Ã©xito!');
   };
 
   // Quick sync representative with owner or HR
@@ -182,7 +182,7 @@ export function CompanyIdentityAndUsersModule({
       setRepresentanteLegal(rrhhUser.nombre);
       setCargoRepresentante(rrhhUser.cargo);
     }
-    showNotification(`Datos del Representante Legal sincronizados con ${source === 'dueno' ? 'el Dueño' : 'la Gerencia de RRHH'}.`);
+    showNotification(`Datos del Representante Legal sincronizados con ${source === 'dueno' ? 'el DueÃ±o' : 'la Gerencia de RRHH'}.`);
   };
 
   return (
@@ -207,11 +207,11 @@ export function CompanyIdentityAndUsersModule({
                 Identidad Corporativa & Usuarios Directivos
               </h1>
               <span className="text-[10px] px-2 py-0.5 rounded bg-blue-100 text-blue-800 font-bold uppercase">
-                Módulo Oficial
+                MÃ³dulo Oficial
               </span>
             </div>
             <p className="text-xs text-slate-500 mt-0.5">
-              Personalice el logo de la empresa y actualice los nombres, cargos y accesos del Administrador de TI, Gerente de RRHH y Dueño de la Empresa.
+              Personalice el logo de la empresa y actualice los nombres, cargos y accesos del Administrador de TI, Gerente de RRHH y DueÃ±o de la Empresa.
             </p>
           </div>
         </div>
@@ -240,8 +240,8 @@ export function CompanyIdentityAndUsersModule({
                   <ImageIcon className="w-4 h-4" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-slate-900 text-sm">Logo de la Compañía</h3>
-                  <p className="text-[11px] text-slate-400">Marca gráfica para cabeceras y documentos</p>
+                  <h3 className="font-bold text-slate-900 text-sm">Logo de la CompaÃ±Ã­a</h3>
+                  <p className="text-[11px] text-slate-400">Marca grÃ¡fica para cabeceras y documentos</p>
                 </div>
               </div>
               {logoUrl && (
@@ -266,7 +266,7 @@ export function CompanyIdentityAndUsersModule({
                       {razonSocial ? razonSocial.charAt(0).toUpperCase() : 'V'}
                     </div>
                     <span className="text-[10px] font-medium text-slate-400 mt-2">
-                      Emblema Estándar
+                      Emblema EstÃ¡ndar
                     </span>
                   </div>
                 )}
@@ -349,7 +349,7 @@ export function CompanyIdentityAndUsersModule({
                     </button>
                   </div>
                   <span className="text-[10px] text-slate-400 block">
-                    Pegue una URL pública y directa de la imagen del logotipo.
+                    Pegue una URL pÃºblica y directa de la imagen del logotipo.
                   </span>
                 </div>
               )}
@@ -361,7 +361,7 @@ export function CompanyIdentityAndUsersModule({
                   className="w-full flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-xs font-semibold text-rose-600 hover:bg-rose-50 border border-rose-200 transition-colors"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
-                  <span>Eliminar Logo / Restaurar Emblema Estándar</span>
+                  <span>Eliminar Logo / Restaurar Emblema EstÃ¡ndar</span>
                 </button>
               )}
             </div>
@@ -369,16 +369,16 @@ export function CompanyIdentityAndUsersModule({
             {/* Visibility Indicators */}
             <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-xs space-y-2">
               <span className="font-bold text-[11px] text-slate-700 uppercase tracking-wider block">
-                ¿Dónde se reflejará el logotipo?
+                Â¿DÃ³nde se reflejarÃ¡ el logotipo?
               </span>
               <ul className="space-y-1 text-[11px] text-slate-600">
                 <li className="flex items-center gap-1.5">
                   <Check className="w-3.5 h-3.5 text-blue-600 shrink-0" />
-                  <span>Barra superior y menú lateral del sistema</span>
+                  <span>Barra superior y menÃº lateral del sistema</span>
                 </li>
                 <li className="flex items-center gap-1.5">
                   <Check className="w-3.5 h-3.5 text-blue-600 shrink-0" />
-                  <span>Portal corporativo de inicio de sesión</span>
+                  <span>Portal corporativo de inicio de sesiÃ³n</span>
                 </li>
                 <li className="flex items-center gap-1.5">
                   <Check className="w-3.5 h-3.5 text-blue-600 shrink-0" />
@@ -393,7 +393,7 @@ export function CompanyIdentityAndUsersModule({
           </div>
         </div>
 
-        {/* ================= SECTION 2: MODIFICACIÓN DE LOS 3 ROLES (7 COLS) ================= */}
+        {/* ================= SECTION 2: MODIFICACIÃ“N DE LOS 3 ROLES (7 COLS) ================= */}
         <div className="lg:col-span-7 space-y-6">
           <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-5">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
@@ -464,7 +464,7 @@ export function CompanyIdentityAndUsersModule({
                 </span>
               </button>
 
-              {/* Tab 3: Dueño */}
+              {/* Tab 3: DueÃ±o */}
               <button
                 type="button"
                 onClick={() => setActiveUserTab('dueno')}
@@ -476,7 +476,7 @@ export function CompanyIdentityAndUsersModule({
               >
                 <div className="flex items-center gap-1.5 text-amber-600 mb-1">
                   <Crown className="w-4 h-4" />
-                  <span className="text-[10px] font-bold uppercase">Dueño Empresa</span>
+                  <span className="text-[10px] font-bold uppercase">DueÃ±o Empresa</span>
                 </div>
                 <span className="text-xs font-bold text-slate-900 truncate w-full">
                   {duenoUser.nombre}
@@ -500,7 +500,7 @@ export function CompanyIdentityAndUsersModule({
                         Perfil: Administrador de Sistemas & TI
                       </h4>
                       <span className="text-[10px] text-blue-800">
-                        Nivel de Acceso 3 • Root TI & Ciberseguridad
+                        Nivel de Acceso 3 â€¢ Root TI & Ciberseguridad
                       </span>
                     </div>
                   </div>
@@ -533,7 +533,7 @@ export function CompanyIdentityAndUsersModule({
 
                   <div>
                     <label className="block font-semibold text-slate-700 mb-1">
-                      Cargo / Título Oficial *
+                      Cargo / TÃ­tulo Oficial *
                     </label>
                     <input
                       type="text"
@@ -573,7 +573,7 @@ export function CompanyIdentityAndUsersModule({
 
                   <div>
                     <label className="block font-semibold text-slate-700 mb-1">
-                      Correo Electrónico Institucional
+                      Correo ElectrÃ³nico Institucional
                     </label>
                     <input
                       type="email"
@@ -585,7 +585,7 @@ export function CompanyIdentityAndUsersModule({
 
                   <div>
                     <label className="block font-semibold text-slate-700 mb-1">
-                      Teléfono de Contacto
+                      TelÃ©fono de Contacto
                     </label>
                     <input
                       type="tel"
@@ -598,7 +598,7 @@ export function CompanyIdentityAndUsersModule({
 
                   <div className="sm:col-span-2">
                     <label className="block font-semibold text-slate-700 mb-1">
-                      Contraseña de Acceso
+                      ContraseÃ±a de Acceso
                     </label>
                     {currentUser?.rol === 'admin_sistema' ? (
                       <div className="relative">
@@ -617,7 +617,7 @@ export function CompanyIdentityAndUsersModule({
                         </button>
                       </div>
                     ) : (
-                      <div className="p-2 bg-slate-100 rounded-lg text-slate-600">****** (Acceso restringido)</div>
+                      <div className="p-2 bg-slate-100 rounded-lg text-slate-600">Acceso restringido</div>
                     )}
                   </div>
                 </div>
@@ -637,7 +637,7 @@ export function CompanyIdentityAndUsersModule({
                         Perfil: Gerente de Recursos Humanos
                       </h4>
                       <span className="text-[10px] text-emerald-800">
-                        Nivel de Acceso 2 • Gestión Operativa RRHH & Nómina
+                        Nivel de Acceso 2 â€¢ GestiÃ³n Operativa RRHH & NÃ³mina
                       </span>
                     </div>
                   </div>
@@ -670,7 +670,7 @@ export function CompanyIdentityAndUsersModule({
 
                   <div>
                     <label className="block font-semibold text-slate-700 mb-1">
-                      Cargo / Título Oficial *
+                      Cargo / TÃ­tulo Oficial *
                     </label>
                     <input
                       type="text"
@@ -710,7 +710,7 @@ export function CompanyIdentityAndUsersModule({
 
                   <div>
                     <label className="block font-semibold text-slate-700 mb-1">
-                      Correo Electrónico Institucional
+                      Correo ElectrÃ³nico Institucional
                     </label>
                     <input
                       type="email"
@@ -722,7 +722,7 @@ export function CompanyIdentityAndUsersModule({
 
                   <div>
                     <label className="block font-semibold text-slate-700 mb-1">
-                      Teléfono de Contacto
+                      TelÃ©fono de Contacto
                     </label>
                     <input
                       type="tel"
@@ -735,7 +735,7 @@ export function CompanyIdentityAndUsersModule({
 
                   <div className="sm:col-span-2">
                     <label className="block font-semibold text-slate-700 mb-1">
-                      Contraseña de Acceso
+                      ContraseÃ±a de Acceso
                     </label>
                     <div className="relative">
                       {currentUser?.rol === 'admin_sistema' ? (
@@ -755,7 +755,7 @@ export function CompanyIdentityAndUsersModule({
                           </button>
                         </>
                       ) : (
-                        <div className="p-2 bg-slate-100 rounded-lg text-slate-600">****** (Acceso restringido)</div>
+                        <div className="p-2 bg-slate-100 rounded-lg text-slate-600">Acceso restringido</div>
                       )}
                     </div>
                   </div>
@@ -763,7 +763,7 @@ export function CompanyIdentityAndUsersModule({
               </div>
             )}
 
-            {/* Role 3 Form: Dueño de la Empresa */}
+            {/* Role 3 Form: DueÃ±o de la Empresa */}
             {activeUserTab === 'dueno' && (
               <div className="p-4 rounded-xl bg-amber-50/40 border border-amber-100 space-y-4 animate-in fade-in duration-150">
                 <div className="flex items-center justify-between">
@@ -773,10 +773,10 @@ export function CompanyIdentityAndUsersModule({
                     </div>
                     <div>
                       <h4 className="font-bold text-amber-950 text-xs uppercase tracking-wider">
-                        Perfil: Dueño de la Empresa / Dirección General
+                        Perfil: DueÃ±o de la Empresa / DirecciÃ³n General
                       </h4>
                       <span className="text-[10px] text-amber-800">
-                        Nivel de Acceso 1 • Alta Dirección & Accionista
+                        Nivel de Acceso 1 â€¢ Alta DirecciÃ³n & Accionista
                       </span>
                     </div>
                   </div>
@@ -788,7 +788,7 @@ export function CompanyIdentityAndUsersModule({
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
                   <div className="sm:col-span-2">
                     <label className="block font-semibold text-slate-700 mb-1">
-                      Nombre Completo del Dueño / Propietario *
+                      Nombre Completo del DueÃ±o / Propietario *
                     </label>
                     <input
                       type="text"
@@ -809,7 +809,7 @@ export function CompanyIdentityAndUsersModule({
 
                   <div>
                     <label className="block font-semibold text-slate-700 mb-1">
-                      Cargo / Título Oficial *
+                      Cargo / TÃ­tulo Oficial *
                     </label>
                     <input
                       type="text"
@@ -849,7 +849,7 @@ export function CompanyIdentityAndUsersModule({
 
                   <div>
                     <label className="block font-semibold text-slate-700 mb-1">
-                      Correo Electrónico Institucional
+                      Correo ElectrÃ³nico Institucional
                     </label>
                     <input
                       type="email"
@@ -861,7 +861,7 @@ export function CompanyIdentityAndUsersModule({
 
                   <div>
                     <label className="block font-semibold text-slate-700 mb-1">
-                      Teléfono de Contacto
+                      TelÃ©fono de Contacto
                     </label>
                     <input
                       type="tel"
@@ -874,7 +874,7 @@ export function CompanyIdentityAndUsersModule({
 
                   <div className="sm:col-span-2">
                     <label className="block font-semibold text-slate-700 mb-1">
-                      Contraseña de Acceso
+                      ContraseÃ±a de Acceso
                     </label>
                     <div className="relative">
                       {currentUser?.rol === 'admin_sistema' ? (
@@ -894,8 +894,8 @@ export function CompanyIdentityAndUsersModule({
                           </button>
                         </>
                       ) : (
-                        <div className="p-2 bg-slate-100 rounded-lg text-slate-600">****** (Acceso restringido)</div>
-                      )
+                        <div className="p-2 bg-slate-100 rounded-lg text-slate-600">Acceso restringido</div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -904,7 +904,7 @@ export function CompanyIdentityAndUsersModule({
 
             <div className="pt-2 flex items-center justify-between">
               <span className="text-[11px] text-slate-500">
-                Los cambios se reflejarán de inmediato en la sesión activa y en la pantalla de inicio.
+                Los cambios se reflejarÃ¡n de inmediato en la sesiÃ³n activa y en la pantalla de inicio.
               </span>
               <button
                 type="button"
@@ -927,7 +927,7 @@ export function CompanyIdentityAndUsersModule({
               <Building className="w-4 h-4" />
             </div>
             <div>
-              <h3 className="font-bold text-slate-900 text-sm">Identificación Institucional & Representante Legal</h3>
+              <h3 className="font-bold text-slate-900 text-sm">IdentificaciÃ³n Institucional & Representante Legal</h3>
               <p className="text-[11px] text-slate-400">
                 Datos que aparecen en los membretes, recibos de pago y constancias de trabajo oficiales
               </p>
@@ -939,9 +939,9 @@ export function CompanyIdentityAndUsersModule({
               type="button"
               onClick={() => handleSyncRepresentative('dueno')}
               className="text-[11px] font-semibold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 px-2.5 py-1 rounded-lg transition-colors"
-              title="Copiar el nombre del Dueño como Representante Legal"
+              title="Copiar el nombre del DueÃ±o como Representante Legal"
             >
-              Usar Nombre del Dueño
+              Usar Nombre del DueÃ±o
             </button>
             <button
               type="button"
@@ -957,7 +957,7 @@ export function CompanyIdentityAndUsersModule({
         <form onSubmit={handleSaveCompanyData} className="space-y-4 text-xs">
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
             <div className="md:col-span-2">
-              <label className="block font-semibold text-slate-700 mb-1">Razón Social de la Empresa *</label>
+              <label className="block font-semibold text-slate-700 mb-1">RazÃ³n Social de la Empresa *</label>
               <input
                 type="text"
                 required
@@ -990,7 +990,7 @@ export function CompanyIdentityAndUsersModule({
             </div>
 
             <div>
-              <label className="block font-semibold text-slate-700 mb-1">Cédula del Representante *</label>
+              <label className="block font-semibold text-slate-700 mb-1">CÃ©dula del Representante *</label>
               <input
                 type="text"
                 required
@@ -1012,7 +1012,7 @@ export function CompanyIdentityAndUsersModule({
             </div>
 
             <div className="sm:col-span-2">
-              <label className="block font-semibold text-slate-700 mb-1">Dirección Fiscal *</label>
+              <label className="block font-semibold text-slate-700 mb-1">DirecciÃ³n Fiscal *</label>
               <input
                 type="text"
                 required
@@ -1045,7 +1045,7 @@ export function CompanyIdentityAndUsersModule({
             </div>
 
             <div>
-              <label className="block font-semibold text-slate-700 mb-1">Teléfono de Contacto</label>
+              <label className="block font-semibold text-slate-700 mb-1">TelÃ©fono de Contacto</label>
               <input
                 type="text"
                 value={telefono}
@@ -1055,7 +1055,7 @@ export function CompanyIdentityAndUsersModule({
             </div>
 
             <div className="sm:col-span-2">
-              <label className="block font-semibold text-slate-700 mb-1">Correo Electrónico de la Empresa</label>
+              <label className="block font-semibold text-slate-700 mb-1">Correo ElectrÃ³nico de la Empresa</label>
               <input
                 type="email"
                 value={email}
@@ -1071,7 +1071,7 @@ export function CompanyIdentityAndUsersModule({
               className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm"
             >
               <Save className="w-4 h-4" />
-              <span>Guardar Información de la Empresa</span>
+              <span>Guardar InformaciÃ³n de la Empresa</span>
             </button>
           </div>
         </form>
@@ -1079,3 +1079,4 @@ export function CompanyIdentityAndUsersModule({
     </div>
   );
 }
+
