@@ -11,8 +11,14 @@ test.describe('Login RBAC smoke tests', () => {
     await page.getByTestId('role-rrhh').click();
     await page.fill('[data-testid="login-identifier"]', 'rrhh');
     await page.fill('[data-testid="login-password"]', 'rrhh');
-    await page.getByTestId('login-submit').click();
-    await page.waitForTimeout(800);
+    // submit and wait for /api/login response
+    const [resp1] = await Promise.all([
+      page.waitForResponse((r) => r.url().endsWith('/api/login')),
+      page.getByTestId('login-submit').click(),
+    ]);
+    expect(resp1.status()).toBe(200);
+    // wait for client to store user in local/session storage
+    await page.waitForFunction(() => !!(localStorage.getItem('ven_nomina_session_user') || sessionStorage.getItem('ven_nomina_session_user')),{ timeout: 2000 });
     const user = await page.evaluate(() => {
       const s = localStorage.getItem('ven_nomina_session_user') || sessionStorage.getItem('ven_nomina_session_user');
       return s ? JSON.parse(s) : null;
@@ -25,8 +31,13 @@ test.describe('Login RBAC smoke tests', () => {
     await page.getByTestId('role-dueno').click();
     await page.fill('[data-testid="login-identifier"]', 'admin');
     await page.fill('[data-testid="login-password"]', 'admin');
-    await page.getByTestId('login-submit').click();
-    // Expect an error to be shown due to role mismatch
+    const [resp2] = await Promise.all([
+      page.waitForResponse((r) => r.url().endsWith('/api/login')),
+      page.getByTestId('login-submit').click(),
+    ]);
+    expect(resp2.status()).toBe(403);
+    // Error block should appear
+    await page.getByTestId('login-error').waitFor({ state: 'visible' });
     await expect(page.getByTestId('login-error')).toBeVisible();
   });
 
@@ -34,8 +45,12 @@ test.describe('Login RBAC smoke tests', () => {
     await page.getByTestId('role-admin').click();
     await page.fill('[data-testid="login-identifier"]', 'admin');
     await page.fill('[data-testid="login-password"]', 'admin');
-    await page.getByTestId('login-submit').click();
-    await page.waitForTimeout(800);
+    const [resp3] = await Promise.all([
+      page.waitForResponse((r) => r.url().endsWith('/api/login')),
+      page.getByTestId('login-submit').click(),
+    ]);
+    expect(resp3.status()).toBe(200);
+    await page.waitForFunction(() => !!(localStorage.getItem('ven_nomina_session_user') || sessionStorage.getItem('ven_nomina_session_user')),{ timeout: 2000 });
     const user = await page.evaluate(() => {
       const s = localStorage.getItem('ven_nomina_session_user') || sessionStorage.getItem('ven_nomina_session_user');
       return s ? JSON.parse(s) : null;
