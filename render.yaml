@@ -16,11 +16,5 @@ services:
         value: "__REPLACE_WITH_SECRET__"
       - key: ALLOWED_ORIGIN
         value: "https://rrhh-simple.onrender.com"
-    routes:
-      - type: http
-        path: /api/*
-      - type: rewrite
-        source: /*
-        destination: /index.html
     healthCheckPath: /health
     pullRequestPreviewsEnabled: false

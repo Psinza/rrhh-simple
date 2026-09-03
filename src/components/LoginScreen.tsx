@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { AppUser, CompanySettings } from '../types';
 import { predefinedUsers } from '../data/authUsers';
+import { getApiBase } from '../services/api';
 
 interface LoginScreenProps {
   onLogin: (user: AppUser) => void;
@@ -45,7 +46,7 @@ export function LoginScreen({ onLogin, users, company }: LoginScreenProps) {
     setErrorMsg(null);
 
     try {
-      const API_BASE = (import.meta as any).env.VITE_API_BASE || '';
+      const API_BASE = getApiBase();
       const resp = await fetch(`${API_BASE}/api/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -67,7 +68,7 @@ export function LoginScreen({ onLogin, users, company }: LoginScreenProps) {
       }
     } catch (e) {
       console.error(e);
-      setErrorMsg('Error de conexión al servidor de autenticación.');
+      setErrorMsg('No se pudo conectar con /api/login. Verifique que Render esté ejecutando el servicio Node y que no exista VITE_API_BASE apuntando a localhost.');
     }
   };
 

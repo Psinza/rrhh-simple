@@ -7,6 +7,9 @@
     "url": "https://github.com/Psinza/rrhh-simple"
   },
   "homepage": "https://rrhh-simple.onrender.com",
+  "engines": {
+    "node": "20.x"
+  },
   "type": "module",
   "scripts": {
     "dev": "vite --port=3000 --host=0.0.0.0",

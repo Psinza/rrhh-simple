@@ -41,6 +41,7 @@ import {
   initialAuditLogs,
 } from './data/initialData';
 import { predefinedUsers } from './data/authUsers';
+import { getApiBase } from './services/api';
 import { lightweightDb, DatabaseState } from './services/lightweightDb';
 
 // Subcomponents
@@ -122,7 +123,7 @@ export default function App() {
     // On mount, try to load authoritative session from backend (/api/me)
     (async () => {
       try {
-        const API_BASE = (import.meta as any).env.VITE_API_BASE || '';
+        const API_BASE = getApiBase();
         const resp = await fetch(`${API_BASE}/api/me`, { credentials: 'include' });
         if (resp.ok) {
           const body = await resp.json();
@@ -223,7 +224,7 @@ export default function App() {
   const handleLogin = async (user: AppUser) => {
     // After login, verify authoritative session from backend (in case cookie is set)
     try {
-      const API_BASE = (import.meta as any).env.VITE_API_BASE || '';
+      const API_BASE = getApiBase();
       const resp = await fetch(`${API_BASE}/api/me`, { credentials: 'include' });
       if (resp.ok) {
         const body = await resp.json();
@@ -264,7 +265,7 @@ export default function App() {
     }
     // Notify backend to clear cookie
     try {
-      const API_BASE = (import.meta as any).env.VITE_API_BASE || '';
+      const API_BASE = getApiBase();
       await fetch(`${API_BASE}/api/logout`, { method: 'POST', credentials: 'include' });
     } catch (e) {
       // ignore
