@@ -31,13 +31,13 @@ jobs:
         run: node server/index.js &
 
       - name: Wait for backend
-        run: npx wait-on http://localhost:4000/api/login
+        run: npx wait-on http://localhost:4000/api/login --timeout 180000
 
       - name: Start frontend dev server (vite)
         run: npm run dev -- --port 3001 &
 
       - name: Wait for frontend
-        run: npx wait-on http://localhost:3001
+        run: npx wait-on http://localhost:3001 --timeout 180000
 
       - name: Install Playwright browsers
         run: npx playwright install --with-deps
