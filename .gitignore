@@ -6,3 +6,9 @@ coverage/
 *.log
 .env*
 !.env.example
+
+node_modules
+dist
+.env
+work-npm-cache
+server/data
