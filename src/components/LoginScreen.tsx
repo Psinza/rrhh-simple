@@ -52,6 +52,14 @@ export function LoginScreen({ onLogin, users, company }: LoginScreenProps) {
     );
 
     if (userFound) {
+      // Enforce role match with selected profile for stricter access control
+      if (userFound.rol !== selectedRole) {
+        setErrorMsg(
+          `El usuario ingresado no pertenece al perfil seleccionado (${selectedRole}). Seleccione el perfil correcto o use las credenciales correspondientes.`
+        );
+        return;
+      }
+
       if (rememberMe) {
         localStorage.setItem('ven_nomina_session_user', JSON.stringify(userFound));
       } else {
