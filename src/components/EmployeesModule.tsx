@@ -56,6 +56,9 @@ export function EmployeesModule({
   const [formDepartamento, setFormDepartamento] = useState('Operaciones');
   const [formFechaIngreso, setFormFechaIngreso] = useState(new Date().toISOString().split('T')[0]);
   const [formSalario, setFormSalario] = useState('25000');
+  const [formSalarioMoneda, setFormSalarioMoneda] = useState<'BS' | 'USD'>('BS');
+  const [formCestaticket, setFormCestaticket] = useState(String(company.montoCestaticketNacional));
+  const [formCestaticketMoneda, setFormCestaticketMoneda] = useState<'BS' | 'USD'>('BS');
   const [formBanco, setFormBanco] = useState('Banco de Venezuela');
   const [formNumeroCuenta, setFormNumeroCuenta] = useState('');
   const [formCargas, setFormCargas] = useState('1');
@@ -91,6 +94,8 @@ export function EmployeesModule({
     const formattedRif = formRifNum || `${formNac}-${cleanCedula}-0`;
 
     const salarioNum = parseFloat(formSalario) || 0;
+    const salarioBaseBs = formSalarioMoneda === 'USD' ? salarioNum * company.tasaBCV_USD : salarioNum;
+    const cestaticketBaseBs = formCestaticketMoneda === 'USD' ? (parseFloat(formCestaticket) || 0) * company.tasaBCV_USD : (parseFloat(formCestaticket) || 0);
 
     const newEmp: Employee = {
       id: `emp-${Date.now()}`,
@@ -114,9 +119,11 @@ export function EmployeesModule({
       tipoContrato: 'indeterminado',
       status: 'activo',
       numeroAfiliacionIVSS: `IVSS-${cleanCedula}`,
-      salarioMensualBase: salarioNum,
+      salarioMensualBase: salarioBaseBs,
+      salarioMoneda: formSalarioMoneda,
       frecuenciaPago: 'quincenal',
-      cestaticketMensual: company.montoCestaticketNacional,
+      cestaticketMensual: cestaticketBaseBs || company.montoCestaticketNacional,
+      cestaticketMoneda: formCestaticketMoneda,
       diasUtilidadesAnuales: company.diasUtilidadesEmpresa,
       horasExtrasDiurnasPendientes: 0,
       horasExtrasNocturnasPendientes: 0,
@@ -463,33 +470,56 @@ export function EmployeesModule({
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 bg-sky-50/50 rounded-xl border border-sky-100">
                 <div>
                   <label className="block font-medium text-slate-800 mb-1">
-                    Salario Mensual Base (Bs.) *
+                    Salario Mensual Base *
                   </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    required
-                    value={formSalario}
-                    onChange={(e) => setFormSalario(e.target.value)}
-                    className="w-full p-2 bg-white border border-sky-200 rounded-lg font-semibold text-slate-900"
-                  />
+                  <div className="flex gap-2">
+                    <input
+                      type="number"
+                      step="0.01"
+                      required
+                      value={formSalario}
+                      onChange={(e) => setFormSalario(e.target.value)}
+                      className="w-full p-2 bg-white border border-sky-200 rounded-lg font-semibold text-slate-900"
+                    />
+                    <select
+                      value={formSalarioMoneda}
+                      onChange={(e) => setFormSalarioMoneda(e.target.value as 'BS' | 'USD')}
+                      className="w-24 p-2 bg-white border border-sky-200 rounded-lg font-medium text-slate-700"
+                    >
+                      <option value="BS">Bs.</option>
+                      <option value="USD">USD</option>
+                    </select>
+                  </div>
                   <span className="text-[10px] text-sky-700 mt-1 block">
-                    Equivalente BCV: {formatUSD(parseFloat(formSalario) / company.tasaBCV_USD || 0)}
+                    {formSalarioMoneda === 'USD'
+                      ? `Equivalente BCV: ${formatBs(parseFloat(formSalario || '0') * company.tasaBCV_USD || 0)}`
+                      : `Equivalente BCV: ${formatUSD(parseFloat(formSalario || '0') / company.tasaBCV_USD || 0)}`}
                   </span>
                 </div>
 
                 <div>
                   <label className="block font-medium text-slate-800 mb-1">
-                    Cestaticket Socialista (Bs.)
+                    Cestaticket Socialista
                   </label>
-                  <input
-                    type="text"
-                    disabled
-                    value={formatBs(company.montoCestaticketNacional)}
-                    className="w-full p-2 bg-slate-100 border border-slate-200 rounded-lg text-slate-600"
-                  />
+                  <div className="flex gap-2">
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={formCestaticket}
+                      onChange={(e) => setFormCestaticket(e.target.value)}
+                      className="w-full p-2 bg-white border border-sky-200 rounded-lg font-semibold text-slate-900"
+                    />
+                    <select
+                      value={formCestaticketMoneda}
+                      onChange={(e) => setFormCestaticketMoneda(e.target.value as 'BS' | 'USD')}
+                      className="w-24 p-2 bg-white border border-sky-200 rounded-lg font-medium text-slate-700"
+                    >
+                      <option value="BS">Bs.</option>
+                      <option value="USD">USD</option>
+                    </select>
+                  </div>
                   <span className="text-[10px] text-slate-500 mt-1 block">
-                    Beneficio de alimentación legal exento (no salarial).
+                    Beneficio de alimentación legal exento (no salarial) y registrado en la moneda elegida.
                   </span>
                 </div>
               </div>

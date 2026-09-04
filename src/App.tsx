@@ -321,6 +321,12 @@ export default function App() {
   };
 
   const handleDeleteEmployee = (employeeId: string) => {
+    const currentRole = currentUser?.rol;
+    if (!(currentRole === 'admin_sistema' || currentRole === 'rrhh')) {
+      alert('Acceso denegado: solo RRHH o Administrador pueden eliminar colaboradores.');
+      return;
+    }
+
     const toDelete = employees.find((e) => e.id === employeeId);
     if (!toDelete) return;
     setEmployees((prev) => prev.filter((e) => e.id !== employeeId));

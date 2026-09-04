@@ -2,6 +2,7 @@ export type ContractType = 'indeterminado' | 'determinado' | 'obra';
 export type EmployeeStatus = 'activo' | 'vacaciones' | 'reposo' | 'egresado';
 export type IvssRiskLevel = 9 | 10 | 11; // 9% Mínimo, 10% Medio, 11% Máximo
 export type PayrollFrequency = 'quincenal' | 'mensual';
+export type MoneyCurrency = 'BS' | 'USD';
 
 export interface WorkHistoryEvent {
   id: string;
@@ -60,9 +61,11 @@ export interface Employee {
   numeroAfiliacionIVSS: string;
 
   // Salarios y Beneficios LOTTT
-  salarioMensualBase: number; // En Bolívares (Bs.)
+  salarioMensualBase: number; // Se almacena en Bs. para cálculos internos
+  salarioMoneda?: MoneyCurrency; // Si se registró en USD/BS por el usuario
   frecuenciaPago: PayrollFrequency;
-  cestaticketMensual: number; // En Bolívares (No salarial)
+  cestaticketMensual: number; // Se almacena en Bs. para cálculos internos
+  cestaticketMoneda?: MoneyCurrency; // Si se registró en USD/BS por el usuario
   diasUtilidadesAnuales: number; // Mínimo 30 días, máximo 120 días (Art. 131 LOTTT)
   horasExtrasDiurnasPendientes: number;
   horasExtrasNocturnasPendientes: number;

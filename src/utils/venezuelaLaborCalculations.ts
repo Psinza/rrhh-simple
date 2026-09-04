@@ -475,10 +475,31 @@ export function downloadFile(content: string, filename: string, mimeType: string
 /**
  * Formateo de moneda en Bolívares (Bs.) y USD con tasa BCV
  */
+export function convertAmountToBaseCurrency(amount: number, currency: 'BS' | 'USD' | undefined, rate: number): number {
+  if (!Number.isFinite(amount)) return 0;
+  if (currency === 'USD' && rate > 0) return amount * rate;
+  return amount;
+}
+
+export function getDisplayCurrencyValue(amount: number, currency: 'BS' | 'USD' | undefined, rate: number): {
+  amount: number;
+  currency: 'BS' | 'USD';
+} {
+  if (currency === 'USD' && rate > 0) {
+    return { amount: amount / rate, currency: 'USD' };
+  }
+  return { amount, currency: 'BS' };
+}
+
 export function formatBs(amount: number): string {
   return `Bs. ${amount.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 export function formatUSD(amount: number): string {
   return `$${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+export function formatMoneyByCurrency(amount: number, currency: 'BS' | 'USD' | undefined): string {
+  if (currency === 'USD') return formatUSD(amount);
+  return formatBs(amount);
 }

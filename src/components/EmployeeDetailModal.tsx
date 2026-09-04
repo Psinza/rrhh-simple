@@ -250,7 +250,7 @@ export function EmployeeDetailModal({
             ) : null}
 
             {/* Delete (Admin only) */}
-            {currentUser?.rol === 'admin_sistema' && onDeleteEmployee ? (
+            {(currentUser?.rol === 'admin_sistema' || currentUser?.rol === 'rrhh') && onDeleteEmployee ? (
               <button
                 onClick={() => {
                   const ok = confirm(`Confirma eliminar al colaborador ${employee.primerNombre} ${employee.primerApellido} (${employee.cedula})? Esta acción es irreversible.`);
@@ -259,7 +259,7 @@ export function EmployeeDetailModal({
                   onClose();
                 }}
                 className="px-3 py-2 text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white rounded transition-colors border border-rose-200"
-                title="Eliminar Colaborador (Administrador)"
+                title="Eliminar Colaborador (RRHH o Administrador)"
               >
                 Eliminar Colaborador
               </button>
