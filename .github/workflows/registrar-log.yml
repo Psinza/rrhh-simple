@@ -1,0 +1,25 @@
+name: Registrar Log de Base de Datos
+
+on:
+  repository_dispatch:
+    types: [supabase_db_change]
+
+jobs:
+  log-change:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Crear archivo de log automático
+        run: |
+          mkdir -p logs
+          TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          PAYLOAD='${{ toJson(github.event.client_payload) }}'
+          echo "[$TIMESTAMP] Evento en BD: $PAYLOAD" >> logs/db-activity.log
+
+      - name: Commit y Push del Log
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "chore(logs): registro automático de actividad en base de datos"
+          branch: main
