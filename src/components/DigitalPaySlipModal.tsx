@@ -27,6 +27,8 @@ export function DigitalPaySlipModal({
 }: DigitalPaySlipModalProps) {
   const [isSigned, setIsSigned] = useState(item.firmadoDigitalmente);
   const [signatureDate, setSignatureDate] = useState(item.firmaFecha || new Date().toLocaleString('es-VE'));
+  const slipCurrencyLabel = 'Bs.';
+  const slipReferenceCurrencyLabel = 'USD';
 
   const handleSign = () => {
     setIsSigned(true);
@@ -139,7 +141,10 @@ export function DigitalPaySlipModal({
             </div>
             <div>
               <span className="text-slate-500 block">Salario Mensual Base:</span>
-              <strong className="text-slate-900">{formatBs(item.employee.salarioMensualBase)}</strong>
+              <strong className="text-slate-900">
+                {formatBs(item.employee.salarioMensualBase)}
+                <span className="ml-1 text-[10px] align-middle font-bold text-slate-500">({slipCurrencyLabel})</span>
+              </strong>
             </div>
             <div>
               <span className="text-slate-500 block">Días Liquidados:</span>
@@ -239,11 +244,17 @@ export function DigitalPaySlipModal({
             <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs space-y-1">
               <div className="flex justify-between text-slate-600">
                 <span>Total Asignaciones Devengadas:</span>
-                <strong className="text-slate-900">{formatBs(item.totalAsignaciones)}</strong>
+                <strong className="text-slate-900">
+                  {formatBs(item.totalAsignaciones)}
+                  <span className="ml-1 text-[10px] align-middle font-bold text-slate-500">({slipCurrencyLabel})</span>
+                </strong>
               </div>
               <div className="flex justify-between text-slate-600">
                 <span>Total Retenciones Legales:</span>
-                <strong className="text-amber-800">-{formatBs(item.totalDeducciones)}</strong>
+                <strong className="text-amber-800">
+                  -{formatBs(item.totalDeducciones)}
+                  <span className="ml-1 text-[10px] align-middle font-bold text-amber-600">({slipCurrencyLabel})</span>
+                </strong>
               </div>
             </div>
 
@@ -253,9 +264,12 @@ export function DigitalPaySlipModal({
               </span>
               <div className="text-2xl font-black text-emerald-900 mt-0.5">
                 {formatBs(item.netoCobrarBs)}
+                <span className="ml-2 text-[10px] align-middle font-bold text-emerald-700">({slipCurrencyLabel})</span>
               </div>
               <span className="text-[11px] text-emerald-700 font-semibold">
-                Equivalente Ref. BCV: {formatUSD(item.netoCobrarUSD)} (Tasa: Bs. {company.tasaBCV_USD.toFixed(2)})
+                Equivalente Ref. BCV: {formatUSD(item.netoCobrarUSD)}
+                <span className="ml-1 text-[10px] align-middle font-bold text-emerald-700">({slipReferenceCurrencyLabel})</span>
+                <span className="ml-1">(Tasa: Bs. {company.tasaBCV_USD.toFixed(2)})</span>
               </span>
             </div>
           </div>

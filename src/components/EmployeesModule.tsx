@@ -300,6 +300,7 @@ export function EmployeesModule({
                     </span>
                     <span className="font-bold text-slate-900">
                       {formatMoneyWithEmployeeCurrency(emp.salarioMensualBase, emp.salarioMoneda, company.tasaBCV_USD)}
+                      <span className="ml-1 text-[10px] align-middle font-bold text-slate-500">({emp.salarioMoneda === 'USD' ? 'USD' : 'Bs.'})</span>
                     </span>
                   </div>
 
@@ -307,6 +308,7 @@ export function EmployeesModule({
                     <span className="text-slate-500">Salario Integral (Art. 122):</span>
                     <span className="font-medium text-emerald-700">
                       {formatMoneyWithEmployeeCurrency(integral.salarioIntegralMensual, emp.salarioMoneda, company.tasaBCV_USD)}
+                      <span className="ml-1 text-[10px] align-middle font-bold text-emerald-600">({emp.salarioMoneda === 'USD' ? 'USD' : 'Bs.'})</span>
                     </span>
                   </div>
                 </div>
