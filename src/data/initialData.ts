@@ -84,7 +84,7 @@ export const initialAuditLogs: AuditLog[] = [
   {
     id: 'log-1',
     timestamp: '2026-09-02 08:30:12',
-    usuario: 'Valentina Mendoza',
+    usuario: 'Lic. Dubraska',
     rol: 'Administrador RRHH',
     accion: 'Inicio de Sesión y Autenticación MFA',
     modulo: 'Seguridad',
@@ -95,7 +95,7 @@ export const initialAuditLogs: AuditLog[] = [
   {
     id: 'log-2',
     timestamp: '2026-09-02 09:15:40',
-    usuario: 'Valentina Mendoza',
+    usuario: 'Lic. Dubraska',
     rol: 'Administrador RRHH',
     accion: 'Cálculo y Validación de Nómina 2da Quincena Agosto',
     modulo: 'Nómina',
@@ -106,8 +106,8 @@ export const initialAuditLogs: AuditLog[] = [
   {
     id: 'log-3',
     timestamp: '2026-09-02 10:05:22',
-    usuario: 'Mariana García',
-    rol: 'Especialista de Nómina',
+    usuario: 'Lic. Dubraska',
+    rol: 'Administrador RRHH',
     accion: 'Exportación de Archivo Carga Masiva BANAVIH',
     modulo: 'Archivos Gubernamentales',
     detalles: 'Generación de archivo CSV para portal FAOV con cotizantes validados.',
