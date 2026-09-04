@@ -73,6 +73,7 @@ export function EmployeeDetailModal({
 
   const tenure = calculateTenure(employee.fechaIngreso);
   const displayCurrency = employee.salarioMoneda || 'BS';
+  const displayCurrencyLabel = displayCurrency === 'USD' ? 'USD' : 'Bs.';
   const integral = calculateIntegralSalary(
     employee.salarioMensualBase,
     tenure.anios,
@@ -376,12 +377,14 @@ export function EmployeeDetailModal({
                   </span>
                   <h3 className="text-lg font-bold text-white">
                     Salario Diario Integral: {displaySalarioDiarioIntegral}
+                    <span className="ml-2 text-[10px] align-middle font-bold text-sky-300">({displayCurrencyLabel})</span>
                   </h3>
                 </div>
                 <div className="text-right">
                   <span className="text-xs text-slate-400">Integral Mensual Equivalente:</span>
                   <div className="text-base font-extrabold text-emerald-400">
                     {displayIntegralMonthly}
+                    <span className="ml-2 text-[10px] align-middle font-bold text-emerald-300">({displayCurrencyLabel})</span>
                   </div>
                 </div>
               </div>
@@ -410,6 +413,7 @@ export function EmployeeDetailModal({
                 </span>
                 <div className="text-xl font-extrabold text-slate-900 mt-1">
                   {displayGarantia}
+                  <span className="ml-2 text-[10px] align-middle font-bold text-sky-700">({displayCurrencyLabel})</span>
                 </div>
                 <div className="text-xs text-slate-600 mt-1">
                   {benefits.totalDiasGarantia} días de salario integral ({benefits.diasGarantiaAcumulados} trimestrales + {benefits.diasAdicionalesAntiguedad} adicionales)
@@ -422,6 +426,7 @@ export function EmployeeDetailModal({
                 </span>
                 <div className="text-xl font-extrabold text-slate-900 mt-1">
                   {displayIntereses}
+                  <span className="ml-2 text-[10px] align-middle font-bold text-amber-700">({displayCurrencyLabel})</span>
                 </div>
                 <div className="text-xs text-slate-600 mt-1">
                   Tasa activa BCV: {company.tasaInteresPrestacionesBCV}% anual
@@ -434,6 +439,7 @@ export function EmployeeDetailModal({
                 </span>
                 <div className="text-xl font-extrabold text-emerald-900 mt-1">
                   {displaySaldoNeto}
+                  <span className="ml-2 text-[10px] align-middle font-bold text-emerald-700">({displayCurrencyLabel})</span>
                 </div>
                 <div className="text-xs text-emerald-700 mt-1">
                   Disponible para anticipo: {displayDisponible} (75%)
@@ -560,12 +566,14 @@ export function EmployeeDetailModal({
                   <span className="text-slate-500">Monto Retroactivo (30 días por año):</span>
                   <div className="font-bold text-slate-900 text-sm mt-0.5">
                     {displayRetroActivo}
+                    <span className="ml-2 text-[10px] align-middle font-bold text-slate-600">({displayCurrencyLabel})</span>
                   </div>
                 </div>
                 <div className="p-3 bg-white rounded-xl border border-slate-200">
                   <span className="text-slate-500">Garantía + Intereses Acumulados:</span>
                   <div className="font-bold text-slate-900 text-sm mt-0.5">
                     {formatMoneyWithEmployeeCurrency(benefits.montoGarantiaTotal + benefits.interesesAcumulados, displayCurrency, company.tasaBCV_USD)}
+                    <span className="ml-2 text-[10px] align-middle font-bold text-slate-600">({displayCurrencyLabel})</span>
                   </div>
                 </div>
               </div>
