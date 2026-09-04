@@ -79,6 +79,8 @@ export function SocialBenefitsModule({
   const indemnizacionArt92 =
     terminationType === 'despido_injustificado' && simBenefits ? simBenefits.montoMayorAPagar : 0;
   const totalLiquidacionFiniquito = simBenefits ? simBenefits.montoMayorAPagar + indemnizacionArt92 : 0;
+  const benefitsCurrencyLabel = 'Bs.';
+  const benefitsReferenceCurrencyLabel = 'USD';
 
   return (
     <div className="space-y-6">
@@ -112,6 +114,7 @@ export function SocialBenefitsModule({
           </span>
           <div className="text-xl font-bold text-slate-900 font-mono mt-1">
             {formatBs(totalGarantiaEmpresa)}
+            <span className="ml-2 text-[10px] align-middle font-bold text-slate-500">({benefitsCurrencyLabel})</span>
           </div>
           <div className="text-xs text-slate-500 mt-0.5">
             Art. 142 literales a y b
@@ -124,6 +127,7 @@ export function SocialBenefitsModule({
           </span>
           <div className="text-xl font-bold text-amber-700 font-mono mt-1">
             {formatBs(totalInteresesEmpresa)}
+            <span className="ml-2 text-[10px] align-middle font-bold text-amber-600">({benefitsCurrencyLabel})</span>
           </div>
           <div className="text-xs text-slate-500 mt-0.5">
             Art. 143 tasa mensual de los 6 bancos
@@ -136,6 +140,7 @@ export function SocialBenefitsModule({
           </span>
           <div className="text-xl font-bold text-slate-700 font-mono mt-1">
             -{formatBs(totalAnticiposEmpresa)}
+            <span className="ml-2 text-[10px] align-middle font-bold text-slate-500">({benefitsCurrencyLabel})</span>
           </div>
           <div className="text-xs text-slate-500 mt-0.5">
             Vivienda, salud y educación
@@ -148,9 +153,11 @@ export function SocialBenefitsModule({
           </span>
           <div className="text-xl font-bold text-emerald-800 font-mono mt-1">
             {formatBs(totalFondoNetoEmpresa)}
+            <span className="ml-2 text-[10px] align-middle font-bold text-emerald-700">({benefitsCurrencyLabel})</span>
           </div>
           <div className="text-xs text-emerald-700 mt-0.5 font-medium">
             Ref. BCV: {formatUSD(totalFondoNetoEmpresa / company.tasaBCV_USD)}
+            <span className="ml-2 text-[10px] align-middle font-bold text-emerald-700">({benefitsReferenceCurrencyLabel})</span>
           </div>
         </div>
       </div>

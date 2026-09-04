@@ -107,6 +107,8 @@ export function PayrollModule({
 
   const totalDeduccionesPeriodo = filteredItems.reduce((acc, i) => acc + i.totalDeducciones, 0);
   const totalNetoPagarPeriodo = filteredItems.reduce((acc, i) => acc + i.netoCobrarBs, 0);
+  const payrollCurrencyLabel = 'Bs.';
+  const referenceCurrencyLabel = 'USD';
 
   return (
     <div className="space-y-6">
@@ -183,6 +185,7 @@ export function PayrollModule({
           </span>
           <div className="text-xl font-bold text-slate-900 font-mono mt-1">
             {formatBs(payroll.totalNominaBs)}
+            <span className="ml-2 text-[10px] align-middle font-bold text-slate-500">({payrollCurrencyLabel})</span>
           </div>
           <div className="text-xs text-slate-500 mt-0.5">
             Sueldo base + Horas extras legales
@@ -195,6 +198,7 @@ export function PayrollModule({
           </span>
           <div className="text-xl font-bold text-blue-700 font-mono mt-1">
             {formatBs(payroll.totalCestaticketBs)}
+            <span className="ml-2 text-[10px] align-middle font-bold text-blue-500">({payrollCurrencyLabel})</span>
           </div>
           <div className="text-xs text-slate-500 mt-0.5">
             Beneficio de alimentación no salarial
@@ -207,6 +211,7 @@ export function PayrollModule({
           </span>
           <div className="text-xl font-bold text-amber-700 font-mono mt-1">
             {formatBs(totalDeduccionesPeriodo)}
+            <span className="ml-2 text-[10px] align-middle font-bold text-amber-600">({payrollCurrencyLabel})</span>
           </div>
           <div className="text-xs text-slate-500 mt-0.5">
             IVSS 4% • Paro 0.5% • FAOV 1% • ISLR
@@ -219,9 +224,11 @@ export function PayrollModule({
           </span>
           <div className="text-xl font-bold text-slate-900 font-mono mt-1">
             {formatBs(totalNetoPagarPeriodo)}
+            <span className="ml-2 text-[10px] align-middle font-bold text-slate-500">({payrollCurrencyLabel})</span>
           </div>
           <div className="text-xs font-semibold text-slate-500 mt-0.5">
             Ref. BCV: {formatUSD(company.tasaBCV_USD > 0 ? totalNetoPagarPeriodo / company.tasaBCV_USD : 0)}
+            <span className="ml-2 text-[10px] align-middle font-bold text-slate-500">({referenceCurrencyLabel})</span>
           </div>
         </div>
       </div>
