@@ -1,5 +1,5 @@
 {
-  "name": "TalentoVE - Recursos Humanos y Nómina Venezuela",
+  "name": "RRHH-SIMPLE_S - Recursos Humanos y Nómina Venezuela",
   "description": "Sistema integral de Recursos Humanos y Nómina bajo la legislación laboral venezolana (LOTTT, IVSS, FAOV/BANAVIH e INCES), cálculo de prestaciones sociales, parafiscales, recibos digitales y expedientes.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
