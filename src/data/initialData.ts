@@ -8,18 +8,18 @@ import {
 import { calculatePayrollDeductionsAndContributions } from '../utils/venezuelaLaborCalculations';
 
 export const initialCompanySettings: CompanySettings = {
-  razonSocial: 'Soluciones Tecnológicas & Logísticas de Venezuela, C.A.',
-  rif: 'J-40982314-5',
+  razonSocial: 'INDUSTRIAS COUTURE 2618 C.A.',
+  rif: 'J-40964466-9',
   numeroPatronalIVSS: 'D84910293',
   codigoAportanteFAOV: 'FAOV-304910',
   codigoInces: 'INC-2025-7819',
-  direccionFiscal: 'Av. Francisco de Miranda, Torre Cavendes, Piso 8, Ofic. 802, Los Palos Grandes',
+  direccionFiscal: 'CALLE CALLE PRINCIPAL, COMANDO 302, GRUPO CABALLERIA MOTORIZADA GENERAL DE BRIGADA JUAN PABLO AYALA , LOCAL COMPLEJO TIUNA. URB. FUERTE TIUNA  ZONA POSTAL 1010 ',
   ciudad: 'Caracas',
   estado: 'Miranda',
-  telefono: '+58 (0212) 285-4011',
-  email: 'rrhh@solucionesve.com.ve',
-  representanteLegal: 'Dra. Valentina Mendoza Paredes',
-  cedulaRepresentante: 'V-15.892.401',
+  telefono: '+58 (0412) 285-6530',
+  email: 'INDUSTRIACOUTURE@GMAIL.COM',
+  representanteLegal: 'JACOB AGAI BENZAQUEN',
+  cedulaRepresentante: 'V-15.488.701',
   cargoRepresentante: 'Directora General de Talento Humano',
 
   // Parámetros Laborales Venezolanos
