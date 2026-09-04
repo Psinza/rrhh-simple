@@ -10,6 +10,10 @@
   "engines": {
     "node": "20.x"
   },
+  "overrides": {
+    "qs": "^6.16.0",
+    "tar": "^7.5.11"
+  },
   "type": "module",
   "scripts": {
     "dev": "vite --port=3000 --host=0.0.0.0",
