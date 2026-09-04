@@ -23,6 +23,7 @@ import {
   calculateSocialBenefits,
   formatBs,
   formatUSD,
+  formatMoneyWithEmployeeCurrency,
 } from '../utils/venezuelaLaborCalculations';
 
 interface EmployeeDetailModalProps {
@@ -71,12 +72,53 @@ export function EmployeeDetailModal({
   const [editCargasFamiliares, setEditCargasFamiliares] = useState(String(employee.cargasFamiliares || 0));
 
   const tenure = calculateTenure(employee.fechaIngreso);
+  const displayCurrency = employee.salarioMoneda || 'BS';
   const integral = calculateIntegralSalary(
     employee.salarioMensualBase,
     tenure.anios,
     employee.diasUtilidadesAnuales || company.diasUtilidadesEmpresa
   );
   const benefits = calculateSocialBenefits(employee, company);
+  const displayIntegralMonthly = formatMoneyWithEmployeeCurrency(
+    integral.salarioIntegralMensual,
+    displayCurrency,
+    company.tasaBCV_USD
+  );
+  const displaySalarioDiarioIntegral = formatMoneyWithEmployeeCurrency(
+    integral.salarioDiarioIntegral,
+    displayCurrency,
+    company.tasaBCV_USD
+  );
+  const displayGarantia = formatMoneyWithEmployeeCurrency(
+    benefits.montoGarantiaTotal,
+    displayCurrency,
+    company.tasaBCV_USD
+  );
+  const displayIntereses = formatMoneyWithEmployeeCurrency(
+    benefits.interesesAcumulados,
+    displayCurrency,
+    company.tasaBCV_USD
+  );
+  const displaySaldoNeto = formatMoneyWithEmployeeCurrency(
+    benefits.saldoNetoActual,
+    displayCurrency,
+    company.tasaBCV_USD
+  );
+  const displayDisponible = formatMoneyWithEmployeeCurrency(
+    benefits.disponibleParaAnticipo,
+    displayCurrency,
+    company.tasaBCV_USD
+  );
+  const displayRetroActivo = formatMoneyWithEmployeeCurrency(
+    benefits.montoRetroactivoArt142c,
+    displayCurrency,
+    company.tasaBCV_USD
+  );
+  const displayMontoMayor = formatMoneyWithEmployeeCurrency(
+    benefits.montoMayorAPagar,
+    displayCurrency,
+    company.tasaBCV_USD
+  );
 
   const handleAddHistoryEvent = (e: React.FormEvent) => {
     e.preventDefault();
@@ -333,13 +375,13 @@ export function EmployeeDetailModal({
                     Base Salarial de Cálculo (Art. 122 LOTTT)
                   </span>
                   <h3 className="text-lg font-bold text-white">
-                    Salario Diario Integral: {formatBs(integral.salarioDiarioIntegral)}
+                    Salario Diario Integral: {displaySalarioDiarioIntegral}
                   </h3>
                 </div>
                 <div className="text-right">
                   <span className="text-xs text-slate-400">Integral Mensual Equivalente:</span>
                   <div className="text-base font-extrabold text-emerald-400">
-                    {formatBs(integral.salarioIntegralMensual)}
+                    {displayIntegralMonthly}
                   </div>
                 </div>
               </div>
@@ -347,15 +389,15 @@ export function EmployeeDetailModal({
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
                 <div className="bg-slate-800/80 p-2.5 rounded-xl border border-slate-700">
                   <span className="text-slate-400">Salario Normal Diario (S/30):</span>
-                  <div className="font-bold text-slate-200 mt-0.5">{formatBs(integral.salarioDiarioNormal)}</div>
+                  <div className="font-bold text-slate-200 mt-0.5">{formatMoneyWithEmployeeCurrency(integral.salarioDiarioNormal, displayCurrency, company.tasaBCV_USD)}</div>
                 </div>
                 <div className="bg-slate-800/80 p-2.5 rounded-xl border border-slate-700">
                   <span className="text-slate-400">Alícuota Bono Vacacional ({integral.diasBonoVacacional}d/360):</span>
-                  <div className="font-bold text-sky-300 mt-0.5">{formatBs(integral.alicuotaBonoVacacionalDiaria)}</div>
+                  <div className="font-bold text-sky-300 mt-0.5">{formatMoneyWithEmployeeCurrency(integral.alicuotaBonoVacacionalDiaria, displayCurrency, company.tasaBCV_USD)}</div>
                 </div>
                 <div className="bg-slate-800/80 p-2.5 rounded-xl border border-slate-700">
                   <span className="text-slate-400">Alícuota Utilidades ({employee.diasUtilidadesAnuales || 45}d/360):</span>
-                  <div className="font-bold text-amber-300 mt-0.5">{formatBs(integral.alicuotaUtilidadesDiaria)}</div>
+                  <div className="font-bold text-amber-300 mt-0.5">{formatMoneyWithEmployeeCurrency(integral.alicuotaUtilidadesDiaria, displayCurrency, company.tasaBCV_USD)}</div>
                 </div>
               </div>
             </div>
@@ -367,7 +409,7 @@ export function EmployeeDetailModal({
                   Garantía Art. 142 (a y b)
                 </span>
                 <div className="text-xl font-extrabold text-slate-900 mt-1">
-                  {formatBs(benefits.montoGarantiaTotal)}
+                  {displayGarantia}
                 </div>
                 <div className="text-xs text-slate-600 mt-1">
                   {benefits.totalDiasGarantia} días de salario integral ({benefits.diasGarantiaAcumulados} trimestrales + {benefits.diasAdicionalesAntiguedad} adicionales)
@@ -379,7 +421,7 @@ export function EmployeeDetailModal({
                   Intereses BCV (Art. 143)
                 </span>
                 <div className="text-xl font-extrabold text-slate-900 mt-1">
-                  {formatBs(benefits.interesesAcumulados)}
+                  {displayIntereses}
                 </div>
                 <div className="text-xs text-slate-600 mt-1">
                   Tasa activa BCV: {company.tasaInteresPrestacionesBCV}% anual
@@ -391,10 +433,10 @@ export function EmployeeDetailModal({
                   Saldo Neto Acumulado
                 </span>
                 <div className="text-xl font-extrabold text-emerald-900 mt-1">
-                  {formatBs(benefits.saldoNetoActual)}
+                  {displaySaldoNeto}
                 </div>
                 <div className="text-xs text-emerald-700 mt-1">
-                  Disponible para anticipo: {formatBs(benefits.disponibleParaAnticipo)} (75%)
+                  Disponible para anticipo: {displayDisponible} (75%)
                 </div>
               </div>
             </div>
@@ -489,7 +531,7 @@ export function EmployeeDetailModal({
                         </div>
                       </div>
                       <div className="text-right">
-                        <span className="font-bold text-slate-900">{formatBs(ant.monto)}</span>
+                        <span className="font-bold text-slate-900">{formatMoneyWithEmployeeCurrency(ant.monto, displayCurrency, company.tasaBCV_USD)}</span>
                         <div className="text-[10px] text-slate-500">({ant.porcentajeDelFondo}% del fondo)</div>
                       </div>
                     </div>
@@ -517,18 +559,18 @@ export function EmployeeDetailModal({
                 <div className="p-3 bg-white rounded-xl border border-slate-200">
                   <span className="text-slate-500">Monto Retroactivo (30 días por año):</span>
                   <div className="font-bold text-slate-900 text-sm mt-0.5">
-                    {formatBs(benefits.montoRetroactivoArt142c)}
+                    {displayRetroActivo}
                   </div>
                 </div>
                 <div className="p-3 bg-white rounded-xl border border-slate-200">
                   <span className="text-slate-500">Garantía + Intereses Acumulados:</span>
                   <div className="font-bold text-slate-900 text-sm mt-0.5">
-                    {formatBs(benefits.montoGarantiaTotal + benefits.interesesAcumulados)}
+                    {formatMoneyWithEmployeeCurrency(benefits.montoGarantiaTotal + benefits.interesesAcumulados, displayCurrency, company.tasaBCV_USD)}
                   </div>
                 </div>
               </div>
               <p className="text-[11px] text-sky-800 font-semibold pt-1">
-                Monto tutelado por ley a pagar: {formatBs(benefits.montoMayorAPagar)}
+                Monto tutelado por ley a pagar: {displayMontoMayor}
               </p>
             </div>
           </div>

@@ -503,3 +503,13 @@ export function formatMoneyByCurrency(amount: number, currency: 'BS' | 'USD' | u
   if (currency === 'USD') return formatUSD(amount);
   return formatBs(amount);
 }
+
+export function formatMoneyWithEmployeeCurrency(
+  amountBs: number,
+  selectedCurrency: 'BS' | 'USD' | undefined,
+  rate: number,
+  fallbackCurrency: 'BS' | 'USD' = 'BS'
+): string {
+  const display = getDisplayCurrencyValue(amountBs, selectedCurrency || fallbackCurrency, rate);
+  return formatMoneyByCurrency(display.amount, display.currency);
+}

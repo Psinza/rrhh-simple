@@ -15,7 +15,13 @@ import {
   Eye,
 } from 'lucide-react';
 import { Employee, CompanySettings, AppUser } from '../types';
-import { formatBs, formatUSD, calculateTenure, calculateIntegralSalary } from '../utils/venezuelaLaborCalculations';
+import {
+  formatBs,
+  formatUSD,
+  calculateTenure,
+  calculateIntegralSalary,
+  formatMoneyWithEmployeeCurrency,
+} from '../utils/venezuelaLaborCalculations';
 
 interface EmployeesModuleProps {
   employees: Employee[];
@@ -293,14 +299,14 @@ export function EmployeesModule({
                       <DollarSign className="w-3.5 h-3.5 text-slate-400" /> Salario Mensual Base:
                     </span>
                     <span className="font-bold text-slate-900">
-                      {formatBs(emp.salarioMensualBase)}
+                      {formatMoneyWithEmployeeCurrency(emp.salarioMensualBase, emp.salarioMoneda, company.tasaBCV_USD)}
                     </span>
                   </div>
 
                   <div className="flex items-center justify-between text-[11px] border-t border-slate-200/60 pt-1.5">
                     <span className="text-slate-500">Salario Integral (Art. 122):</span>
                     <span className="font-medium text-emerald-700">
-                      {formatBs(integral.salarioIntegralMensual)}
+                      {formatMoneyWithEmployeeCurrency(integral.salarioIntegralMensual, emp.salarioMoneda, company.tasaBCV_USD)}
                     </span>
                   </div>
                 </div>

@@ -14,6 +14,7 @@ import {
   calculateIntegralSalary,
   formatBs,
   formatUSD,
+  formatMoneyWithEmployeeCurrency,
 } from '../utils/venezuelaLaborCalculations';
 
 interface WorkCertificateModalProps {
@@ -38,9 +39,12 @@ export function WorkCertificateModal({
     tenure.anios,
     employee.diasUtilidadesAnuales || company.diasUtilidadesEmpresa
   );
+  const displayCurrency = employee.salarioMoneda || 'BS';
 
   const salarioAMostrar = tipoSalario === 'basico' ? employee.salarioMensualBase : integral.salarioIntegralMensual;
   const cestaticketMonto = employee.cestaticketMensual || company.montoCestaticketNacional;
+  const salarioAMostrarDisplay = formatMoneyWithEmployeeCurrency(salarioAMostrar, displayCurrency, company.tasaBCV_USD);
+  const cestaticketDisplay = formatMoneyWithEmployeeCurrency(cestaticketMonto, employee.cestaticketMoneda || displayCurrency, company.tasaBCV_USD);
 
   // Fecha actual en español formal venezolano
   const fechaHoy = new Date();
@@ -177,14 +181,14 @@ export function WorkCertificateModal({
 
             <p>
               Asimismo, se certifica que devenga una remuneración mensual {tipoSalario === 'integral' ? 'integral' : 'básica'} de{' '}
-              <strong>{formatBs(salarioAMostrar)}</strong>
-              {company.tasaBCV_USD > 0 && (
+              <strong>{salarioAMostrarDisplay}</strong>
+              {company.tasaBCV_USD > 0 && displayCurrency === 'USD' && (
                 <span> (equivalente referencial a <strong>{formatUSD(salarioAMostrar / company.tasaBCV_USD)}</strong> según la tasa oficial del Banco Central de Venezuela)</span>
               )}
               {incluirCestaticket && (
                 <span>
                   , más el beneficio legal de alimentación (Cestaticket Socialista de los Trabajadores y las Trabajadoras)
-                  por un monto mensual indexado de <strong>{formatBs(cestaticketMonto)}</strong> conforme a la legislación laboral vigente
+                  por un monto mensual indexado de <strong>{cestaticketDisplay}</strong> conforme a la legislación laboral vigente
                 </span>
               )}
               .
