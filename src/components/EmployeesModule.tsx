@@ -455,6 +455,10 @@ export function EmployeesModule({
                     className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg"
                   >
                     <option value="Operaciones">Operaciones</option>
+                    <option value="Producción">Produccion</option>
+                    <option value="Transporte">Transporte</option>
+                    <option value="Despacho">Despacho</option>
+                    <option value="Administracción">Administraccion</option>
                     <option value="Tecnología">Tecnología</option>
                     <option value="Finanzas">Finanzas</option>
                     <option value="Talento Humano">Talento Humano</option>
