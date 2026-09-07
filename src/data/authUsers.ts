@@ -32,7 +32,7 @@ export const predefinedUsers: AppUser[] = [
     password: 'rrhh2026**',
     nombre: 'Lic. Dubraska',
     cargo: 'Gerente de Recursos Humanos',
-    rol: 'rrhh',
+    rol: 'admin_sistema',
     rolTitulo: 'Gerente de RRHH',
     avatar: 'VS',
     badgeColor: 'bg-emerald-600 text-white',
