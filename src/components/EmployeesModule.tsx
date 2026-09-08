@@ -151,6 +151,8 @@ export function EmployeesModule({
           registradoPor: 'Administrador RRHH',
         },
       ],
+      documentos: [],
+      viaticosPendientes: 0,
     };
 
     onSaveEmployee(newEmp);

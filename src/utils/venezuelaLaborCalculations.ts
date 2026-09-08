@@ -97,7 +97,8 @@ export function calculatePayrollDeductionsAndContributions(
   frecuencia: 'quincenal' | 'mensual',
   horasExtrasDiurnas: number = 0,
   horasExtrasNocturnas: number = 0,
-  bonoProductividad: number = 0
+  bonoProductividad: number = 0,
+  viaticos: number = employee.viaticosPendientes || 0
 ): Omit<PayrollItem, 'id' | 'employeeId' | 'employee' | 'fechaGeneracion' | 'firmadoDigitalmente' | 'hashCriptografico'> {
   const factorPeriodo = frecuencia === 'quincenal' ? 0.5 : 1.0;
   // Lunes en la quincena o mes (típicamente 2 en quincena, 4 o 5 en mes)
@@ -117,7 +118,7 @@ export function calculatePayrollDeductionsAndContributions(
 
   const totalAsignacionesSalariales =
     sueldoBasePeriodo + montoHorasExtrasDiurnas + montoHorasExtrasNocturnas + feriadosTrabajados + bonoProductividad;
-  const totalAsignacionesNoSalariales = cestaticketPeriodo;
+  const totalAsignacionesNoSalariales = cestaticketPeriodo + viaticos;
   const totalAsignaciones = totalAsignacionesSalariales + totalAsignacionesNoSalariales;
 
   // --- RETENCIONES AL TRABAJADOR ---
@@ -171,6 +172,7 @@ export function calculatePayrollDeductionsAndContributions(
     cestaticketPeriodo,
     montoHorasExtrasDiurnas,
     montoHorasExtrasNocturnas,
+    viaticos,
     feriadosTrabajados,
     bonoProductividad,
     totalAsignacionesSalariales,
