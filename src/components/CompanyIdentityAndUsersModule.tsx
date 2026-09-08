@@ -149,7 +149,7 @@ export function CompanyIdentityAndUsersModule({
 
     const newUsersList = [updatedAdmin, updatedRrhh, updatedDueno];
     onSaveUsers(newUsersList);
-    showNotification('Â¡Perfiles de los 3 usuarios directivos guardados y actualizados con Éxito!');
+    showNotification('¡Perfiles de los 3 usuarios directivos guardados y actualizados con Éxito!');
   };
 
   // Save Company Data
@@ -464,7 +464,7 @@ export function CompanyIdentityAndUsersModule({
                 </span>
               </button>
 
-              {/* Tab 3: DueÃ±o */}
+              {/* Tab 3: Dueño */}
               <button
                 type="button"
                 onClick={() => setActiveUserTab('dueno')}
@@ -500,7 +500,7 @@ export function CompanyIdentityAndUsersModule({
                         Perfil: Administrador de Sistemas & TI
                       </h4>
                       <span className="text-[10px] text-blue-800">
-                        Nivel de Acceso 3 â€¢ Root TI & Ciberseguridad
+                        Nivel de Acceso 3 Root TI & Ciberseguridad
                       </span>
                     </div>
                   </div>
