@@ -257,6 +257,8 @@ export function PayrollModule({
               <option value="Operaciones">Operaciones</option>
               <option value="Tecnología">Tecnología</option>
               <option value="Finanzas">Finanzas</option>
+              <option value="Producción">Producción</option>
+              <option value="Ventas">Ventas</option>
               <option value="Talento Humano">Talento Humano</option>
               <option value="Seguridad & Salud Laboral">Seguridad & Salud Laboral</option>
             </select>
