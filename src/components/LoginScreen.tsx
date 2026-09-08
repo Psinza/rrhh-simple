@@ -93,7 +93,7 @@ export function LoginScreen({ onLogin, users, company }: LoginScreenProps) {
   const currentUserConfig = activeUsers.find((u) => u.rol === selectedRole) || activeUsers[0];
 
   const adminRoleUser = activeUsers.find((u) => u.rol === 'admin_sistema');
-  const rrhhRoleUser = activeUsers.find((u) => u.rol === 'admin_sistema');
+  const rrhhRoleUser = activeUsers.find((u) => u.rol === 'rrhh');
   const duenoRoleUser = activeUsers.find((u) => u.rol === 'dueno');
 
   // Silence unused variable warning
