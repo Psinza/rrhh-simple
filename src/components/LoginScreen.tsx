@@ -93,7 +93,7 @@ export function LoginScreen({ onLogin, users, company }: LoginScreenProps) {
   const currentUserConfig = activeUsers.find((u) => u.rol === selectedRole) || activeUsers[0];
 
   const adminRoleUser = activeUsers.find((u) => u.rol === 'admin_sistema');
-  const rrhhRoleUser = activeUsers.find((u) => u.rol === 'rrhh');
+  const rrhhRoleUser = activeUsers.find((u) => u.rol === 'admin_sistema');
   const duenoRoleUser = activeUsers.find((u) => u.rol === 'dueno');
 
   // Silence unused variable warning
@@ -219,7 +219,7 @@ export function LoginScreen({ onLogin, users, company }: LoginScreenProps) {
                 </div>
                 <div className="font-bold text-white text-sm">Gerente de RRHH</div>
                 <div className="text-[11px] text-emerald-300 font-semibold truncate">
-                  {rrhhRoleUser?.nombre || 'Lic. Dubrazka Gil'}
+                  {rrhhRoleUser?.nombre || 'Lic. DDubrazka Gil'}
                 </div>
                 <div className="text-[10px] text-slate-400 mt-1 line-clamp-2">
                   {rrhhRoleUser?.cargo || 'Expedientes 14-02, recibos digitales, prestaciones y archivos IVSS.'}
@@ -249,7 +249,7 @@ export function LoginScreen({ onLogin, users, company }: LoginScreenProps) {
                 </div>
                 <div className="font-bold text-white text-sm">Dueño de la Empresa</div>
                 <div className="text-[11px] text-amber-300 font-semibold truncate">
-                  {duenoRoleUser?.nombre || 'JACOB AGAI BENZAQUEN'}
+                  {activeUsers.filter((user) => user.rol === 'dueno').map((user) => user.nombre).join(' / ') || 'ELIAS AGAI / JACOB AGAI'}
                 </div>
                 <div className="text-[10px] text-slate-400 mt-1 line-clamp-2">
                   {duenoRoleUser?.cargo || 'Dirección General, aprobación de nómina y costos BCV.'}
@@ -391,7 +391,8 @@ export function LoginScreen({ onLogin, users, company }: LoginScreenProps) {
                   <p className="font-semibold text-slate-300 mb-1">Credenciales de prueba:</p>
                   <p><span className="text-blue-300 font-mono">psinza / psinza</span> → Administrador (todos los módulos)</p>
                   <p><span className="text-emerald-300 font-mono">rrhh / rrhh</span> → Módulo RRHH</p>
-                  <p><span className="text-amber-300 font-mono">dueno / dueno</span> → Dashboard Ejecutivo</p>
+                  <p><span className="text-amber-300 font-mono">jacobo / jacobo</span> → Dueño (Jacob Agai)</p>
+                  <p><span className="text-amber-300 font-mono">elias / elias</span> → Dueño (Elias Agai)</p>
                 </div>
               </div>
             </form>

@@ -1,6 +1,6 @@
 import { doc, getDoc, setDoc, collection, getDocs, writeBatch } from 'firebase/firestore';
 import { firestoreDb } from './firebase';
-import { Employee, CompanySettings, AppUser, AuditLog, PayrollPeriod, SalesRecord } from '../types';
+import { Employee, CompanySettings, AppUser, AuditLog, PayrollPeriod, SalesRecord, ProductAssignment, ProductPurchase, EmployeeLoan } from '../types';
 import { initialCompanySettings, initialEmployees } from '../data/initialData';
 import { predefinedUsers } from '../data/authUsers';
 
@@ -12,6 +12,9 @@ export interface DatabaseState {
   users: AppUser[];
   payrolls: PayrollPeriod[];
   sales: SalesRecord[];
+  productAssignments: ProductAssignment[];
+  productPurchases: ProductPurchase[];
+  employeeLoans: EmployeeLoan[];
   socialBenefits: any[];
   auditLogs: AuditLog[];
   currencyRates: { date: string; rate: number; source?: string }[];
@@ -38,6 +41,9 @@ class LightweightDatabase {
         users: predefinedUsers,
         payrolls: [],
         sales: [],
+        productAssignments: [],
+        productPurchases: [],
+        employeeLoans: [],
         socialBenefits: [],
         auditLogs: [],
         currencyRates: [],
@@ -94,6 +100,9 @@ class LightweightDatabase {
         users: predefinedUsers,
         payrolls: [],
         sales: [],
+        productAssignments: [],
+        productPurchases: [],
+        employeeLoans: [],
         socialBenefits: [],
         auditLogs: [],
         currencyRates: [],
@@ -209,6 +218,9 @@ class LightweightDatabase {
       users: predefinedUsers,
       payrolls: [],
       sales: [],
+      productAssignments: [],
+      productPurchases: [],
+      employeeLoans: [],
       socialBenefits: [],
       auditLogs: [],
       currencyRates: [],

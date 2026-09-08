@@ -192,6 +192,24 @@ export function DigitalPaySlipModal({
                   </tr>
                 )}
 
+                {item.comisionesVentas > 0 && (
+                  <tr>
+                    <td className="py-1.5 px-3 font-mono text-slate-500 text-[11px]">020</td>
+                    <td className="py-1.5 px-3 font-medium text-violet-900">Comisión por ventas generadas</td>
+                    <td className="py-1.5 px-3 text-right font-medium text-violet-700">{formatBs(item.comisionesVentas)}</td>
+                    <td className="py-1.5 px-3 text-right text-slate-400">-</td>
+                  </tr>
+                )}
+
+                {item.viaticos > 0 && (
+                  <tr>
+                    <td className="py-1.5 px-3 font-mono text-slate-500 text-[11px]">021</td>
+                    <td className="py-1.5 px-3">Viáticos del período</td>
+                    <td className="py-1.5 px-3 text-right font-medium">{formatBs(item.viaticos)}</td>
+                    <td className="py-1.5 px-3 text-right text-slate-400">-</td>
+                  </tr>
+                )}
+
                 {/* Cestaticket Socialista */}
                 <tr>
                   <td className="py-1.5 px-3 font-mono text-slate-500 text-[11px]">050</td>
@@ -233,6 +251,22 @@ export function DigitalPaySlipModal({
                     <td className="py-1.5 px-3 text-slate-700">Retención Impuesto Sobre la Renta (ISLR Forma AR-I)</td>
                     <td className="py-1.5 px-3 text-right text-slate-400">-</td>
                     <td className="py-1.5 px-3 text-right text-amber-800 font-medium">{formatBs(item.retencionISLR)}</td>
+                  </tr>
+                )}
+                {item.deduccionesProductos > 0 && (
+                  <tr>
+                    <td className="py-1.5 px-3 font-mono text-slate-500 text-[11px]">115</td>
+                    <td className="py-1.5 px-3 text-slate-700">Deducción por productos solicitados</td>
+                    <td className="py-1.5 px-3 text-right text-slate-400">-</td>
+                    <td className="py-1.5 px-3 text-right text-amber-800 font-medium">{formatBs(item.deduccionesProductos)}</td>
+                  </tr>
+                )}
+                {item.prestamosAnticipos > 0 && (
+                  <tr>
+                    <td className="py-1.5 px-3 font-mono text-slate-500 text-[11px]">116</td>
+                    <td className="py-1.5 px-3 text-slate-700">Cuota de préstamo solicitado</td>
+                    <td className="py-1.5 px-3 text-right text-slate-400">-</td>
+                    <td className="py-1.5 px-3 text-right text-amber-800 font-medium">{formatBs(item.prestamosAnticipos)}</td>
                   </tr>
                 )}
               </tbody>

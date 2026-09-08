@@ -14,7 +14,7 @@ import {
   X,
   Eye,
 } from 'lucide-react';
-import { Employee, CompanySettings, AppUser } from '../types';
+import { Employee, CompanySettings, AppUser, PayrollFrequency, EmployeeDocument, EmployeeDocumentType } from '../types';
 import {
   formatBs,
   formatUSD,
@@ -68,6 +68,34 @@ export function EmployeesModule({
   const [formBanco, setFormBanco] = useState('Banco de Venezuela');
   const [formNumeroCuenta, setFormNumeroCuenta] = useState('');
   const [formCargas, setFormCargas] = useState('1');
+  const [formFrecuenciaPago, setFormFrecuenciaPago] = useState<PayrollFrequency>('quincenal');
+  const [formDocumentType, setFormDocumentType] = useState<EmployeeDocumentType>('Copia de cédula');
+  const [formDocuments, setFormDocuments] = useState<EmployeeDocument[]>([]);
+
+  const handleFormDocumentUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      alert('El documento no puede superar 5 MB.');
+      event.target.value = '';
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result !== 'string') return;
+      setFormDocuments((previous) => [...previous, {
+        id: `doc-${Date.now()}`,
+        tipo: formDocumentType,
+        nombre: file.name,
+        fechaCarga: new Date().toISOString().split('T')[0],
+        mimeType: file.type || 'application/octet-stream',
+        dataUrl: reader.result,
+        sizeBytes: file.size,
+      }]);
+      event.target.value = '';
+    };
+    reader.readAsDataURL(file);
+  };
 
   // Extract unique departments
   const departments = ['todos', ...Array.from(new Set(employees.map((e) => e.departamento)))];
@@ -127,7 +155,7 @@ export function EmployeesModule({
       numeroAfiliacionIVSS: `IVSS-${cleanCedula}`,
       salarioMensualBase: salarioBaseBs,
       salarioMoneda: formSalarioMoneda,
-      frecuenciaPago: 'quincenal',
+      frecuenciaPago: formFrecuenciaPago,
       cestaticketMensual: cestaticketBaseBs || company.montoCestaticketNacional,
       cestaticketMoneda: formCestaticketMoneda,
       diasUtilidadesAnuales: company.diasUtilidadesEmpresa,
@@ -151,7 +179,7 @@ export function EmployeesModule({
           registradoPor: 'Administrador RRHH',
         },
       ],
-      documentos: [],
+      documentos: formDocuments,
       viaticosPendientes: 0,
     };
 
@@ -164,6 +192,7 @@ export function EmployeesModule({
     setFormPrimerNombre('');
     setFormPrimerApellido('');
     setFormCargo('');
+    setFormDocuments([]);
   };
 
   return (
@@ -539,6 +568,27 @@ export function EmployeesModule({
               </div>
 
               {/* Datos Bancarios y Cargas */}
+              <div className="p-3 rounded-xl border border-sky-200 bg-sky-50">
+                <label className="block font-medium text-slate-800 mb-1">Documentos del expediente</label>
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <select value={formDocumentType} onChange={(e) => setFormDocumentType(e.target.value as EmployeeDocumentType)} className="p-2 bg-white border border-sky-200 rounded-lg text-xs">
+                    <option>Copia de cédula</option><option>Copia de RIF</option><option>Título académico</option><option>Reposo médico</option><option>Constancia de falta / receta de reposo</option><option>CV personal</option><option>Permiso de sanidad</option><option>Otro</option>
+                  </select>
+                  <label className="inline-flex items-center justify-center px-3 py-2 bg-sky-600 text-white rounded-lg text-xs font-bold cursor-pointer">
+                    Adjuntar archivo
+                    <input type="file" accept=".pdf,.png,.jpg,.jpeg,.doc,.docx" onChange={handleFormDocumentUpload} className="hidden" />
+                  </label>
+                </div>
+                <p className="text-[11px] text-slate-500 mt-1">{formDocuments.length} documento(s) listos para guardar.</p>
+              </div>
+              <div>
+                <label className="block font-medium text-slate-700 mb-1">Frecuencia de pago</label>
+                <select value={formFrecuenciaPago} onChange={(e) => setFormFrecuenciaPago(e.target.value as PayrollFrequency)} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg">
+                  <option value="semanal">Semanal (obreros)</option>
+                  <option value="quincenal">Quincenal (administrativos)</option>
+                  <option value="mensual">Mensual</option>
+                </select>
+              </div>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
                   <label className="block font-medium text-slate-700 mb-1">Banco Receptor</label>

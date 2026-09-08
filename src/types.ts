@@ -1,16 +1,20 @@
 export type ContractType = 'indeterminado' | 'determinado' | 'obra';
 export type EmployeeStatus = 'activo' | 'vacaciones' | 'reposo' | 'egresado';
 export type IvssRiskLevel = 9 | 10 | 11; // 9% Mínimo, 10% Medio, 11% Máximo
-export type PayrollFrequency = 'quincenal' | 'mensual';
+export type PayrollFrequency = 'semanal' | 'quincenal' | 'mensual';
 export type MoneyCurrency = 'BS' | 'USD';
 
 export type EmployeeDocumentType =
   | 'Copia de cédula'
+  | 'Copia de RIF'
+  | 'Título académico'
   | 'Reposo médico'
+  | 'Constancia de falta / receta de reposo'
   | 'Partida de nacimiento'
   | 'Curso o certificación'
   | 'Constancia de trabajo anterior'
   | 'CV personal'
+  | 'Permiso de sanidad'
   | 'Otro';
 
 export interface EmployeeDocument {
@@ -89,6 +93,8 @@ export interface Employee {
   horasExtrasDiurnasPendientes: number;
   horasExtrasNocturnasPendientes: number;
   porcentajeRetencionISLR: number; // Forma AR-I (0% a 34%)
+  salarioVendedor?: number;
+  porcentajeComision?: number;
 
   // Datos Bancarios
   banco: string;
@@ -150,6 +156,8 @@ export interface PayrollItem {
   viaticos: number;
   feriadosTrabajados: number;
   bonoProductividad: number;
+  comisionesVentas: number;
+  deduccionesProductos: number;
   totalAsignacionesSalariales: number;
   totalAsignacionesNoSalariales: number;
   totalAsignaciones: number;
@@ -184,7 +192,7 @@ export interface PayrollItem {
 export interface PayrollPeriod {
   id: string;
   nombre: string;
-  tipo: '1ra Quincena' | '2da Quincena' | 'Mensual';
+  tipo: 'Semanal' | '1ra Quincena' | '2da Quincena' | 'Mensual';
   mes: string;
   anio: number;
   fechaInicio: string;
@@ -206,10 +214,53 @@ export interface SalesRecord {
   cliente: string;
   referencia: string;
   montoBs: number;
+  moneda?: MoneyCurrency;
+  montoOriginal?: number;
   porcentajeComision: number;
   comisionBs: number;
   estatus: 'Pendiente' | 'Liquidada';
   observaciones?: string;
+}
+
+export interface ProductAssignment {
+  id: string;
+  employeeId: string;
+  employeeName: string;
+  product: string;
+  quantity: number;
+  amountBs: number;
+  currency?: MoneyCurrency;
+  amountOriginal?: number;
+  month: string;
+  status: 'Asignado' | 'Entregado';
+}
+
+export interface ProductPurchase {
+  id: string;
+  product: string;
+  supplier: string;
+  quantity: number;
+  amountBs: number;
+  currency?: MoneyCurrency;
+  amountOriginal?: number;
+  purchaseDate: string;
+  notes?: string;
+}
+
+export interface EmployeeLoan {
+  id: string;
+  employeeId: string;
+  employeeName: string;
+  description: string;
+  principalBs: number;
+  currency?: MoneyCurrency;
+  principalOriginal?: number;
+  installmentBs: number;
+  installmentCurrency?: MoneyCurrency;
+  installmentOriginal?: number;
+  outstandingBs: number;
+  status: 'Activo' | 'Cancelado';
+  createdAt: string;
 }
 
 export interface SocialBenefitsReport {

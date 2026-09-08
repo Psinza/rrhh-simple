@@ -83,6 +83,10 @@ async function init() {
   );`);
   await runAsync(`CREATE INDEX IF NOT EXISTS idx_sales_records_seller_date
     ON sales_records (seller_id, sale_date);`);
+  await runAsync(`ALTER TABLE sales_records
+    ADD COLUMN IF NOT EXISTS currency TEXT NOT NULL DEFAULT 'BS'
+      CHECK (currency IN ('BS', 'USD')),
+    ADD COLUMN IF NOT EXISTS amount_original NUMERIC(14, 2);`);
 
   await runAsync(`CREATE TABLE IF NOT EXISTS payroll_adjustments (
     id TEXT PRIMARY KEY,
@@ -95,6 +99,54 @@ async function init() {
   );`);
   await runAsync(`CREATE INDEX IF NOT EXISTS idx_payroll_adjustments_employee
     ON payroll_adjustments (employee_id, payroll_period_id);`);
+
+  await runAsync(`CREATE TABLE IF NOT EXISTS product_assignments (
+    id TEXT PRIMARY KEY,
+    employee_id TEXT NOT NULL,
+    employee_name TEXT NOT NULL,
+    product TEXT NOT NULL,
+    quantity NUMERIC(12, 2) NOT NULL CHECK (quantity > 0),
+    amount_bs NUMERIC(14, 2) NOT NULL CHECK (amount_bs >= 0),
+    assignment_month TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'Asignado'
+      CHECK (status IN ('Asignado', 'Entregado'))
+  );`);
+  await runAsync(`CREATE TABLE IF NOT EXISTS product_purchases (
+    id TEXT PRIMARY KEY,
+    product TEXT NOT NULL,
+    supplier TEXT NOT NULL,
+    quantity NUMERIC(12, 2) NOT NULL CHECK (quantity > 0),
+    amount_bs NUMERIC(14, 2) NOT NULL CHECK (amount_bs >= 0),
+    purchase_date DATE NOT NULL,
+    notes TEXT
+  );`);
+  await runAsync(`CREATE TABLE IF NOT EXISTS employee_loans (
+    id TEXT PRIMARY KEY,
+    employee_id TEXT NOT NULL,
+    employee_name TEXT NOT NULL,
+    description TEXT NOT NULL,
+    principal_bs NUMERIC(14, 2) NOT NULL CHECK (principal_bs > 0),
+    installment_bs NUMERIC(14, 2) NOT NULL CHECK (installment_bs > 0),
+    outstanding_bs NUMERIC(14, 2) NOT NULL CHECK (outstanding_bs >= 0),
+    status TEXT NOT NULL DEFAULT 'Activo'
+      CHECK (status IN ('Activo', 'Cancelado')),
+    created_at DATE NOT NULL
+  );`);
+  await runAsync(`ALTER TABLE product_assignments
+    ADD COLUMN IF NOT EXISTS currency TEXT NOT NULL DEFAULT 'BS'
+      CHECK (currency IN ('BS', 'USD')),
+    ADD COLUMN IF NOT EXISTS amount_original NUMERIC(14, 2);`);
+  await runAsync(`ALTER TABLE product_purchases
+    ADD COLUMN IF NOT EXISTS currency TEXT NOT NULL DEFAULT 'BS'
+      CHECK (currency IN ('BS', 'USD')),
+    ADD COLUMN IF NOT EXISTS amount_original NUMERIC(14, 2);`);
+  await runAsync(`ALTER TABLE employee_loans
+    ADD COLUMN IF NOT EXISTS currency TEXT NOT NULL DEFAULT 'BS'
+      CHECK (currency IN ('BS', 'USD')),
+    ADD COLUMN IF NOT EXISTS principal_original NUMERIC(14, 2),
+    ADD COLUMN IF NOT EXISTS installment_currency TEXT NOT NULL DEFAULT 'BS'
+      CHECK (installment_currency IN ('BS', 'USD')),
+    ADD COLUMN IF NOT EXISTS installment_original NUMERIC(14, 2);`);
 
   const seedUsers = [
       {
@@ -155,6 +207,28 @@ async function init() {
         badgeColor: 'bg-amber-600 text-white',
         nivelAcceso: 'Nivel 1 - Alta Dirección & Accionista',
         descripcionAcceso: 'Visión ejecutiva de costos laborales (Bs. y USD BCV), aprobación de nómina, supervisión de pasivos laborales acumulados y reportes financieros.',
+        permisos: JSON.stringify([
+          'Dashboard Ejecutivo con Costos BCV (USD / Bs.)',
+          'Visualización del módulo de RRHH',
+          'Visualización del módulo de Dueño',
+          'Aprobación y Autorización de Desembolso de Nómina',
+          'Supervisión de Pasivos Laborales y Fideicomiso',
+          'Reporte Consolidado de Costo Empresa',
+        ]),
+      },
+      {
+        id: 'user-dueno-elias',
+        username: 'elias',
+        email: 'elias.agai@industriacouture.com',
+        password: 'elias',
+        nombre: 'ELIAS AGAI',
+        cargo: 'Director General & Propietario',
+        rol: 'dueno',
+        rolTitulo: 'Dueño de la Empresa',
+        avatar: 'EA',
+        badgeColor: 'bg-amber-600 text-white',
+        nivelAcceso: 'Nivel 1 - Alta Dirección & Accionista',
+        descripcionAcceso: 'Visión ejecutiva de costos laborales, aprobación de nómina, supervisión de pasivos laborales y reportes financieros.',
         permisos: JSON.stringify([
           'Dashboard Ejecutivo con Costos BCV (USD / Bs.)',
           'Visualización del módulo de RRHH',

@@ -94,15 +94,17 @@ export function calculateIntegralSalary(
 export function calculatePayrollDeductionsAndContributions(
   employee: Employee,
   company: CompanySettings,
-  frecuencia: 'quincenal' | 'mensual',
+  frecuencia: 'semanal' | 'quincenal' | 'mensual',
   horasExtrasDiurnas: number = 0,
   horasExtrasNocturnas: number = 0,
   bonoProductividad: number = 0,
-  viaticos: number = employee.viaticosPendientes || 0
+  viaticos: number = employee.viaticosPendientes || 0,
+  prestamosAnticipos: number = 0,
+  deduccionesProductos: number = 0
 ): Omit<PayrollItem, 'id' | 'employeeId' | 'employee' | 'fechaGeneracion' | 'firmadoDigitalmente' | 'hashCriptografico'> {
-  const factorPeriodo = frecuencia === 'quincenal' ? 0.5 : 1.0;
+  const factorPeriodo = frecuencia === 'semanal' ? 7 / 30 : frecuencia === 'quincenal' ? 0.5 : 1.0;
   // Lunes en la quincena o mes (típicamente 2 en quincena, 4 o 5 en mes)
-  const lunes = frecuencia === 'quincenal' ? Math.round(company.lunesDelMesActual / 2) : company.lunesDelMesActual;
+  const lunes = frecuencia === 'semanal' ? 1 : frecuencia === 'quincenal' ? Math.round(company.lunesDelMesActual / 2) : company.lunesDelMesActual;
 
   const sueldoBasePeriodo = employee.salarioMensualBase * factorPeriodo;
   const cestaticketPeriodo = (employee.cestaticketMensual || company.montoCestaticketNacional) * factorPeriodo;
@@ -139,10 +141,9 @@ export function calculatePayrollDeductionsAndContributions(
   // ISLR (Forma AR-I porcentaje individual)
   const retencionISLR = totalAsignacionesSalariales * ((employee.porcentajeRetencionISLR || 0) / 100);
 
-  const prestamosAnticipos = 0;
   const otrasDeducciones = 0;
   const totalDeducciones =
-    retencionIVSS + retencionParoForzoso + retencionFAOV + retencionISLR + prestamosAnticipos + otrasDeducciones;
+    retencionIVSS + retencionParoForzoso + retencionFAOV + retencionISLR + prestamosAnticipos + deduccionesProductos + otrasDeducciones;
 
   // Neto a cobrar
   const netoCobrarBs = totalAsignaciones - totalDeducciones;
@@ -165,7 +166,7 @@ export function calculatePayrollDeductionsAndContributions(
   const totalAportesPatronales = aportePatronalIVSS + aportePatronalRPE + aportePatronalFAOV + aportePatronalINCES;
 
   return {
-    diasTrabajados: frecuencia === 'quincenal' ? 15 : 30,
+    diasTrabajados: frecuencia === 'semanal' ? 7 : frecuencia === 'quincenal' ? 15 : 30,
     horasExtrasDiurnas,
     horasExtrasNocturnas,
     sueldoBasePeriodo,
@@ -175,6 +176,8 @@ export function calculatePayrollDeductionsAndContributions(
     viaticos,
     feriadosTrabajados,
     bonoProductividad,
+    comisionesVentas: bonoProductividad,
+    deduccionesProductos,
     totalAsignacionesSalariales,
     totalAsignacionesNoSalariales,
     totalAsignaciones,

@@ -33,6 +33,9 @@ import {
   AppUser,
   AppUserRole,
   SalesRecord,
+  ProductAssignment,
+  ProductPurchase,
+  EmployeeLoan,
 } from './types';
 import {
   initialEmployees,
@@ -62,6 +65,7 @@ import { CompanyIdentityAndUsersModule } from './components/CompanyIdentityAndUs
 import { DatabaseManagerModal } from './components/DatabaseManagerModal';
 import { RenderDeployModal } from './components/RenderDeployModal';
 import { SalesModule } from './components/SalesModule';
+import { ProductBenefitsModule } from './components/ProductBenefitsModule';
 
 export default function App() {
   // Authentication & Session
@@ -70,7 +74,7 @@ export default function App() {
 
   // Navigation
   const [activeTab, setActiveTab] = useState<
-    'dashboard' | 'employees' | 'payroll' | 'benefits' | 'government_files' | 'company_identity' | 'sales'
+    'dashboard' | 'employees' | 'payroll' | 'benefits' | 'government_files' | 'company_identity' | 'sales' | 'products_loans'
   >('dashboard');
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
@@ -83,7 +87,11 @@ export default function App() {
   const [users, setUsers] = useState<AppUser[]>(() => {
     try {
       const stored = localStorage.getItem('ven_nomina_users');
-      if (stored) return JSON.parse(stored);
+      if (stored) {
+        const storedUsers = JSON.parse(stored) as AppUser[];
+        const storedIds = new Set(storedUsers.map((user) => user.id));
+        return [...storedUsers, ...predefinedUsers.filter((user) => !storedIds.has(user.id))];
+      }
     } catch (e) {
       console.error(e);
     }
@@ -94,6 +102,9 @@ export default function App() {
   );
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>(initialAuditLogs);
   const [sales, setSales] = useState<SalesRecord[]>([]);
+  const [productAssignments, setProductAssignments] = useState<ProductAssignment[]>([]);
+  const [productPurchases, setProductPurchases] = useState<ProductPurchase[]>([]);
+  const [employeeLoans, setEmployeeLoans] = useState<EmployeeLoan[]>([]);
   const [lastBackupTime, setLastBackupTime] = useState('10:45 AM');
 
   // Modals
@@ -113,13 +124,17 @@ export default function App() {
         if (dbState.company) setCompany(dbState.company);
         if (dbState.employees && dbState.employees.length > 0) setEmployees(dbState.employees);
         if (dbState.users && dbState.users.length > 0) {
-          setUsers(dbState.users);
+        const dbUserIds = new Set(dbState.users.map((user) => user.id));
+        setUsers([...dbState.users, ...predefinedUsers.filter((user) => !dbUserIds.has(user.id))]);
           // Sync current logged in user if match exists
           if (currentUser) {
             const updatedMe = dbState.users.find((u) => u.id === currentUser.id);
             if (updatedMe) setCurrentUser(updatedMe);
           }
           if (dbState.sales) setSales(dbState.sales);
+          if (dbState.productAssignments) setProductAssignments(dbState.productAssignments);
+          if (dbState.productPurchases) setProductPurchases(dbState.productPurchases);
+          if (dbState.employeeLoans) setEmployeeLoans(dbState.employeeLoans);
         }
       }
     });
@@ -151,6 +166,9 @@ export default function App() {
       users,
       payrolls: [payroll],
       sales,
+      productAssignments,
+      productPurchases,
+      employeeLoans,
       socialBenefits: [],
       auditLogs,
       currencyRates: lightweightDb.loadLocal()?.currencyRates || [],
@@ -161,11 +179,15 @@ export default function App() {
     } catch (e) {
       // Ignore quota error
     }
-  }, [company, employees, users, payroll, auditLogs, sales]);
+  }, [company, employees, users, payroll, auditLogs, sales, productAssignments, productPurchases, employeeLoans]);
 
   const handleDataRestored = (restored: DatabaseState) => {
     if (restored.company) setCompany(restored.company);
     if (restored.employees) setEmployees(restored.employees);
+    if (restored.productAssignments) setProductAssignments(restored.productAssignments);
+    if (restored.productPurchases) setProductPurchases(restored.productPurchases);
+    if (restored.employeeLoans) setEmployeeLoans(restored.employeeLoans);
+    if (restored.sales) setSales(restored.sales);
     if (restored.users) {
       setUsers(restored.users);
       if (currentUser) {
@@ -352,6 +374,23 @@ export default function App() {
     addAuditLog('Registro de Venta', 'Nómina', `Venta de ${record.vendedorNombre} por ${record.montoBs.toFixed(2)} Bs. con comisión de ${record.comisionBs.toFixed(2)} Bs.`);
   };
 
+  const handleAddAssignment = (item: ProductAssignment) => setProductAssignments((previous) => [item, ...previous]);
+  const handleAddPurchase = (item: ProductPurchase) => setProductPurchases((previous) => [item, ...previous]);
+  const handleAddLoan = (item: EmployeeLoan) => setEmployeeLoans((previous) => [item, ...previous]);
+
+  const commissionByEmployee = sales.reduce<Record<string, number>>((totals, sale) => {
+    totals[sale.vendedorId] = (totals[sale.vendedorId] || 0) + sale.comisionBs;
+    return totals;
+  }, {});
+  const loanInstallmentByEmployee = employeeLoans.reduce<Record<string, number>>((totals, loan) => {
+    if (loan.status === 'Activo') totals[loan.employeeId] = (totals[loan.employeeId] || 0) + loan.installmentBs;
+    return totals;
+  }, {});
+  const productDeductionByEmployee = productAssignments.reduce<Record<string, number>>((totals, assignment) => {
+    if (assignment.status === 'Asignado') totals[assignment.employeeId] = (totals[assignment.employeeId] || 0) + assignment.amountBs;
+    return totals;
+  }, {});
+
   const handleSaveCompany = (updatedCompany: CompanySettings) => {
     setCompany(updatedCompany);
     addAuditLog('Ajuste de Parámetros', 'Configuración', `Actualización de parámetros fiscales y tasas BCV`);
@@ -373,6 +412,7 @@ export default function App() {
     { id: 'employees', label: 'Gestión de Personal', icon: Users },
     { id: 'payroll', label: 'Cálculo de Nómina', icon: FileSpreadsheet },
     { id: 'sales', label: 'Ventas y Comisiones', icon: Briefcase },
+    { id: 'products_loans', label: 'Productos y Préstamos', icon: Coins },
     { id: 'government_files', label: 'Parafiscales (IVSS/FAOV)', icon: FileCheck },
     { id: 'benefits', label: 'Prestaciones Sociales', icon: Coins },
     { id: 'company_identity', label: 'Identidad & Usuarios', icon: Building2 },
@@ -381,9 +421,9 @@ export default function App() {
 
   // Role-based navigation permissions
   const roleAllowedTabs: Record<string, string[]> = {
-    admin_sistema: ['dashboard', 'employees', 'payroll', 'sales', 'government_files', 'benefits', 'company_identity', 'audit_reports'],
-    rrhh: ['dashboard', 'employees', 'payroll', 'sales', 'government_files', 'benefits'],
-    dueno: ['dashboard', 'employees', 'payroll', 'sales', 'government_files', 'benefits'],
+    admin_sistema: ['dashboard', 'employees', 'payroll', 'sales', 'products_loans', 'government_files', 'benefits', 'company_identity', 'audit_reports'],
+    rrhh: ['dashboard', 'employees', 'payroll', 'sales', 'products_loans', 'government_files', 'benefits'],
+    dueno: ['dashboard', 'employees', 'payroll', 'sales', 'products_loans', 'government_files', 'benefits'],
   };
 
   const getAllowedNavItems = (role?: string) => {
@@ -890,11 +930,27 @@ export default function App() {
                           onOpenSlip={(item) => setSelectedSlip(item)}
                           onUpdatePayroll={handleUpdatePayroll}
                           onApprovePayroll={handleApprovePayrollByOwner}
+                          commissionByEmployee={commissionByEmployee}
+                          loanInstallmentByEmployee={loanInstallmentByEmployee}
+                          productDeductionByEmployee={productDeductionByEmployee}
                         />
           )}
 
           {activeTab === 'sales' && (
-            <SalesModule employees={employees} records={sales} onAddRecord={handleAddSale} />
+            <SalesModule employees={employees} records={sales} onAddRecord={handleAddSale} exchangeRate={company.tasaBCV_USD} />
+          )}
+
+          {activeTab === 'products_loans' && (
+            <ProductBenefitsModule
+              employees={employees}
+              assignments={productAssignments}
+              purchases={productPurchases}
+              loans={employeeLoans}
+              onAddAssignment={handleAddAssignment}
+              onAddPurchase={handleAddPurchase}
+              onAddLoan={handleAddLoan}
+              exchangeRate={company.tasaBCV_USD}
+            />
           )}
 
           {activeTab === 'benefits' && (

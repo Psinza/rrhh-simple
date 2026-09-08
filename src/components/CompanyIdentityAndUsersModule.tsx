@@ -170,7 +170,7 @@ export function CompanyIdentityAndUsersModule({
       logoUrl: logoUrl || undefined,
     };
     onSaveCompany(updated);
-    showNotification('Â¡Información institucional de la empresa actualizada con Éxito!');
+    showNotification('¡Información institucional de la empresa actualizada con Éxito!');
   };
 
   // Quick sync representative with owner or HR
@@ -663,7 +663,7 @@ export function CompanyIdentityAndUsersModule({
                           avatar: computeInitials(val),
                         }));
                       }}
-                      placeholder="Ej. Lic. Dubraska"
+                      placeholder="Ej. Lic. Dubrazka Gil"
                       className="w-full p-2.5 bg-white border border-slate-300 rounded-xl font-medium text-slate-900 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
                     />
                   </div>
@@ -939,7 +939,7 @@ export function CompanyIdentityAndUsersModule({
               type="button"
               onClick={() => handleSyncRepresentative('dueno')}
               className="text-[11px] font-semibold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 px-2.5 py-1 rounded-lg transition-colors"
-              title="Copiar el nombre del DueÃ±o como Representante Legal"
+              title="Copiar el nombre del dueño como Representante Legal"
             >
               Usar Nombre del Dueño
             </button>

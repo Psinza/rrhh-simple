@@ -27,6 +27,9 @@ interface PayrollModuleProps {
   onOpenSlip: (item: PayrollItem) => void;
   onUpdatePayroll: (newPayroll: PayrollPeriod) => void;
   onApprovePayroll?: () => void;
+  commissionByEmployee?: Record<string, number>;
+  loanInstallmentByEmployee?: Record<string, number>;
+  productDeductionByEmployee?: Record<string, number>;
 }
 
 export function PayrollModule({
@@ -37,8 +40,11 @@ export function PayrollModule({
   onOpenSlip,
   onUpdatePayroll,
   onApprovePayroll,
+  commissionByEmployee = {},
+  loanInstallmentByEmployee = {},
+  productDeductionByEmployee = {},
 }: PayrollModuleProps) {
-  const [activeFrequency, setActiveFrequency] = useState<'quincenal' | 'mensual'>('quincenal');
+  const [activeFrequency, setActiveFrequency] = useState<'semanal' | 'quincenal' | 'mensual'>('quincenal');
   const [filterDept, setFilterDept] = useState('todos');
   const [showApprovedNotice, setShowApprovedNotice] = useState(false);
 
@@ -57,7 +63,10 @@ export function PayrollModule({
           activeFrequency,
           emp.horasExtrasDiurnasPendientes,
           emp.horasExtrasNocturnasPendientes,
-          0
+          commissionByEmployee[emp.id] || 0,
+          emp.viaticosPendientes || 0,
+          loanInstallmentByEmployee[emp.id] || 0,
+          productDeductionByEmployee[emp.id] || 0
         );
 
         return {
@@ -79,7 +88,7 @@ export function PayrollModule({
 
     const newPayroll: PayrollPeriod = {
       ...payroll,
-      tipo: activeFrequency === 'quincenal' ? '1ra Quincena' : 'Mensual',
+      tipo: activeFrequency === 'semanal' ? 'Semanal' : activeFrequency === 'quincenal' ? '1ra Quincena' : 'Mensual',
       items: updatedItems,
       totalNominaBs,
       totalCestaticketBs,
@@ -129,6 +138,13 @@ export function PayrollModule({
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
+          <label className="text-xs text-slate-600 font-semibold">Tipo de nómina
+            <select value={activeFrequency} onChange={(e) => setActiveFrequency(e.target.value as 'semanal' | 'quincenal' | 'mensual')} className="ml-2 px-2 py-2 text-xs bg-slate-50 border border-slate-200 rounded">
+              <option value="semanal">Semanal - Obreros</option>
+              <option value="quincenal">Quincenal - Administrativos</option>
+              <option value="mensual">Mensual</option>
+            </select>
+          </label>
           {(currentUser?.rol === 'rrhh' || currentUser?.rol === 'admin_sistema') && (
             <button
               onClick={handleRecalculate}

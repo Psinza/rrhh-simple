@@ -78,8 +78,8 @@ export function EmployeeDetailModal({
   const [documentType, setDocumentType] = useState<EmployeeDocumentType>('Copia de cédula');
 
   const handleDocumentUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    if (!(currentUser?.rol === 'rrhh' || currentUser?.rol === 'admin_sistema')) {
-      alert('Acceso denegado: solo RRHH o Administrador pueden adjuntar documentos.');
+    if (!(currentUser?.rol === 'rrhh' || currentUser?.rol === 'admin_sistema' || currentUser?.rol === 'dueno')) {
+      alert('Acceso denegado: solo RRHH, dueños o Administrador pueden adjuntar documentos.');
       event.target.value = '';
       return;
     }
@@ -110,6 +110,7 @@ export function EmployeeDetailModal({
 
   const handleDocumentDelete = (documentId: string) => {
     if (!confirm('¿Eliminar este documento del expediente?')) return;
+    if (!(currentUser?.rol === 'rrhh' || currentUser?.rol === 'admin_sistema' || currentUser?.rol === 'dueno')) return;
     onUpdateEmployee({ ...employee, documentos: (employee.documentos || []).filter((document) => document.id !== documentId) });
   };
 
@@ -241,8 +242,8 @@ export function EmployeeDetailModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
-      <div className="bg-white rounded-xl max-w-4xl w-full p-6 shadow-xl border border-slate-200 space-y-5 my-8">
+    <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
+      <div className="bg-white rounded-xl max-w-5xl w-full max-h-[calc(100vh-1rem)] sm:max-h-[calc(100vh-2rem)] overflow-y-auto p-4 sm:p-6 shadow-xl border border-slate-200 space-y-5 my-2 sm:my-8">
         {/* Modal Header */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
           <div className="flex items-center gap-3">
@@ -252,7 +253,7 @@ export function EmployeeDetailModal({
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-xl font-bold text-slate-900">
+                <h2 className="text-lg sm:text-xl font-bold text-slate-900 break-words">
                   {employee.primerNombre} {employee.primerApellido} {employee.segundoApellido || ''}
                 </h2>
                 <span className="font-mono text-xs font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-800 border border-slate-200">
@@ -275,6 +276,13 @@ export function EmployeeDetailModal({
             >
               <FileText className="w-3.5 h-3.5 text-slate-600" />
               Constancia Laboral
+            </button>
+            <button
+              onClick={() => setActiveTab('documents')}
+              className="flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded bg-sky-600 hover:bg-sky-500 text-white border border-sky-500 transition-colors"
+            >
+              <Upload className="w-3.5 h-3.5" />
+              Documentos ({(employee.documentos || []).length})
             </button>
 
             {/* Edit / Save personal data (RRHH/Admin) */}
@@ -826,7 +834,7 @@ export function EmployeeDetailModal({
         )}
 
         {/* Tab 4: Datos Personales y Banco */}
-        {activeTab === 'info' && (
+        {(activeTab === 'info' || activeTab === 'documents') && (
           <div className="space-y-4 text-xs">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-2">
@@ -887,7 +895,7 @@ export function EmployeeDetailModal({
                         <p className="text-xs text-slate-600 mt-1">Adjunte cédula, reposos, partida de nacimiento, cursos, constancias laborales anteriores y CV. Archivos de hasta 5 MB.</p>
                         <div className="mt-3 flex flex-col sm:flex-row gap-2">
                           <select value={documentType} onChange={(event) => setDocumentType(event.target.value as EmployeeDocumentType)} className="p-2 rounded-lg border border-slate-300 bg-white text-xs">
-                            <option>Copia de cédula</option><option>Reposo médico</option><option>Partida de nacimiento</option><option>Curso o certificación</option><option>Constancia de trabajo anterior</option><option>CV personal</option><option>Otro</option>
+                            <option>Copia de cédula</option><option>Copia de RIF</option><option>Título académico</option><option>Reposo médico</option><option>Constancia de falta / receta de reposo</option><option>Partida de nacimiento</option><option>Curso o certificación</option><option>Constancia de trabajo anterior</option><option>CV personal</option><option>Permiso de sanidad</option><option>Otro</option>
                           </select>
                           <label className="inline-flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold cursor-pointer">
                             <Upload className="w-4 h-4" /> Adjuntar documento
@@ -901,7 +909,7 @@ export function EmployeeDetailModal({
                             <div className="min-w-0"><div className="font-semibold text-sm truncate">{document.nombre}</div><div className="text-[11px] text-slate-500">{document.tipo} • {document.fechaCarga} • {(document.sizeBytes / 1024).toFixed(0)} KB</div></div>
                             <div className="flex items-center gap-1 shrink-0">
                               <a href={document.dataUrl} download={document.nombre} className="p-2 rounded-lg text-sky-600 hover:bg-sky-50" title="Descargar"><Download className="w-4 h-4" /></a>
-                              {(currentUser?.rol === 'rrhh' || currentUser?.rol === 'admin_sistema') && <button onClick={() => handleDocumentDelete(document.id)} className="p-2 rounded-lg text-rose-600 hover:bg-rose-50" title="Eliminar"><Trash2 className="w-4 h-4" /></button>}
+                              {(currentUser?.rol === 'rrhh' || currentUser?.rol === 'admin_sistema' || currentUser?.rol === 'dueno') && <button onClick={() => handleDocumentDelete(document.id)} className="p-2 rounded-lg text-rose-600 hover:bg-rose-50" title="Eliminar"><Trash2 className="w-4 h-4" /></button>}
                             </div>
                           </div>
                         ))}

@@ -1,5 +1,16 @@
 @import "tailwindcss";
 
+@layer base {
+  html {
+    font-size: clamp(14px, 0.25vw + 13px, 16px);
+  }
+
+  body {
+    min-width: 320px;
+    overflow-x: hidden;
+  }
+}
+
 @layer utilities {
   @media print {
     .no-print {

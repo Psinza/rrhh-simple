@@ -3,16 +3,11 @@ import {
   X,
   Printer,
   FileText,
-  Building,
-  CheckCircle,
-  QrCode,
-  Download,
 } from 'lucide-react';
 import { Employee, CompanySettings } from '../types';
 import {
   calculateTenure,
   calculateIntegralSalary,
-  formatBs,
   formatUSD,
   formatMoneyWithEmployeeCurrency,
 } from '../utils/venezuelaLaborCalculations';
@@ -31,7 +26,7 @@ export function WorkCertificateModal({
   const [destinatario, setDestinatario] = useState('A QUIEN PUEDA INTERESAR');
   const [incluirCestaticket, setIncluirCestaticket] = useState(true);
   const [tipoSalario, setTipoSalario] = useState<'basico' | 'integral'>('basico');
-  const [ciudadEmision, setCiudadEmision] = useState(company.ciudad || 'Caracas');
+  const [ciudadEmision] = useState(company.ciudad || 'Caracas');
 
   const tenure = calculateTenure(employee.fechaIngreso);
   const integral = calculateIntegralSalary(
@@ -46,14 +41,8 @@ export function WorkCertificateModal({
   const salarioAMostrarDisplay = formatMoneyWithEmployeeCurrency(salarioAMostrar, displayCurrency, company.tasaBCV_USD);
   const cestaticketDisplay = formatMoneyWithEmployeeCurrency(cestaticketMonto, employee.cestaticketMoneda || displayCurrency, company.tasaBCV_USD);
 
-  // Fecha actual en español formal venezolano
   const fechaHoy = new Date();
   const opcionesFecha: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'long', year: 'numeric' };
-  const fechaTexto = fechaHoy.toLocaleDateString('es-VE', opcionesFecha);
-
-  const verificationHash = `VE-CERT-${employee.cedula.replace(/[^0-9]/g, '')}-${fechaHoy.getFullYear()}${String(
-    fechaHoy.getMonth() + 1
-  ).padStart(2, '0')}-${Math.random().toString(36).substring(2, 7).toUpperCase()}`;
 
   const handlePrint = () => {
     window.print();
@@ -122,8 +111,7 @@ export function WorkCertificateModal({
               checked={incluirCestaticket}
               onChange={(e) => setIncluirCestaticket(e.target.checked)}
               className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500"
-            >
-            </input>
+            />
             <label htmlFor="chkCestaticket" className="text-slate-700 font-medium cursor-pointer">
               Incluir Cestaticket Socialista
             </label>
@@ -201,39 +189,19 @@ export function WorkCertificateModal({
             </p>
           </div>
 
-          {/* Signatures and Validation Seals */}
-          <div className="pt-12 flex flex-col sm:flex-row items-center justify-between gap-8">
-            {/* Signature and Wet Seal */}
-            <div className="text-center space-y-2">
-              <div className="h-14 flex items-center justify-center">
-                <span className="font-serif italic text-slate-800 text-lg font-bold border-b border-dashed border-slate-400 px-6">
-                  {company.representanteLegal}
-                </span>
+          <div className="pt-12 pb-6 grid grid-cols-1 sm:grid-cols-3 gap-6 text-center font-sans">
+            {[
+              ['Elias Agai', 'Dueño'],
+              ['Jacob Agai', 'Dueño'],
+              ['Dubrazka Gil', 'Administradora'],
+            ].map(([name, role]) => (
+              <div key={name} className="space-y-2">
+                <div className="h-16 border-b border-slate-400"></div>
+                <p className="text-xs font-bold">{name}</p>
+                <p className="text-[11px] text-slate-600">{role}</p>
+                <p className="text-[10px] text-slate-500 font-semibold">GESTION DE TALENTO HUMANO</p>
               </div>
-              <div className="text-xs font-sans text-slate-700">
-                <p className="font-bold">{company.representanteLegal}</p>
-                <p className="text-slate-500">{company.cargoRepresentante}</p>
-                <p className="text-slate-500">{company.razonSocial}</p>
-                <p className="text-[10px] text-slate-400 uppercase tracking-widest mt-1">
-                  SELLO HÚMEDO & FIRMA INSTITUCIONAL
-                </p>
-              </div>
-            </div>
-
-            {/* QR Code and Cryptographic Verification Token */}
-            <div className="flex items-center gap-3 p-3 bg-slate-50 border border-slate-200 rounded-xl font-sans text-left">
-              {/* QR Mockup SVG */}
-              <div className="w-16 h-16 bg-white border border-slate-300 p-1 rounded flex items-center justify-center shrink-0">
-                <QrCode className="w-14 h-14 text-slate-800" />
-              </div>
-
-              <div className="text-[10px] space-y-0.5 text-slate-500">
-                <p className="font-bold text-slate-800">Verificación Electrónica</p>
-                <p>Código Único: <strong className="font-mono text-slate-900"></strong></p>
-                <p>Consulte autenticidad en:</p>
-                <p className="font-mono text-sky-700 text-[9px]"></p>
-              </div>
-            </div>
+            ))}
           </div>
         </div>
       </div>
