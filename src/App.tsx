@@ -206,7 +206,7 @@ export default function App() {
     return {
       ...(predefinedProfile || user),
       ...user,
-      permisos: user.permisos || predefinedProfile?.permisos || [],
+      permisos: Array.from(new Set([...(predefinedProfile?.permisos || []), ...(user.permisos || [])])),
       cargo: user.cargo || predefinedProfile?.cargo || '',
       telefono: user.telefono || predefinedProfile?.telefono,
       nivelAcceso: user.nivelAcceso || predefinedProfile?.nivelAcceso || '',
