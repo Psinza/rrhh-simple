@@ -32,6 +32,7 @@ import {
   AuditLog,
   AppUser,
   AppUserRole,
+  SalesRecord,
 } from './types';
 import {
   initialEmployees,
@@ -60,6 +61,7 @@ import { CompanySettingsModal } from './components/CompanySettingsModal';
 import { CompanyIdentityAndUsersModule } from './components/CompanyIdentityAndUsersModule';
 import { DatabaseManagerModal } from './components/DatabaseManagerModal';
 import { RenderDeployModal } from './components/RenderDeployModal';
+import { SalesModule } from './components/SalesModule';
 
 export default function App() {
   // Authentication & Session
@@ -68,7 +70,7 @@ export default function App() {
 
   // Navigation
   const [activeTab, setActiveTab] = useState<
-    'dashboard' | 'employees' | 'payroll' | 'benefits' | 'government_files' | 'company_identity'
+    'dashboard' | 'employees' | 'payroll' | 'benefits' | 'government_files' | 'company_identity' | 'sales'
   >('dashboard');
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
@@ -91,6 +93,7 @@ export default function App() {
     initialLegalNotifications
   );
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>(initialAuditLogs);
+  const [sales, setSales] = useState<SalesRecord[]>([]);
   const [lastBackupTime, setLastBackupTime] = useState('10:45 AM');
 
   // Modals
@@ -116,6 +119,7 @@ export default function App() {
             const updatedMe = dbState.users.find((u) => u.id === currentUser.id);
             if (updatedMe) setCurrentUser(updatedMe);
           }
+          if (dbState.sales) setSales(dbState.sales);
         }
       }
     });
@@ -146,6 +150,7 @@ export default function App() {
       employees,
       users,
       payrolls: [payroll],
+      sales,
       socialBenefits: [],
       auditLogs,
       currencyRates: lightweightDb.loadLocal()?.currencyRates || [],
@@ -156,7 +161,7 @@ export default function App() {
     } catch (e) {
       // Ignore quota error
     }
-  }, [company, employees, users, payroll, auditLogs]);
+  }, [company, employees, users, payroll, auditLogs, sales]);
 
   const handleDataRestored = (restored: DatabaseState) => {
     if (restored.company) setCompany(restored.company);
@@ -342,6 +347,11 @@ export default function App() {
     addAuditLog('Cálculo de Nómina', 'Nómina', `Recálculo de la nómina: ${updatedPayroll.nombre}`);
   };
 
+  const handleAddSale = (record: SalesRecord) => {
+    setSales((previous) => [record, ...previous]);
+    addAuditLog('Registro de Venta', 'Nómina', `Venta de ${record.vendedorNombre} por ${record.montoBs.toFixed(2)} Bs. con comisión de ${record.comisionBs.toFixed(2)} Bs.`);
+  };
+
   const handleSaveCompany = (updatedCompany: CompanySettings) => {
     setCompany(updatedCompany);
     addAuditLog('Ajuste de Parámetros', 'Configuración', `Actualización de parámetros fiscales y tasas BCV`);
@@ -362,6 +372,7 @@ export default function App() {
     { id: 'dashboard', label: 'Dashboard General', icon: LayoutDashboard },
     { id: 'employees', label: 'Gestión de Personal', icon: Users },
     { id: 'payroll', label: 'Cálculo de Nómina', icon: FileSpreadsheet },
+    { id: 'sales', label: 'Ventas y Comisiones', icon: Briefcase },
     { id: 'government_files', label: 'Parafiscales (IVSS/FAOV)', icon: FileCheck },
     { id: 'benefits', label: 'Prestaciones Sociales', icon: Coins },
     { id: 'company_identity', label: 'Identidad & Usuarios', icon: Building2 },
@@ -370,9 +381,9 @@ export default function App() {
 
   // Role-based navigation permissions
   const roleAllowedTabs: Record<string, string[]> = {
-    admin_sistema: ['dashboard', 'employees', 'payroll', 'government_files', 'benefits', 'company_identity', 'audit_reports'],
-    rrhh: ['dashboard', 'employees', 'payroll', 'government_files', 'benefits'],
-    dueno: ['dashboard', 'employees', 'payroll', 'government_files', 'benefits'],
+    admin_sistema: ['dashboard', 'employees', 'payroll', 'sales', 'government_files', 'benefits', 'company_identity', 'audit_reports'],
+    rrhh: ['dashboard', 'employees', 'payroll', 'sales', 'government_files', 'benefits'],
+    dueno: ['dashboard', 'employees', 'payroll', 'sales', 'government_files', 'benefits'],
   };
 
   const getAllowedNavItems = (role?: string) => {
@@ -880,6 +891,10 @@ export default function App() {
                           onUpdatePayroll={handleUpdatePayroll}
                           onApprovePayroll={handleApprovePayrollByOwner}
                         />
+          )}
+
+          {activeTab === 'sales' && (
+            <SalesModule employees={employees} records={sales} onAddRecord={handleAddSale} />
           )}
 
           {activeTab === 'benefits' && (

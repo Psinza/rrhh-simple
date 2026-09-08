@@ -229,9 +229,9 @@ export function WorkCertificateModal({
 
               <div className="text-[10px] space-y-0.5 text-slate-500">
                 <p className="font-bold text-slate-800">Verificación Electrónica</p>
-                <p>Código Único: <strong className="font-mono text-slate-900">{verificationHash}</strong></p>
+                <p>Código Único: <strong className="font-mono text-slate-900"></strong></p>
                 <p>Consulte autenticidad en:</p>
-                <p className="font-mono text-sky-700 text-[9px]">https://verificar.talentove.gob.ve/cert</p>
+                <p className="font-mono text-sky-700 text-[9px]"></p>
               </div>
             </div>
           </div>

@@ -52,6 +52,50 @@ async function init() {
     permisos TEXT
   );`);
 
+  // Employee file attachments are stored separately to keep the employee record
+  // small and allow each document type to be queried independently.
+  await runAsync(`CREATE TABLE IF NOT EXISTS employee_documents (
+    id TEXT PRIMARY KEY,
+    employee_id TEXT NOT NULL,
+    document_type TEXT NOT NULL,
+    file_name TEXT NOT NULL,
+    mime_type TEXT NOT NULL,
+    data_url TEXT NOT NULL,
+    size_bytes INTEGER NOT NULL DEFAULT 0,
+    uploaded_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+  );`);
+  await runAsync(`CREATE INDEX IF NOT EXISTS idx_employee_documents_employee
+    ON employee_documents (employee_id);`);
+
+  await runAsync(`CREATE TABLE IF NOT EXISTS sales_records (
+    id TEXT PRIMARY KEY,
+    seller_id TEXT NOT NULL,
+    seller_name TEXT NOT NULL,
+    sale_date DATE NOT NULL,
+    customer TEXT NOT NULL,
+    reference TEXT NOT NULL,
+    amount_bs NUMERIC(14, 2) NOT NULL CHECK (amount_bs >= 0),
+    commission_percentage NUMERIC(7, 4) NOT NULL CHECK (commission_percentage >= 0),
+    commission_bs NUMERIC(14, 2) NOT NULL CHECK (commission_bs >= 0),
+    status TEXT NOT NULL DEFAULT 'Pendiente'
+      CHECK (status IN ('Pendiente', 'Liquidada')),
+    observations TEXT
+  );`);
+  await runAsync(`CREATE INDEX IF NOT EXISTS idx_sales_records_seller_date
+    ON sales_records (seller_id, sale_date);`);
+
+  await runAsync(`CREATE TABLE IF NOT EXISTS payroll_adjustments (
+    id TEXT PRIMARY KEY,
+    employee_id TEXT NOT NULL,
+    payroll_period_id TEXT,
+    overtime_day_hours NUMERIC(8, 2) NOT NULL DEFAULT 0 CHECK (overtime_day_hours >= 0),
+    overtime_night_hours NUMERIC(8, 2) NOT NULL DEFAULT 0 CHECK (overtime_night_hours >= 0),
+    travel_allowance_bs NUMERIC(14, 2) NOT NULL DEFAULT 0 CHECK (travel_allowance_bs >= 0),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+  );`);
+  await runAsync(`CREATE INDEX IF NOT EXISTS idx_payroll_adjustments_employee
+    ON payroll_adjustments (employee_id, payroll_period_id);`);
+
   const seedUsers = [
       {
         id: 'user-admin',

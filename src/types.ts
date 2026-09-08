@@ -4,6 +4,25 @@ export type IvssRiskLevel = 9 | 10 | 11; // 9% Mínimo, 10% Medio, 11% Máximo
 export type PayrollFrequency = 'quincenal' | 'mensual';
 export type MoneyCurrency = 'BS' | 'USD';
 
+export type EmployeeDocumentType =
+  | 'Copia de cédula'
+  | 'Reposo médico'
+  | 'Partida de nacimiento'
+  | 'Curso o certificación'
+  | 'Constancia de trabajo anterior'
+  | 'CV personal'
+  | 'Otro';
+
+export interface EmployeeDocument {
+  id: string;
+  tipo: EmployeeDocumentType;
+  nombre: string;
+  fechaCarga: string;
+  mimeType: string;
+  dataUrl: string;
+  sizeBytes: number;
+}
+
 export interface WorkHistoryEvent {
   id: string;
   fecha: string;
@@ -80,6 +99,8 @@ export interface Employee {
   historialLaboral: WorkHistoryEvent[];
   anticiposPrestaciones: SocialBenefitsAdvance[];
   vacacionesDisfrutadas: number; // Días ya tomados
+  documentos?: EmployeeDocument[];
+  viaticosPendientes?: number;
 
   // Cargas Familiares
   cargasFamiliares: number;
@@ -126,6 +147,7 @@ export interface PayrollItem {
   cestaticketPeriodo: number; // Beneficio de alimentación exento
   montoHorasExtrasDiurnas: number;
   montoHorasExtrasNocturnas: number;
+  viaticos: number;
   feriadosTrabajados: number;
   bonoProductividad: number;
   totalAsignacionesSalariales: number;
@@ -174,6 +196,20 @@ export interface PayrollPeriod {
   totalCestaticketBs: number;
   totalAportesPatronalesBs: number;
   totalCostoEmpresaBs: number;
+}
+
+export interface SalesRecord {
+  id: string;
+  fecha: string;
+  vendedorId: string;
+  vendedorNombre: string;
+  cliente: string;
+  referencia: string;
+  montoBs: number;
+  porcentajeComision: number;
+  comisionBs: number;
+  estatus: 'Pendiente' | 'Liquidada';
+  observaciones?: string;
 }
 
 export interface SocialBenefitsReport {

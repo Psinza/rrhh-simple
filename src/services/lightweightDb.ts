@@ -1,6 +1,6 @@
 import { doc, getDoc, setDoc, collection, getDocs, writeBatch } from 'firebase/firestore';
 import { firestoreDb } from './firebase';
-import { Employee, CompanySettings, AppUser, AuditLog, PayrollPeriod } from '../types';
+import { Employee, CompanySettings, AppUser, AuditLog, PayrollPeriod, SalesRecord } from '../types';
 import { initialCompanySettings, initialEmployees } from '../data/initialData';
 import { predefinedUsers } from '../data/authUsers';
 
@@ -11,6 +11,7 @@ export interface DatabaseState {
   employees: Employee[];
   users: AppUser[];
   payrolls: PayrollPeriod[];
+  sales: SalesRecord[];
   socialBenefits: any[];
   auditLogs: AuditLog[];
   currencyRates: { date: string; rate: number; source?: string }[];
@@ -36,6 +37,7 @@ class LightweightDatabase {
         employees: initialEmployees,
         users: predefinedUsers,
         payrolls: [],
+        sales: [],
         socialBenefits: [],
         auditLogs: [],
         currencyRates: [],
@@ -91,6 +93,7 @@ class LightweightDatabase {
         employees: initialEmployees,
         users: predefinedUsers,
         payrolls: [],
+        sales: [],
         socialBenefits: [],
         auditLogs: [],
         currencyRates: [],
@@ -205,6 +208,7 @@ class LightweightDatabase {
       employees: initialEmployees,
       users: predefinedUsers,
       payrolls: [],
+      sales: [],
       socialBenefits: [],
       auditLogs: [],
       currencyRates: [],

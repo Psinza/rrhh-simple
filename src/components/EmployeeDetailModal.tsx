@@ -15,8 +15,10 @@ import {
   AlertCircle,
   ShieldCheck,
   Download,
+  Upload,
+  Trash2,
 } from 'lucide-react';
-import { Employee, CompanySettings, WorkHistoryEvent, SocialBenefitsAdvance } from '../types';
+import { Employee, CompanySettings, WorkHistoryEvent, SocialBenefitsAdvance, EmployeeDocument, EmployeeDocumentType } from '../types';
 import {
   calculateTenure,
   calculateIntegralSalary,
@@ -45,7 +47,7 @@ export function EmployeeDetailModal({
   onUpdateEmployee,
   onDeleteEmployee,
 }: EmployeeDetailModalProps) {
-  const [activeTab, setActiveTab] = useState<'info' | 'history' | 'benefits' | 'vacations'>('benefits');
+  const [activeTab, setActiveTab] = useState<'info' | 'history' | 'benefits' | 'vacations' | 'documents'>('benefits');
 
   // New History Event State
   const [showAddEvent, setShowAddEvent] = useState(false);
@@ -70,6 +72,46 @@ export function EmployeeDetailModal({
   const [editNumeroCuenta, setEditNumeroCuenta] = useState(employee.numeroCuenta || '');
   const [editTipoCuenta, setEditTipoCuenta] = useState(employee.tipoCuenta || '');
   const [editCargasFamiliares, setEditCargasFamiliares] = useState(String(employee.cargasFamiliares || 0));
+  const [editHorasDiurnas, setEditHorasDiurnas] = useState(String(employee.horasExtrasDiurnasPendientes || 0));
+  const [editHorasNocturnas, setEditHorasNocturnas] = useState(String(employee.horasExtrasNocturnasPendientes || 0));
+  const [editViaticos, setEditViaticos] = useState(String(employee.viaticosPendientes || 0));
+  const [documentType, setDocumentType] = useState<EmployeeDocumentType>('Copia de cédula');
+
+  const handleDocumentUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (!(currentUser?.rol === 'rrhh' || currentUser?.rol === 'admin_sistema')) {
+      alert('Acceso denegado: solo RRHH o Administrador pueden adjuntar documentos.');
+      event.target.value = '';
+      return;
+    }
+    const file = event.target.files?.[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      alert('El documento no puede superar 5 MB.');
+      event.target.value = '';
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result !== 'string') return;
+      const document: EmployeeDocument = {
+        id: `doc-${Date.now()}`,
+        tipo: documentType,
+        nombre: file.name,
+        fechaCarga: new Date().toISOString().split('T')[0],
+        mimeType: file.type || 'application/octet-stream',
+        dataUrl: reader.result,
+        sizeBytes: file.size,
+      };
+      onUpdateEmployee({ ...employee, documentos: [...(employee.documentos || []), document] });
+      event.target.value = '';
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleDocumentDelete = (documentId: string) => {
+    if (!confirm('¿Eliminar este documento del expediente?')) return;
+    onUpdateEmployee({ ...employee, documentos: (employee.documentos || []).filter((document) => document.id !== documentId) });
+  };
 
   const tenure = calculateTenure(employee.fechaIngreso);
   const displayCurrency = employee.salarioMoneda || 'BS';
@@ -261,6 +303,9 @@ export function EmployeeDetailModal({
                           numeroCuenta: editNumeroCuenta,
                           tipoCuenta: editTipoCuenta,
                           cargasFamiliares: parseInt(editCargasFamiliares) || 0,
+                          horasExtrasDiurnasPendientes: Number(editHorasDiurnas) || 0,
+                          horasExtrasNocturnasPendientes: Number(editHorasNocturnas) || 0,
+                          viaticosPendientes: Number(editViaticos) || 0,
                         };
                         onUpdateEmployee(updated);
                         setEditMode(false);
@@ -282,6 +327,9 @@ export function EmployeeDetailModal({
                         setEditNumeroCuenta(employee.numeroCuenta || '');
                         setEditTipoCuenta(employee.tipoCuenta || '');
                         setEditCargasFamiliares(String(employee.cargasFamiliares || 0));
+                        setEditHorasDiurnas(String(employee.horasExtrasDiurnasPendientes || 0));
+                        setEditHorasNocturnas(String(employee.horasExtrasNocturnasPendientes || 0));
+                        setEditViaticos(String(employee.viaticosPendientes || 0));
                       }}
                       className="px-3 py-2 text-xs font-semibold bg-slate-200 hover:bg-slate-300 text-slate-700 rounded transition-colors border border-slate-200"
                     >
@@ -362,6 +410,17 @@ export function EmployeeDetailModal({
           >
             <User className="w-4 h-4 text-sky-600" />
             Datos Personales & Banco
+          </button>
+          <button
+            onClick={() => setActiveTab('documents')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-t transition-all ${
+              activeTab === 'documents'
+                ? 'bg-blue-50 text-blue-700 border-b-2 border-blue-600 font-bold'
+                : 'text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <FileText className="w-4 h-4 text-sky-600" />
+            Documentos ({(employee.documentos || []).length})
           </button>
         </div>
 
@@ -805,6 +864,11 @@ export function EmployeeDetailModal({
                         <label className="block text-[11px] font-medium text-slate-700">Cargas Familiares</label>
                         <input type="number" value={editCargasFamiliares} min="0" onChange={(e) => setEditCargasFamiliares(e.target.value)} className="w-32 p-2 bg-white border border-slate-200 rounded-lg text-sm" />
                       </div>
+                      <div className="grid grid-cols-3 gap-2">
+                        <label className="text-[11px] font-medium text-slate-700">Horas extra diurnas<input type="number" min="0" step="0.5" value={editHorasDiurnas} onChange={(e) => setEditHorasDiurnas(e.target.value)} className="mt-1 w-full p-2 bg-white border border-slate-200 rounded-lg text-sm" /></label>
+                        <label className="text-[11px] font-medium text-slate-700">Horas extra nocturnas<input type="number" min="0" step="0.5" value={editHorasNocturnas} onChange={(e) => setEditHorasNocturnas(e.target.value)} className="mt-1 w-full p-2 bg-white border border-slate-200 rounded-lg text-sm" /></label>
+                        <label className="text-[11px] font-medium text-slate-700">Viáticos (Bs.)<input type="number" min="0" step="0.01" value={editViaticos} onChange={(e) => setEditViaticos(e.target.value)} className="mt-1 w-full p-2 bg-white border border-slate-200 rounded-lg text-sm" /></label>
+                      </div>
                     </>
                   ) : (
                     <>
@@ -812,7 +876,38 @@ export function EmployeeDetailModal({
                       <p><strong className="text-slate-800">Teléfono:</strong> {employee.telefono}</p>
                       <p><strong className="text-slate-800">Dirección:</strong> {employee.direccion}, {employee.ciudad}, {employee.estado}</p>
                       <p><strong className="text-slate-800">Cargas Familiares:</strong> {employee.cargasFamiliares} personas</p>
+                      <p><strong className="text-slate-800">Conceptos pendientes de nómina:</strong> {employee.horasExtrasDiurnasPendientes || 0} h diurnas, {employee.horasExtrasNocturnasPendientes || 0} h nocturnas, {formatBs(employee.viaticosPendientes || 0)} en viáticos</p>
                     </>
+                  )}
+
+                  {activeTab === 'documents' && (
+                    <div className="space-y-4">
+                      <div className="p-4 rounded-2xl border border-sky-200 bg-sky-50">
+                        <h4 className="font-bold text-slate-900">Expediente digital del trabajador</h4>
+                        <p className="text-xs text-slate-600 mt-1">Adjunte cédula, reposos, partida de nacimiento, cursos, constancias laborales anteriores y CV. Archivos de hasta 5 MB.</p>
+                        <div className="mt-3 flex flex-col sm:flex-row gap-2">
+                          <select value={documentType} onChange={(event) => setDocumentType(event.target.value as EmployeeDocumentType)} className="p-2 rounded-lg border border-slate-300 bg-white text-xs">
+                            <option>Copia de cédula</option><option>Reposo médico</option><option>Partida de nacimiento</option><option>Curso o certificación</option><option>Constancia de trabajo anterior</option><option>CV personal</option><option>Otro</option>
+                          </select>
+                          <label className="inline-flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold cursor-pointer">
+                            <Upload className="w-4 h-4" /> Adjuntar documento
+                            <input type="file" accept=".pdf,.png,.jpg,.jpeg,.doc,.docx" onChange={handleDocumentUpload} className="hidden" />
+                          </label>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        {(employee.documentos || []).map((document) => (
+                          <div key={document.id} className="p-3 bg-white rounded-xl border border-slate-200 flex items-center justify-between gap-3">
+                            <div className="min-w-0"><div className="font-semibold text-sm truncate">{document.nombre}</div><div className="text-[11px] text-slate-500">{document.tipo} • {document.fechaCarga} • {(document.sizeBytes / 1024).toFixed(0)} KB</div></div>
+                            <div className="flex items-center gap-1 shrink-0">
+                              <a href={document.dataUrl} download={document.nombre} className="p-2 rounded-lg text-sky-600 hover:bg-sky-50" title="Descargar"><Download className="w-4 h-4" /></a>
+                              {(currentUser?.rol === 'rrhh' || currentUser?.rol === 'admin_sistema') && <button onClick={() => handleDocumentDelete(document.id)} className="p-2 rounded-lg text-rose-600 hover:bg-rose-50" title="Eliminar"><Trash2 className="w-4 h-4" /></button>}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      {(employee.documentos || []).length === 0 && <p className="text-center text-xs text-slate-400 py-8">No hay documentos adjuntos en este expediente.</p>}
+                    </div>
                   )}
                 </div>
               </div>

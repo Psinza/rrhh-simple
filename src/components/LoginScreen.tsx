@@ -93,7 +93,7 @@ export function LoginScreen({ onLogin, users, company }: LoginScreenProps) {
   const currentUserConfig = activeUsers.find((u) => u.rol === selectedRole) || activeUsers[0];
 
   const adminRoleUser = activeUsers.find((u) => u.rol === 'admin_sistema');
-  const rrhhRoleUser = activeUsers.find((u) => u.rol === 'admin_sistema');
+  const rrhhRoleUser = activeUsers.find((u) => u.rol === 'rrhh');
   const duenoRoleUser = activeUsers.find((u) => u.rol === 'dueno');
 
   // Silence unused variable warning
@@ -219,7 +219,7 @@ export function LoginScreen({ onLogin, users, company }: LoginScreenProps) {
                 </div>
                 <div className="font-bold text-white text-sm">Gerente de RRHH</div>
                 <div className="text-[11px] text-emerald-300 font-semibold truncate">
-                  {rrhhRoleUser?.nombre || 'Lic. Dubraska'}
+                  {rrhhRoleUser?.nombre || 'Lic. Dubrazka Gil'}
                 </div>
                 <div className="text-[10px] text-slate-400 mt-1 line-clamp-2">
                   {rrhhRoleUser?.cargo || 'Expedientes 14-02, recibos digitales, prestaciones y archivos IVSS.'}

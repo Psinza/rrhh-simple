@@ -257,6 +257,8 @@ export function PayrollModule({
               <option value="Operaciones">Operaciones</option>
               <option value="Tecnología">Tecnología</option>
               <option value="Finanzas">Finanzas</option>
+              <option value="Producción">Producción</option>
+              <option value="Ventas">Ventas</option>
               <option value="Talento Humano">Talento Humano</option>
               <option value="Seguridad & Salud Laboral">Seguridad & Salud Laboral</option>
             </select>
@@ -270,6 +272,7 @@ export function PayrollModule({
                 <th className="py-3 px-3">Colaborador</th>
                 <th className="py-3 px-3 text-right">Sueldo Período</th>
                 <th className="py-3 px-3 text-right">Cestaticket</th>
+                <th className="py-3 px-3 text-right text-sky-700">Viáticos</th>
                 <th className="py-3 px-3 text-right text-amber-700">IVSS (4%)</th>
                 <th className="py-3 px-3 text-right text-amber-700">Paro (0.5%)</th>
                 <th className="py-3 px-3 text-right text-amber-700">FAOV (1%)</th>
@@ -296,6 +299,10 @@ export function PayrollModule({
 
                   <td className="py-3 px-3 text-right font-medium text-sky-700">
                     {formatBs(item.cestaticketPeriodo)}
+                  </td>
+
+                  <td className="py-3 px-3 text-right font-medium text-sky-700">
+                    {formatBs(item.viaticos)}
                   </td>
 
                   <td className="py-3 px-3 text-right text-amber-700 font-mono">
