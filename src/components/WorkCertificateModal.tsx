@@ -5,6 +5,7 @@ import {
   FileText,
 } from 'lucide-react';
 import { Employee, CompanySettings } from '../types';
+import { predefinedUsers } from '../data/authUsers';
 import {
   calculateTenure,
   calculateIntegralSalary,
@@ -26,7 +27,10 @@ export function WorkCertificateModal({
   const [destinatario, setDestinatario] = useState('A QUIEN PUEDA INTERESAR');
   const [incluirCestaticket, setIncluirCestaticket] = useState(true);
   const [tipoSalario, setTipoSalario] = useState<'basico' | 'integral'>('basico');
+  const [firmaId, setFirmaId] = useState('user-dueno-elias');
   const [ciudadEmision] = useState(company.ciudad || 'Caracas');
+  const authorities = predefinedUsers.filter((user) => ['user-dueno-elias', 'user-dueno', 'user-rrhh'].includes(user.id));
+  const signer = authorities.find((user) => user.id === firmaId) || authorities[0];
 
   const tenure = calculateTenure(employee.fechaIngreso);
   const integral = calculateIntegralSalary(
@@ -49,8 +53,8 @@ export function WorkCertificateModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
-      <div className="bg-white rounded-xl max-w-3xl w-full p-6 sm:p-8 shadow-xl border border-slate-200 my-8 space-y-6 print-card">
+    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
+      <div className="bg-white rounded-xl max-w-2xl w-full max-h-[calc(100vh-1rem)] overflow-y-auto p-3 sm:p-5 shadow-xl border border-slate-200 my-2 space-y-4 print-card">
         {/* Top Control Bar (Hidden on print) */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 no-print border-b border-slate-100 pb-3">
           <div className="flex items-center gap-2">
@@ -77,7 +81,7 @@ export function WorkCertificateModal({
         </div>
 
         {/* Options Panel (Hidden on print) */}
-        <div className="no-print p-4 bg-slate-50 rounded-xl border border-slate-200 text-xs grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className="no-print p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs grid grid-cols-1 sm:grid-cols-4 gap-3">
           <div>
             <label className="block font-medium text-slate-700 mb-1">Destinatario:</label>
             <select
@@ -116,10 +120,16 @@ export function WorkCertificateModal({
               Incluir Cestaticket Socialista
             </label>
           </div>
+          <div>
+            <label className="block font-medium text-slate-700 mb-1">Firmante:</label>
+            <select value={firmaId} onChange={(e) => setFirmaId(e.target.value)} className="w-full p-2 bg-white border border-slate-200 rounded text-slate-800">
+              {authorities.map((authority) => <option key={authority.id} value={authority.id}>{authority.nombre} - {authority.cargo}</option>)}
+            </select>
+          </div>
         </div>
 
         {/* --- OFFICIAL CERTIFICATE PRINTABLE AREA --- */}
-        <div className="p-8 sm:p-12 border border-slate-200 rounded-xl bg-white space-y-8 font-serif text-slate-900 leading-relaxed text-sm shadow-xs">
+        <div className="p-4 sm:p-6 border border-slate-200 rounded-xl bg-white space-y-5 font-serif text-slate-900 leading-relaxed text-xs shadow-xs">
           {/* Official Letterhead */}
           <div className="text-center border-b-2 border-slate-900 pb-6 space-y-2">
             {company.logoUrl && (
@@ -189,19 +199,14 @@ export function WorkCertificateModal({
             </p>
           </div>
 
-          <div className="pt-12 pb-6 grid grid-cols-1 sm:grid-cols-3 gap-6 text-center font-sans">
-            {[
-              ['Elias Agai', 'Dueño'],
-              ['Jacob Agai', 'Dueño'],
-              ['Dubrazka Gil', 'Administradora'],
-            ].map(([name, role]) => (
-              <div key={name} className="space-y-2">
-                <div className="h-16 border-b border-slate-400"></div>
-                <p className="text-xs font-bold">{name}</p>
-                <p className="text-[11px] text-slate-600">{role}</p>
-                <p className="text-[10px] text-slate-500 font-semibold">GESTION DE TALENTO HUMANO</p>
-              </div>
-            ))}
+          <div className="pt-8 pb-3 flex justify-center text-center font-sans">
+            <div className="space-y-2 w-64">
+              <div className="h-12 border-b border-slate-400"></div>
+              <p className="text-xs font-bold">{signer.nombre}</p>
+              <p className="text-[11px] text-slate-600">{signer.cargo}</p>
+              <p className="text-[10px] text-slate-500 font-semibold">C.I. {signer.cedula || 'No registrada'} • {signer.telefono || ''}</p>
+              <p className="text-[10px] text-slate-500 font-semibold">{signer.email}</p>
+            </div>
           </div>
         </div>
       </div>

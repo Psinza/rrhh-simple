@@ -14,7 +14,7 @@ import {
   X,
   Eye,
 } from 'lucide-react';
-import { Employee, CompanySettings, AppUser, PayrollFrequency, EmployeeDocument, EmployeeDocumentType } from '../types';
+import { Employee, CompanySettings, AppUser, PayrollFrequency, EmployeeDocument, EmployeeDocumentType, SellerPaymentMode } from '../types';
 import {
   formatBs,
   formatUSD,
@@ -63,6 +63,10 @@ export function EmployeesModule({
   const [formFechaIngreso, setFormFechaIngreso] = useState(new Date().toISOString().split('T')[0]);
   const [formSalario, setFormSalario] = useState('25000');
   const [formSalarioMoneda, setFormSalarioMoneda] = useState<'BS' | 'USD'>('BS');
+  const [formModalidadVendedor, setFormModalidadVendedor] = useState<SellerPaymentMode>('sueldo_comisiones');
+  const [formDescripcionPagoVendedor, setFormDescripcionPagoVendedor] = useState('');
+  const [formPorcentajeComision, setFormPorcentajeComision] = useState('3');
+  const [formViaticos, setFormViaticos] = useState('0');
   const [formCestaticket, setFormCestaticket] = useState(String(company.montoCestaticketNacional));
   const [formCestaticketMoneda, setFormCestaticketMoneda] = useState<'BS' | 'USD'>('BS');
   const [formBanco, setFormBanco] = useState('Banco de Venezuela');
@@ -128,7 +132,9 @@ export function EmployeesModule({
     const formattedRif = formRifNum || `${formNac}-${cleanCedula}-0`;
 
     const salarioNum = parseFloat(formSalario) || 0;
-    const salarioBaseBs = formSalarioMoneda === 'USD' ? salarioNum * company.tasaBCV_USD : salarioNum;
+    const salarioBaseBs = formModalidadVendedor === 'solo_comisiones'
+      ? 0
+      : formSalarioMoneda === 'USD' ? salarioNum * company.tasaBCV_USD : salarioNum;
     const cestaticketBaseBs = formCestaticketMoneda === 'USD' ? (parseFloat(formCestaticket) || 0) * company.tasaBCV_USD : (parseFloat(formCestaticket) || 0);
 
     const newEmp: Employee = {
@@ -155,6 +161,9 @@ export function EmployeesModule({
       numeroAfiliacionIVSS: `IVSS-${cleanCedula}`,
       salarioMensualBase: salarioBaseBs,
       salarioMoneda: formSalarioMoneda,
+      modalidadVendedor: formDepartamento === 'Ventas & Mercadeo' ? formModalidadVendedor : undefined,
+      descripcionPagoVendedor: formDepartamento === 'Ventas & Mercadeo' ? formDescripcionPagoVendedor.trim() : undefined,
+      porcentajeComision: formDepartamento === 'Ventas & Mercadeo' ? Number(formPorcentajeComision) || 0 : undefined,
       frecuenciaPago: formFrecuenciaPago,
       cestaticketMensual: cestaticketBaseBs || company.montoCestaticketNacional,
       cestaticketMoneda: formCestaticketMoneda,
@@ -180,7 +189,7 @@ export function EmployeesModule({
         },
       ],
       documentos: formDocuments,
-      viaticosPendientes: 0,
+      viaticosPendientes: formModalidadVendedor === 'viaticos_comisiones' ? Number(formViaticos) || 0 : 0,
     };
 
     onSaveEmployee(newEmp);
@@ -429,7 +438,7 @@ export function EmployeesModule({
                   <label className="block font-medium text-slate-700 mb-1">Primer Nombre *</label>
                   <input
                     type="text"
-                    required
+                    required={formDepartamento !== 'Ventas & Mercadeo' || formModalidadVendedor !== 'solo_comisiones'}
                     value={formPrimerNombre}
                     onChange={(e) => setFormPrimerNombre(e.target.value)}
                     className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg"
@@ -533,6 +542,32 @@ export function EmployeesModule({
                       <option value="USD">USD</option>
                     </select>
                   </div>
+                  {formDepartamento === 'Ventas & Mercadeo' && (
+                    <>
+                      <div>
+                        <label className="block font-medium text-slate-800 mb-1">Modalidad del vendedor</label>
+                        <select value={formModalidadVendedor} onChange={(e) => setFormModalidadVendedor(e.target.value as SellerPaymentMode)} className="w-full p-2 bg-white border border-sky-200 rounded-lg">
+                          <option value="sueldo_comisiones">Sueldo + comisiones</option>
+                          <option value="viaticos_comisiones">Viáticos + comisiones</option>
+                          <option value="solo_comisiones">Solo comisiones</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block font-medium text-slate-800 mb-1">% de comisión</label>
+                        <input type="number" min="0" max="100" step="0.01" value={formPorcentajeComision} onChange={(e) => setFormPorcentajeComision(e.target.value)} className="w-full p-2 bg-white border border-sky-200 rounded-lg" />
+                      </div>
+                      <div className="sm:col-span-2">
+                        <label className="block font-medium text-slate-800 mb-1">Descripción de lo que se cancelará</label>
+                        <input value={formDescripcionPagoVendedor} onChange={(e) => setFormDescripcionPagoVendedor(e.target.value)} placeholder="Ej. comisión por ventas y viáticos de ruta" className="w-full p-2 bg-white border border-sky-200 rounded-lg" />
+                      </div>
+                      {formModalidadVendedor === 'viaticos_comisiones' && (
+                        <div>
+                          <label className="block font-medium text-slate-800 mb-1">Viáticos por período (Bs.)</label>
+                          <input type="number" min="0" step="0.01" value={formViaticos} onChange={(e) => setFormViaticos(e.target.value)} className="w-full p-2 bg-white border border-sky-200 rounded-lg" />
+                        </div>
+                      )}
+                    </>
+                  )}
                   <span className="text-[10px] text-sky-700 mt-1 block">
                     {formSalarioMoneda === 'USD'
                       ? `Equivalente BCV: ${formatBs(parseFloat(formSalario || '0') * company.tasaBCV_USD || 0)}`

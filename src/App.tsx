@@ -124,18 +124,18 @@ export default function App() {
         if (dbState.company) setCompany(dbState.company);
         if (dbState.employees && dbState.employees.length > 0) setEmployees(dbState.employees);
         if (dbState.users && dbState.users.length > 0) {
-        const dbUserIds = new Set(dbState.users.map((user) => user.id));
-        setUsers([...dbState.users, ...predefinedUsers.filter((user) => !dbUserIds.has(user.id))]);
+          const dbUserIds = new Set(dbState.users.map((user) => user.id));
+          setUsers([...dbState.users, ...predefinedUsers.filter((user) => !dbUserIds.has(user.id))]);
           // Sync current logged in user if match exists
           if (currentUser) {
             const updatedMe = dbState.users.find((u) => u.id === currentUser.id);
             if (updatedMe) setCurrentUser(updatedMe);
           }
-          if (dbState.sales) setSales(dbState.sales);
-          if (dbState.productAssignments) setProductAssignments(dbState.productAssignments);
-          if (dbState.productPurchases) setProductPurchases(dbState.productPurchases);
-          if (dbState.employeeLoans) setEmployeeLoans(dbState.employeeLoans);
         }
+        if (dbState.sales) setSales(dbState.sales);
+        if (dbState.productAssignments) setProductAssignments(dbState.productAssignments);
+        if (dbState.productPurchases) setProductPurchases(dbState.productPurchases);
+        if (dbState.employeeLoans) setEmployeeLoans(dbState.employeeLoans);
       }
     });
 
@@ -423,7 +423,7 @@ export default function App() {
   const roleAllowedTabs: Record<string, string[]> = {
     admin_sistema: ['dashboard', 'employees', 'payroll', 'sales', 'products_loans', 'government_files', 'benefits', 'company_identity', 'audit_reports'],
     rrhh: ['dashboard', 'employees', 'payroll', 'sales', 'products_loans', 'government_files', 'benefits'],
-    dueno: ['dashboard', 'employees', 'payroll', 'sales', 'products_loans', 'government_files', 'benefits'],
+    dueno: ['dashboard', 'employees', 'payroll', 'sales', 'products_loans', 'government_files', 'benefits', 'company_identity'],
   };
 
   const getAllowedNavItems = (role?: string) => {

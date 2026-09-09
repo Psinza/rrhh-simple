@@ -47,6 +47,7 @@ export function PayrollModule({
   const [activeFrequency, setActiveFrequency] = useState<'semanal' | 'quincenal' | 'mensual'>('quincenal');
   const [filterDept, setFilterDept] = useState('todos');
   const [showApprovedNotice, setShowApprovedNotice] = useState(false);
+  const [aplicarRetencionesGubernamentales, setAplicarRetencionesGubernamentales] = useState(false);
 
   // Recalculate payroll with latest employee figures if needed
   const handleRecalculate = () => {
@@ -66,7 +67,8 @@ export function PayrollModule({
           commissionByEmployee[emp.id] || 0,
           emp.viaticosPendientes || 0,
           loanInstallmentByEmployee[emp.id] || 0,
-          productDeductionByEmployee[emp.id] || 0
+          productDeductionByEmployee[emp.id] || 0,
+          aplicarRetencionesGubernamentales
         );
 
         return {
@@ -144,6 +146,10 @@ export function PayrollModule({
               <option value="quincenal">Quincenal - Administrativos</option>
               <option value="mensual">Mensual</option>
             </select>
+          </label>
+          <label className="flex items-center gap-2 text-xs text-slate-600 font-semibold cursor-pointer">
+            <input type="checkbox" checked={aplicarRetencionesGubernamentales} onChange={(e) => setAplicarRetencionesGubernamentales(e.target.checked)} className="rounded border-slate-300 text-blue-600" />
+            Aplicar retenciones gubernamentales
           </label>
           {(currentUser?.rol === 'rrhh' || currentUser?.rol === 'admin_sistema') && (
             <button

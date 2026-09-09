@@ -40,8 +40,8 @@ export function DigitalPaySlipModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
-      <div className="bg-white rounded-xl max-w-3xl w-full p-6 sm:p-8 shadow-xl border border-slate-200 my-8 space-y-6 print-card">
+    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
+      <div className="bg-white rounded-xl max-w-2xl w-full max-h-[calc(100vh-1rem)] overflow-y-auto p-3 sm:p-5 shadow-xl border border-slate-200 my-2 space-y-4 print-card">
         {/* Top Control Bar (Hidden on print) */}
         <div className="flex items-center justify-between no-print border-b border-slate-100 pb-3">
           <div className="flex items-center gap-2">
@@ -71,7 +71,7 @@ export function DigitalPaySlipModal({
         </div>
 
         {/* --- OFFICIAL PAY SLIP PRINTABLE AREA --- */}
-        <div className="space-y-4 text-xs font-sans text-slate-900 border border-slate-200 p-6 rounded-xl bg-white shadow-xs">
+        <div className="space-y-3 text-[11px] font-sans text-slate-900 border border-slate-200 p-3 sm:p-4 rounded-xl bg-white shadow-xs">
           {/* Header */}
           <div className="border-b-2 border-slate-900 pb-4">
             <div className="flex items-start justify-between gap-4">

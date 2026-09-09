@@ -100,7 +100,8 @@ export function calculatePayrollDeductionsAndContributions(
   bonoProductividad: number = 0,
   viaticos: number = employee.viaticosPendientes || 0,
   prestamosAnticipos: number = 0,
-  deduccionesProductos: number = 0
+  deduccionesProductos: number = 0,
+  aplicarRetencionesGubernamentales: boolean = true
 ): Omit<PayrollItem, 'id' | 'employeeId' | 'employee' | 'fechaGeneracion' | 'firmadoDigitalmente' | 'hashCriptografico'> {
   const factorPeriodo = frecuencia === 'semanal' ? 7 / 30 : frecuencia === 'quincenal' ? 0.5 : 1.0;
   // Lunes en la quincena o mes (típicamente 2 en quincena, 4 o 5 en mes)
@@ -130,16 +131,16 @@ export function calculatePayrollDeductionsAndContributions(
   const salarioSemanalIvss = (salarioSujetoIvss * 12) / 52;
 
   // IVSS Trabajador: 4%
-  const retencionIVSS = salarioSemanalIvss * 0.04 * lunes;
+  const retencionIVSS = aplicarRetencionesGubernamentales ? salarioSemanalIvss * 0.04 * lunes : 0;
 
   // RPE / Paro Forzoso Trabajador: 0.5%
-  const retencionParoForzoso = salarioSemanalIvss * 0.005 * lunes;
+  const retencionParoForzoso = aplicarRetencionesGubernamentales ? salarioSemanalIvss * 0.005 * lunes : 0;
 
   // FAOV Trabajador: 1% del salario mensual/quincenal integral o devengado
-  const retencionFAOV = totalAsignacionesSalariales * 0.01;
+  const retencionFAOV = aplicarRetencionesGubernamentales ? totalAsignacionesSalariales * 0.01 : 0;
 
   // ISLR (Forma AR-I porcentaje individual)
-  const retencionISLR = totalAsignacionesSalariales * ((employee.porcentajeRetencionISLR || 0) / 100);
+  const retencionISLR = aplicarRetencionesGubernamentales ? totalAsignacionesSalariales * ((employee.porcentajeRetencionISLR || 0) / 100) : 0;
 
   const otrasDeducciones = 0;
   const totalDeducciones =

@@ -127,7 +127,11 @@ export function buildInitialPayrollPeriod(company: CompanySettings, employees: E
       'quincenal',
       emp.horasExtrasDiurnasPendientes,
       emp.horasExtrasNocturnasPendientes,
-      0
+      0,
+      0,
+      0,
+      0,
+      false
     );
 
     return {

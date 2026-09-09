@@ -95,6 +95,8 @@ export interface Employee {
   porcentajeRetencionISLR: number; // Forma AR-I (0% a 34%)
   salarioVendedor?: number;
   porcentajeComision?: number;
+  modalidadVendedor?: SellerPaymentMode;
+  descripcionPagoVendedor?: string;
 
   // Datos Bancarios
   banco: string;
@@ -329,6 +331,7 @@ export interface LegalNotification {
 }
 
 export type AppUserRole = 'admin_sistema' | 'rrhh' | 'dueno';
+export type SellerPaymentMode = 'sueldo_comisiones' | 'viaticos_comisiones' | 'solo_comisiones';
 
 export interface AppUser {
   id: string;
@@ -338,6 +341,7 @@ export interface AppUser {
   nombre: string;
   cargo: string;
   telefono?: string;
+  cedula?: string;
   rol: AppUserRole;
   rolTitulo: string;
   avatar: string;
