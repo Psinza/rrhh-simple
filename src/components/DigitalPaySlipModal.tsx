@@ -204,8 +204,8 @@ export function DigitalPaySlipModal({
                 {item.viaticos > 0 && (
                   <tr>
                     <td className="py-1.5 px-3 font-mono text-slate-500 text-[11px]">021</td>
-                    <td className="py-1.5 px-3">Viáticos del período</td>
-                    <td className="py-1.5 px-3 text-right font-medium">{formatBs(item.viaticos)}</td>
+                    <td className="py-1.5 px-3">Viáticos del período ({item.viaticosMoneda === 'USD' ? 'USD' : 'Bs.'})</td>
+                    <td className="py-1.5 px-3 text-right font-medium">{item.viaticosMoneda === 'USD' ? `$${(item.viaticosOriginal || 0).toFixed(2)} / ${formatBs(item.viaticos)}` : formatBs(item.viaticos)}</td>
                     <td className="py-1.5 px-3 text-right text-slate-400">-</td>
                   </tr>
                 )}

@@ -67,6 +67,7 @@ export function EmployeesModule({
   const [formDescripcionPagoVendedor, setFormDescripcionPagoVendedor] = useState('');
   const [formPorcentajeComision, setFormPorcentajeComision] = useState('3');
   const [formViaticos, setFormViaticos] = useState('0');
+  const [formViaticosMoneda, setFormViaticosMoneda] = useState<'BS' | 'USD'>('BS');
   const [formCestaticket, setFormCestaticket] = useState(String(company.montoCestaticketNacional));
   const [formCestaticketMoneda, setFormCestaticketMoneda] = useState<'BS' | 'USD'>('BS');
   const [formBanco, setFormBanco] = useState('Banco de Venezuela');
@@ -189,7 +190,9 @@ export function EmployeesModule({
         },
       ],
       documentos: formDocuments,
-      viaticosPendientes: formModalidadVendedor === 'viaticos_comisiones' ? Number(formViaticos) || 0 : 0,
+      viaticosPendientes: formModalidadVendedor === 'viaticos_comisiones' ? (Number(formViaticos) || 0) * (formViaticosMoneda === 'USD' ? company.tasaBCV_USD : 1) : 0,
+      viaticosPendientesOriginal: formModalidadVendedor === 'viaticos_comisiones' ? Number(formViaticos) || 0 : 0,
+      viaticosMoneda: formModalidadVendedor === 'viaticos_comisiones' ? formViaticosMoneda : 'BS',
     };
 
     onSaveEmployee(newEmp);
@@ -562,8 +565,11 @@ export function EmployeesModule({
                       </div>
                       {formModalidadVendedor === 'viaticos_comisiones' && (
                         <div>
-                          <label className="block font-medium text-slate-800 mb-1">Viáticos por período (Bs.)</label>
-                          <input type="number" min="0" step="0.01" value={formViaticos} onChange={(e) => setFormViaticos(e.target.value)} className="w-full p-2 bg-white border border-sky-200 rounded-lg" />
+                            <label className="block font-medium text-slate-800 mb-1">Viáticos por período</label>
+                          <div className="flex gap-2">
+                            <input type="number" min="0" step="0.01" value={formViaticos} onChange={(e) => setFormViaticos(e.target.value)} className="w-full p-2 bg-white border border-sky-200 rounded-lg" />
+                            <select value={formViaticosMoneda} onChange={(e) => setFormViaticosMoneda(e.target.value as 'BS' | 'USD')} className="p-2 bg-white border border-sky-200 rounded-lg"><option value="BS">Bs.</option><option value="USD">USD</option></select>
+                          </div>
                         </div>
                       )}
                     </>

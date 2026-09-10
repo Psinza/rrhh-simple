@@ -108,7 +108,9 @@ export interface Employee {
   anticiposPrestaciones: SocialBenefitsAdvance[];
   vacacionesDisfrutadas: number; // Días ya tomados
   documentos?: EmployeeDocument[];
-  viaticosPendientes?: number;
+  viaticosPendientes?: number; // Equivalente en Bs. para nómina
+  viaticosPendientesOriginal?: number;
+  viaticosMoneda?: MoneyCurrency;
 
   // Cargas Familiares
   cargasFamiliares: number;
@@ -156,6 +158,8 @@ export interface PayrollItem {
   montoHorasExtrasDiurnas: number;
   montoHorasExtrasNocturnas: number;
   viaticos: number;
+  viaticosOriginal?: number;
+  viaticosMoneda?: MoneyCurrency;
   feriadosTrabajados: number;
   bonoProductividad: number;
   comisionesVentas: number;

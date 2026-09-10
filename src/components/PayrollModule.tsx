@@ -324,7 +324,7 @@ export function PayrollModule({
                   </td>
 
                   <td className="py-3 px-3 text-right font-medium text-sky-700">
-                    {formatBs(item.viaticos)}
+                    {item.viaticosMoneda === 'USD' ? `$${(item.viaticosOriginal || 0).toFixed(2)} / ${formatBs(item.viaticos)}` : formatBs(item.viaticos)}
                   </td>
 
                   <td className="py-3 px-3 text-right text-amber-700 font-mono">

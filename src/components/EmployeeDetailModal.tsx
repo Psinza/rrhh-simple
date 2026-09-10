@@ -18,7 +18,7 @@ import {
   Upload,
   Trash2,
 } from 'lucide-react';
-import { Employee, CompanySettings, WorkHistoryEvent, SocialBenefitsAdvance, EmployeeDocument, EmployeeDocumentType } from '../types';
+import { Employee, CompanySettings, WorkHistoryEvent, SocialBenefitsAdvance, EmployeeDocument, EmployeeDocumentType, MoneyCurrency } from '../types';
 import {
   calculateTenure,
   calculateIntegralSalary,
@@ -74,7 +74,8 @@ export function EmployeeDetailModal({
   const [editCargasFamiliares, setEditCargasFamiliares] = useState(String(employee.cargasFamiliares || 0));
   const [editHorasDiurnas, setEditHorasDiurnas] = useState(String(employee.horasExtrasDiurnasPendientes || 0));
   const [editHorasNocturnas, setEditHorasNocturnas] = useState(String(employee.horasExtrasNocturnasPendientes || 0));
-  const [editViaticos, setEditViaticos] = useState(String(employee.viaticosPendientes || 0));
+  const [editViaticos, setEditViaticos] = useState(String(employee.viaticosMoneda === 'USD' ? (employee.viaticosPendientesOriginal || 0) : (employee.viaticosPendientes || 0)));
+  const [editViaticosMoneda, setEditViaticosMoneda] = useState<MoneyCurrency>(employee.viaticosMoneda || 'BS');
   const [documentType, setDocumentType] = useState<EmployeeDocumentType>('Copia de cédula');
 
   const handleDocumentUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -313,7 +314,9 @@ export function EmployeeDetailModal({
                           cargasFamiliares: parseInt(editCargasFamiliares) || 0,
                           horasExtrasDiurnasPendientes: Number(editHorasDiurnas) || 0,
                           horasExtrasNocturnasPendientes: Number(editHorasNocturnas) || 0,
-                          viaticosPendientes: Number(editViaticos) || 0,
+                          viaticosPendientes: (Number(editViaticos) || 0) * (editViaticosMoneda === 'USD' ? company.tasaBCV_USD : 1),
+                          viaticosPendientesOriginal: Number(editViaticos) || 0,
+                          viaticosMoneda: editViaticosMoneda,
                         };
                         onUpdateEmployee(updated);
                         setEditMode(false);
@@ -337,7 +340,8 @@ export function EmployeeDetailModal({
                         setEditCargasFamiliares(String(employee.cargasFamiliares || 0));
                         setEditHorasDiurnas(String(employee.horasExtrasDiurnasPendientes || 0));
                         setEditHorasNocturnas(String(employee.horasExtrasNocturnasPendientes || 0));
-                        setEditViaticos(String(employee.viaticosPendientes || 0));
+                        setEditViaticos(String(employee.viaticosMoneda === 'USD' ? (employee.viaticosPendientesOriginal || 0) : (employee.viaticosPendientes || 0)));
+                        setEditViaticosMoneda(employee.viaticosMoneda || 'BS');
                       }}
                       className="px-3 py-2 text-xs font-semibold bg-slate-200 hover:bg-slate-300 text-slate-700 rounded transition-colors border border-slate-200"
                     >
@@ -875,7 +879,14 @@ export function EmployeeDetailModal({
                       <div className="grid grid-cols-3 gap-2">
                         <label className="text-[11px] font-medium text-slate-700">Horas extra diurnas<input type="number" min="0" step="0.5" value={editHorasDiurnas} onChange={(e) => setEditHorasDiurnas(e.target.value)} className="mt-1 w-full p-2 bg-white border border-slate-200 rounded-lg text-sm" /></label>
                         <label className="text-[11px] font-medium text-slate-700">Horas extra nocturnas<input type="number" min="0" step="0.5" value={editHorasNocturnas} onChange={(e) => setEditHorasNocturnas(e.target.value)} className="mt-1 w-full p-2 bg-white border border-slate-200 rounded-lg text-sm" /></label>
-                        <label className="text-[11px] font-medium text-slate-700">Viáticos (Bs.)<input type="number" min="0" step="0.01" value={editViaticos} onChange={(e) => setEditViaticos(e.target.value)} className="mt-1 w-full p-2 bg-white border border-slate-200 rounded-lg text-sm" /></label>
+                        <label className="text-[11px] font-medium text-slate-700">Viáticos
+                          <div className="mt-1 flex gap-1">
+                            <input type="number" min="0" step="0.01" value={editViaticos} onChange={(e) => setEditViaticos(e.target.value)} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-sm" />
+                            <select value={editViaticosMoneda} onChange={(e) => setEditViaticosMoneda(e.target.value as MoneyCurrency)} className="p-2 bg-white border border-slate-200 rounded-lg text-sm">
+                              <option value="BS">Bs.</option><option value="USD">USD</option>
+                            </select>
+                          </div>
+                        </label>
                       </div>
                     </>
                   ) : (
@@ -884,7 +895,7 @@ export function EmployeeDetailModal({
                       <p><strong className="text-slate-800">Teléfono:</strong> {employee.telefono}</p>
                       <p><strong className="text-slate-800">Dirección:</strong> {employee.direccion}, {employee.ciudad}, {employee.estado}</p>
                       <p><strong className="text-slate-800">Cargas Familiares:</strong> {employee.cargasFamiliares} personas</p>
-                      <p><strong className="text-slate-800">Conceptos pendientes de nómina:</strong> {employee.horasExtrasDiurnasPendientes || 0} h diurnas, {employee.horasExtrasNocturnasPendientes || 0} h nocturnas, {formatBs(employee.viaticosPendientes || 0)} en viáticos</p>
+                      <p><strong className="text-slate-800">Conceptos pendientes de nómina:</strong> {employee.horasExtrasDiurnasPendientes || 0} h diurnas, {employee.horasExtrasNocturnasPendientes || 0} h nocturnas, {employee.viaticosMoneda === 'USD' ? `$${(employee.viaticosPendientesOriginal || 0).toFixed(2)} (${formatBs(employee.viaticosPendientes || 0)})` : formatBs(employee.viaticosPendientes || 0)} en viáticos</p>
                     </>
                   )}
 

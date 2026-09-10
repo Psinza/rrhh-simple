@@ -175,6 +175,8 @@ export function calculatePayrollDeductionsAndContributions(
     montoHorasExtrasDiurnas,
     montoHorasExtrasNocturnas,
     viaticos,
+    viaticosOriginal: (employee.viaticosPendientesOriginal ?? employee.viaticosPendientes ?? 0) * factorPeriodo,
+    viaticosMoneda: employee.viaticosMoneda || 'BS',
     feriadosTrabajados,
     bonoProductividad,
     comisionesVentas: bonoProductividad,
