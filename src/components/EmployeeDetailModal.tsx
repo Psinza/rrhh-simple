@@ -18,7 +18,7 @@ import {
   Upload,
   Trash2,
 } from 'lucide-react';
-import { Employee, CompanySettings, WorkHistoryEvent, SocialBenefitsAdvance, EmployeeDocument, EmployeeDocumentType, MoneyCurrency } from '../types';
+import { Employee, CompanySettings, WorkHistoryEvent, SocialBenefitsAdvance, EmployeeDocument, EmployeeDocumentType, MoneyCurrency, SalesRecord, ProductAssignment, ProductPurchase, EmployeeLoan, EmployeePaymentMethod } from '../types';
 import {
   calculateTenure,
   calculateIntegralSalary,
@@ -36,6 +36,10 @@ interface EmployeeDetailModalProps {
   onGenerateCertificate: (employee: Employee) => void;
   onUpdateEmployee: (updated: Employee) => void;
   onDeleteEmployee?: (id: string) => void;
+  sales: SalesRecord[];
+  assignments: ProductAssignment[];
+  purchases: ProductPurchase[];
+  loans: EmployeeLoan[];
 }
 
 export function EmployeeDetailModal({
@@ -46,8 +50,12 @@ export function EmployeeDetailModal({
   onGenerateCertificate,
   onUpdateEmployee,
   onDeleteEmployee,
+  sales,
+  assignments,
+  purchases,
+  loans,
 }: EmployeeDetailModalProps) {
-  const [activeTab, setActiveTab] = useState<'info' | 'history' | 'benefits' | 'vacations' | 'documents'>('benefits');
+  const [activeTab, setActiveTab] = useState<'info' | 'history' | 'financial' | 'benefits' | 'vacations' | 'documents'>('benefits');
 
   // New History Event State
   const [showAddEvent, setShowAddEvent] = useState(false);
@@ -76,6 +84,13 @@ export function EmployeeDetailModal({
   const [editHorasNocturnas, setEditHorasNocturnas] = useState(String(employee.horasExtrasNocturnasPendientes || 0));
   const [editViaticos, setEditViaticos] = useState(String(employee.viaticosMoneda === 'USD' ? (employee.viaticosPendientesOriginal || 0) : (employee.viaticosPendientes || 0)));
   const [editViaticosMoneda, setEditViaticosMoneda] = useState<MoneyCurrency>(employee.viaticosMoneda || 'BS');
+  const [editSalario, setEditSalario] = useState(String(employee.salarioMoneda === 'USD' ? employee.salarioMensualBase / company.tasaBCV_USD : employee.salarioMensualBase));
+  const [editSalarioMoneda, setEditSalarioMoneda] = useState<MoneyCurrency>(employee.salarioMoneda || 'BS');
+  const [editCestaticketAplica, setEditCestaticketAplica] = useState(employee.cestaticketAplica !== false);
+  const [editCestaticket, setEditCestaticket] = useState(String(employee.cestaticketMoneda === 'USD' ? employee.cestaticketMensual / company.tasaBCV_USD : employee.cestaticketMensual));
+  const [editCestaticketMoneda, setEditCestaticketMoneda] = useState<MoneyCurrency>(employee.cestaticketMoneda || 'BS');
+  const [editCestaticketMetodoPago, setEditCestaticketMetodoPago] = useState<EmployeePaymentMethod>(employee.cestaticketMetodoPago || 'transferencia');
+  const [editCestaticketBanco, setEditCestaticketBanco] = useState(employee.cestaticketBancoReceptor || employee.banco || '');
   const [documentType, setDocumentType] = useState<EmployeeDocumentType>('Copia de cédula');
 
   const handleDocumentUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -312,6 +327,13 @@ export function EmployeeDetailModal({
                           numeroCuenta: editNumeroCuenta,
                           tipoCuenta: editTipoCuenta,
                           cargasFamiliares: parseInt(editCargasFamiliares) || 0,
+                          salarioMensualBase: (Number(editSalario) || 0) * (editSalarioMoneda === 'USD' ? company.tasaBCV_USD : 1),
+                          salarioMoneda: editSalarioMoneda,
+                          cestaticketAplica: editCestaticketAplica,
+                          cestaticketMensual: editCestaticketAplica ? (Number(editCestaticket) || 0) * (editCestaticketMoneda === 'USD' ? company.tasaBCV_USD : 1) : 0,
+                          cestaticketMoneda: editCestaticketMoneda,
+                          cestaticketMetodoPago: editCestaticketAplica ? editCestaticketMetodoPago : undefined,
+                          cestaticketBancoReceptor: editCestaticketAplica ? editCestaticketBanco : undefined,
                           horasExtrasDiurnasPendientes: Number(editHorasDiurnas) || 0,
                           horasExtrasNocturnasPendientes: Number(editHorasNocturnas) || 0,
                           viaticosPendientes: (Number(editViaticos) || 0) * (editViaticosMoneda === 'USD' ? company.tasaBCV_USD : 1),
@@ -342,6 +364,13 @@ export function EmployeeDetailModal({
                         setEditHorasNocturnas(String(employee.horasExtrasNocturnasPendientes || 0));
                         setEditViaticos(String(employee.viaticosMoneda === 'USD' ? (employee.viaticosPendientesOriginal || 0) : (employee.viaticosPendientes || 0)));
                         setEditViaticosMoneda(employee.viaticosMoneda || 'BS');
+                        setEditSalario(String(employee.salarioMoneda === 'USD' ? employee.salarioMensualBase / company.tasaBCV_USD : employee.salarioMensualBase));
+                        setEditSalarioMoneda(employee.salarioMoneda || 'BS');
+                        setEditCestaticketAplica(employee.cestaticketAplica !== false);
+                        setEditCestaticket(String(employee.cestaticketMoneda === 'USD' ? employee.cestaticketMensual / company.tasaBCV_USD : employee.cestaticketMensual));
+                        setEditCestaticketMoneda(employee.cestaticketMoneda || 'BS');
+                        setEditCestaticketMetodoPago(employee.cestaticketMetodoPago || 'transferencia');
+                        setEditCestaticketBanco(employee.cestaticketBancoReceptor || employee.banco || '');
                       }}
                       className="px-3 py-2 text-xs font-semibold bg-slate-200 hover:bg-slate-300 text-slate-700 rounded transition-colors border border-slate-200"
                     >
@@ -400,6 +429,14 @@ export function EmployeeDetailModal({
           >
             <History className="w-4 h-4 text-blue-600" />
             Historial Laboral ({employee.historialLaboral.length})
+          </button>
+          <button
+            onClick={() => setActiveTab('financial')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-t transition-all ${
+              activeTab === 'financial' ? 'bg-blue-50 text-blue-700 border-b-2 border-blue-600 font-bold' : 'text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <TrendingUp className="w-4 h-4 text-blue-600" /> Histórico Financiero
           </button>
           <button
             onClick={() => setActiveTab('vacations')}
@@ -837,6 +874,26 @@ export function EmployeeDetailModal({
           </div>
         )}
 
+        {activeTab === 'financial' && (
+          <div className="space-y-4 text-xs">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {[
+                ['Ventas', sales.filter((item) => item.vendedorId === employee.id).reduce((sum, item) => sum + item.montoBs, 0)],
+                ['Comisiones', sales.filter((item) => item.vendedorId === employee.id).reduce((sum, item) => sum + item.comisionBs, 0)],
+                ['Compras', purchases.filter((item) => item.employeeId === employee.id).reduce((sum, item) => sum + item.amountBs, 0)],
+                ['Asignaciones', assignments.filter((item) => item.employeeId === employee.id).reduce((sum, item) => sum + item.amountBs, 0)],
+                ['Préstamos otorgados', loans.filter((item) => item.employeeId === employee.id).reduce((sum, item) => sum + item.principalBs, 0)],
+                ['Saldo de préstamos', loans.filter((item) => item.employeeId === employee.id && item.status === 'Activo').reduce((sum, item) => sum + item.outstandingBs, 0)],
+              ].map(([label, value]) => <div key={String(label)} className="p-3 rounded-xl bg-slate-50 border border-slate-200"><span className="text-slate-500">{label}</span><div className="text-lg font-bold text-slate-900">{formatBs(Number(value))}</div><span className="text-[10px] text-slate-400">{formatUSD(Number(value) / company.tasaBCV_USD)} equivalente</span></div>)}
+            </div>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <div className="p-4 rounded-xl border border-slate-200"><h4 className="font-bold mb-2">Ventas y comisiones</h4>{sales.filter((item) => item.vendedorId === employee.id).map((item) => <div key={item.id} className="py-2 border-b last:border-0"><div className="flex justify-between"><span>{item.fecha} • {item.cliente}</span><strong>{formatBs(item.montoBs)}</strong></div><div className="text-slate-500">Comisión: {formatBs(item.comisionBs)} • {item.estatus}</div></div>)}{sales.filter((item) => item.vendedorId === employee.id).length === 0 && <p className="text-slate-400">Sin registros.</p>}</div>
+              <div className="p-4 rounded-xl border border-slate-200"><h4 className="font-bold mb-2">Compras y asignaciones</h4>{[...purchases.filter((item) => item.employeeId === employee.id).map((item) => ({ id: item.id, text: `Compra: ${item.product} • ${item.purchaseDate}`, amount: item.amountBs })), ...assignments.filter((item) => item.employeeId === employee.id).map((item) => ({ id: item.id, text: `Asignación: ${item.product} • ${item.month}`, amount: item.amountBs }))].map((item) => <div key={item.id} className="py-2 border-b last:border-0 flex justify-between"><span>{item.text}</span><strong>{formatBs(item.amount)}</strong></div>)}{purchases.filter((item) => item.employeeId === employee.id).length + assignments.filter((item) => item.employeeId === employee.id).length === 0 && <p className="text-slate-400">Sin registros.</p>}</div>
+              <div className="p-4 rounded-xl border border-slate-200 lg:col-span-2"><h4 className="font-bold mb-2">Préstamos</h4>{loans.filter((item) => item.employeeId === employee.id).map((item) => <div key={item.id} className="py-2 border-b last:border-0 flex justify-between"><span>{item.createdAt} • {item.description} • {item.status}</span><strong>{formatBs(item.outstandingBs)} pendiente</strong></div>)}{loans.filter((item) => item.employeeId === employee.id).length === 0 && <p className="text-slate-400">Sin registros.</p>}</div>
+            </div>
+          </div>
+        )}
+
         {/* Tab 4: Datos Personales y Banco */}
         {(activeTab === 'info' || activeTab === 'documents') && (
           <div className="space-y-4 text-xs">
@@ -875,6 +932,28 @@ export function EmployeeDetailModal({
                       <div>
                         <label className="block text-[11px] font-medium text-slate-700">Cargas Familiares</label>
                         <input type="number" value={editCargasFamiliares} min="0" onChange={(e) => setEditCargasFamiliares(e.target.value)} className="w-32 p-2 bg-white border border-slate-200 rounded-lg text-sm" />
+                      </div>
+                      <div className="border-t border-slate-200 pt-3 space-y-2">
+                        <label className="block text-[11px] font-bold text-slate-700">Salario mensual y moneda contratada</label>
+                        <div className="flex gap-2">
+                          <input type="number" min="0" step="0.01" value={editSalario} onChange={(e) => setEditSalario(e.target.value)} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-sm" />
+                          <select value={editSalarioMoneda} onChange={(e) => setEditSalarioMoneda(e.target.value as MoneyCurrency)} className="p-2 bg-white border border-slate-200 rounded-lg text-sm"><option value="BS">Bs.</option><option value="USD">USD</option></select>
+                        </div>
+                        <label className="block text-[11px] font-bold text-slate-700">Cestaticket Socialista</label>
+                        <div className="flex gap-3 text-[11px]">
+                          <label><input type="radio" checked={editCestaticketAplica} onChange={() => setEditCestaticketAplica(true)} /> Sí aplica</label>
+                          <label><input type="radio" checked={!editCestaticketAplica} onChange={() => setEditCestaticketAplica(false)} /> No aplica</label>
+                        </div>
+                        {editCestaticketAplica && <div className="space-y-2">
+                          <div className="flex gap-2">
+                            <input type="number" min="0" step="0.01" value={editCestaticket} onChange={(e) => setEditCestaticket(e.target.value)} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-sm" />
+                            <select value={editCestaticketMoneda} onChange={(e) => setEditCestaticketMoneda(e.target.value as MoneyCurrency)} className="p-2 bg-white border border-slate-200 rounded-lg text-sm"><option value="BS">Bs.</option><option value="USD">USD</option></select>
+                          </div>
+                          <div className="flex gap-2">
+                            <select value={editCestaticketMetodoPago} onChange={(e) => setEditCestaticketMetodoPago(e.target.value as EmployeePaymentMethod)} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-sm"><option value="transferencia">Transferencia</option><option value="pago_movil">Pago móvil</option><option value="efectivo_bs">Efectivo Bs.</option><option value="efectivo_usd">Efectivo USD</option></select>
+                            <input value={editCestaticketBanco} onChange={(e) => setEditCestaticketBanco(e.target.value)} placeholder="Banco receptor" className="w-full p-2 bg-white border border-slate-200 rounded-lg text-sm" />
+                          </div>
+                        </div>}
                       </div>
                       <div className="grid grid-cols-3 gap-2">
                         <label className="text-[11px] font-medium text-slate-700">Horas extra diurnas<input type="number" min="0" step="0.5" value={editHorasDiurnas} onChange={(e) => setEditHorasDiurnas(e.target.value)} className="mt-1 w-full p-2 bg-white border border-slate-200 rounded-lg text-sm" /></label>

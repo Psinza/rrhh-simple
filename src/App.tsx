@@ -1048,6 +1048,10 @@ export default function App() {
                   }}
                   onUpdateEmployee={handleSaveEmployee}
                   onDeleteEmployee={handleDeleteEmployee}
+                  sales={sales}
+                  assignments={productAssignments}
+                  purchases={productPurchases}
+                  loans={employeeLoans}
                 />
       )}
 
