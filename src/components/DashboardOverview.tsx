@@ -36,11 +36,7 @@ export function DashboardOverview({
   // Cálculos consolidados en tiempo real
   const activeEmployees = employees.filter((e) => e.status === 'activo');
   const totalSalariosBase = activeEmployees.reduce((acc, e) => acc + e.salarioMensualBase, 0);
-  const totalCestaticket = activeEmployees.reduce(
-    (acc, e) => acc + (e.cestaticketMensual || company.montoCestaticketNacional),
-    0
-  );
-  const totalNominaEstimadaBs = totalSalariosBase + totalCestaticket;
+  const totalNominaEstimadaBs = totalSalariosBase;
   const totalNominaEstimadaUSD = company.tasaBCV_USD > 0 ? totalNominaEstimadaBs / company.tasaBCV_USD : 0;
 
   // Prestaciones acumuladas en garantía + intereses para todos los empleados activos

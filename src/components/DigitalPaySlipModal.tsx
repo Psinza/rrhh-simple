@@ -210,16 +210,6 @@ export function DigitalPaySlipModal({
                   </tr>
                 )}
 
-                {/* Cestaticket Socialista */}
-                <tr>
-                  <td className="py-1.5 px-3 font-mono text-slate-500 text-[11px]">050</td>
-                  <td className="py-1.5 px-3 font-medium text-sky-900">
-                    Cestaticket Socialista de Alimentación (Decreto Oficial - No Salarial)
-                  </td>
-                  <td className="py-1.5 px-3 text-right font-bold text-sky-700">{formatBs(item.cestaticketPeriodo)}</td>
-                  <td className="py-1.5 px-3 text-right text-slate-400">-</td>
-                </tr>
-
                 {/* Deducción IVSS 4% */}
                 <tr>
                   <td className="py-1.5 px-3 font-mono text-slate-500 text-[11px]">101</td>

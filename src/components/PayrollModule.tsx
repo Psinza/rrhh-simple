@@ -84,9 +84,9 @@ export function PayrollModule({
       });
 
     const totalNominaBs = updatedItems.reduce((sum, item) => sum + item.totalAsignacionesSalariales, 0);
-    const totalCestaticketBs = updatedItems.reduce((sum, item) => sum + item.cestaticketPeriodo, 0);
+    const totalCestaticketBs = 0;
     const totalAportesPatronalesBs = updatedItems.reduce((sum, item) => sum + item.totalAportesPatronales, 0);
-    const totalCostoEmpresaBs = totalNominaBs + totalCestaticketBs + totalAportesPatronalesBs;
+    const totalCostoEmpresaBs = totalNominaBs + totalAportesPatronalesBs;
 
     const newPayroll: PayrollPeriod = {
       ...payroll,
@@ -216,19 +216,6 @@ export function PayrollModule({
 
         <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
           <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-            Cestaticket Socialista (Exento)
-          </span>
-          <div className="text-xl font-bold text-blue-700 font-mono mt-1">
-            {formatBs(payroll.totalCestaticketBs)}
-            <span className="ml-2 text-[10px] align-middle font-bold text-blue-500">({payrollCurrencyLabel})</span>
-          </div>
-          <div className="text-xs text-slate-500 mt-0.5">
-            Beneficio de alimentación no salarial
-          </div>
-        </div>
-
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
             Retenciones a Trabajadores
           </span>
           <div className="text-xl font-bold text-amber-700 font-mono mt-1">
@@ -293,7 +280,6 @@ export function PayrollModule({
               <tr>
                 <th className="py-3 px-3">Colaborador</th>
                 <th className="py-3 px-3 text-right">Sueldo Período</th>
-                <th className="py-3 px-3 text-right">Cestaticket</th>
                 <th className="py-3 px-3 text-right text-sky-700">Viáticos</th>
                 <th className="py-3 px-3 text-right text-amber-700">IVSS (4%)</th>
                 <th className="py-3 px-3 text-right text-amber-700">Paro (0.5%)</th>
@@ -317,10 +303,6 @@ export function PayrollModule({
 
                   <td className="py-3 px-3 text-right font-medium text-slate-800">
                     {formatBs(item.totalAsignacionesSalariales)}
-                  </td>
-
-                  <td className="py-3 px-3 text-right font-medium text-sky-700">
-                    {formatBs(item.cestaticketPeriodo)}
                   </td>
 
                   <td className="py-3 px-3 text-right font-medium text-sky-700">
