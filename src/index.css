@@ -17,9 +17,14 @@
     body * {
       visibility: hidden !important;
     }
+    .fixed.inset-0,
+    .print-card,
     .print-document,
     .print-document * {
       visibility: visible !important;
+    }
+    .print-document {
+      display: block !important;
     }
     .print-document {
       position: absolute !important;
