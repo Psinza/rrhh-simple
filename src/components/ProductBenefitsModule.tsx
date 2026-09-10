@@ -1,5 +1,5 @@
 import { FormEvent, useMemo, useState } from 'react';
-import { Boxes, HandCoins, PackagePlus, Plus } from 'lucide-react';
+import { Boxes, HandCoins, PackagePlus, Pencil, Plus, Trash2 } from 'lucide-react';
 import { Employee, EmployeeLoan, MoneyCurrency, ProductAssignment, ProductPurchase } from '../types';
 import { convertAmountToBaseCurrency, formatBs, formatUSD } from '../utils/venezuelaLaborCalculations';
 
@@ -11,6 +11,12 @@ interface ProductBenefitsModuleProps {
   onAddAssignment: (item: ProductAssignment) => void;
   onAddPurchase: (item: ProductPurchase) => void;
   onAddLoan: (item: EmployeeLoan) => void;
+  onUpdateAssignment: (item: ProductAssignment) => void;
+  onUpdatePurchase: (item: ProductPurchase) => void;
+  onUpdateLoan: (item: EmployeeLoan) => void;
+  onDeleteAssignment: (id: string) => void;
+  onDeletePurchase: (id: string) => void;
+  onDeleteLoan: (id: string) => void;
   exchangeRate: number;
 }
 
@@ -22,6 +28,12 @@ export function ProductBenefitsModule({
   onAddAssignment,
   onAddPurchase,
   onAddLoan,
+  onUpdateAssignment,
+  onUpdatePurchase,
+  onUpdateLoan,
+  onDeleteAssignment,
+  onDeletePurchase,
+  onDeleteLoan,
   exchangeRate,
 }: ProductBenefitsModuleProps) {
   const [tab, setTab] = useState<'assignments' | 'purchases' | 'loans'>('assignments');
@@ -34,6 +46,7 @@ export function ProductBenefitsModule({
   const [description, setDescription] = useState('');
   const [installment, setInstallment] = useState('');
   const [installmentCurrency, setInstallmentCurrency] = useState<MoneyCurrency>('BS');
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   const employee = employees.find((item) => item.id === employeeId);
   const month = new Date().toISOString().slice(0, 7);
@@ -67,11 +80,13 @@ export function ProductBenefitsModule({
     }
     if (tab === 'assignments') {
       if (!employee) return;
-      onAddAssignment({
-        id: `assignment-${Date.now()}`, employeeId: employee.id,
+      const item: ProductAssignment = {
+        id: editingId || `assignment-${Date.now()}`, employeeId: employee.id,
         employeeName: `${employee.primerNombre} ${employee.primerApellido}`,
-        product: product.trim(), quantity: quantityNumber, amountBs, currency, amountOriginal, month, status: 'Asignado',
-      });
+        product: product.trim(), quantity: quantityNumber, amountBs, currency, amountOriginal, month,
+        status: editingId ? assignments.find((current) => current.id === editingId)?.status || 'Asignado' : 'Asignado',
+      };
+      if (editingId) onUpdateAssignment(item); else onAddAssignment(item);
     } else if (tab === 'purchases') {
       if (!employee) {
         alert('Seleccione el trabajador al que se le descontará la compra.');
@@ -81,27 +96,50 @@ export function ProductBenefitsModule({
         alert('Indique el proveedor de la compra.');
         return;
       }
-      onAddPurchase({
-        id: `purchase-${Date.now()}`, employeeId: employee.id,
+      const item: ProductPurchase = {
+        id: editingId || `purchase-${Date.now()}`, employeeId: employee.id,
         employeeName: `${employee.primerNombre} ${employee.primerApellido}`,
-        product: product.trim(), supplier: supplier.trim(),
-        quantity: quantityNumber, amountBs, currency, amountOriginal, purchaseDate: new Date().toISOString().split('T')[0],
+        product: product.trim(), supplier: supplier.trim(), quantity: quantityNumber, amountBs, currency, amountOriginal,
+        purchaseDate: editingId ? purchases.find((current) => current.id === editingId)?.purchaseDate || new Date().toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
         notes: description.trim() || undefined,
-      });
+      };
+      if (editingId) onUpdatePurchase(item); else onAddPurchase(item);
     } else {
       if (!employee || !installmentOriginal || amountBs <= 0) {
         alert('Complete trabajador, préstamo y cuota.');
         return;
       }
-      onAddLoan({
-        id: `loan-${Date.now()}`, employeeId: employee.id,
+      const item: EmployeeLoan = {
+        id: editingId || `loan-${Date.now()}`, employeeId: employee.id,
         employeeName: `${employee.primerNombre} ${employee.primerApellido}`,
         description: description.trim() || product.trim(), principalBs: amountBs, currency, principalOriginal: amountOriginal,
-        installmentBs, installmentCurrency, installmentOriginal, outstandingBs: amountBs, status: 'Activo',
-        createdAt: new Date().toISOString().split('T')[0],
-      });
+        installmentBs, installmentCurrency, installmentOriginal,
+        outstandingBs: editingId ? loans.find((current) => current.id === editingId)?.outstandingBs || amountBs : amountBs,
+        status: editingId ? loans.find((current) => current.id === editingId)?.status || 'Activo' : 'Activo',
+        createdAt: editingId ? loans.find((current) => current.id === editingId)?.createdAt || new Date().toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+      };
+      if (editingId) onUpdateLoan(item); else onAddLoan(item);
     }
     reset();
+    setEditingId(null);
+  };
+
+  const startEdit = (item: ProductAssignment | ProductPurchase | EmployeeLoan) => {
+    setEditingId(item.id);
+    setEmployeeId(item.employeeId);
+    setProduct('product' in item ? item.product : item.description);
+    setQuantity('quantity' in item ? String(item.quantity) : '1');
+    if ('principalBs' in item) setAmount(String(item.principalOriginal ?? item.principalBs));
+    else setAmount(String(item.amountOriginal ?? item.amountBs));
+    setCurrency(item.currency || 'BS');
+    if ('supplier' in item) setSupplier(item.supplier);
+    if ('notes' in item) setDescription(item.notes || '');
+    if ('description' in item) setDescription(item.description);
+    if ('installmentOriginal' in item) {
+      setInstallment(String(item.installmentOriginal ?? item.installmentBs));
+      setInstallmentCurrency(item.installmentCurrency || 'BS');
+    }
+    setTab('month' in item ? 'assignments' : 'supplier' in item ? 'purchases' : 'loans');
   };
 
   return (
@@ -134,14 +172,14 @@ export function ProductBenefitsModule({
         <button className="px-4 py-2 rounded-lg bg-orange-600 text-white text-xs font-bold"><Plus className="inline w-4 h-4 mr-1" />Registrar</button>
       </form>
       <div className="bg-white border rounded-xl p-4 text-xs text-slate-600">
-        {tab === 'assignments' && <>{assignments.length} asignaciones registradas este mes.</>}
+        {tab === 'assignments' && <>{assignments.length} asignaciones registradas este mes.{assignments.length > 0 && <div className="overflow-x-auto mt-3"><table className="w-full"><thead><tr className="text-left text-slate-500"><th className="py-1 pr-3">Trabajador</th><th className="py-1 pr-3">Producto</th><th className="py-1 text-right">Monto</th><th className="py-1 text-center">Acciones</th></tr></thead><tbody className="divide-y">{assignments.map((item) => <tr key={item.id}><td className="py-2 pr-3 font-semibold">{item.employeeName}</td><td className="py-2 pr-3">{item.product}</td><td className="py-2 text-right">{formatBs(item.amountBs)}</td><td className="py-2 text-center"><button title="Editar" onClick={() => startEdit(item)} className="p-1 text-blue-600"><Pencil className="w-3.5 h-3.5" /></button><button title="Eliminar" onClick={() => onDeleteAssignment(item.id)} className="p-1 text-red-600"><Trash2 className="w-3.5 h-3.5" /></button></td></tr>)}</tbody></table></div>}</>}
         {tab === 'purchases' && (
           <div className="space-y-2">
             <div>{purchases.length} compras registradas.</div>
-            {purchases.length > 0 && <div className="overflow-x-auto"><table className="w-full text-xs"><thead><tr className="text-left text-slate-500"><th className="py-1 pr-3">Trabajador</th><th className="py-1 pr-3">Producto</th><th className="py-1 pr-3">Proveedor</th><th className="py-1 text-right">Descuento</th></tr></thead><tbody className="divide-y">{purchases.map((purchase) => <tr key={purchase.id}><td className="py-1 pr-3 font-semibold">{purchase.employeeName || 'Sin trabajador'}</td><td className="py-1 pr-3">{purchase.product}</td><td className="py-1 pr-3">{purchase.supplier}</td><td className="py-1 text-right">{formatBs(purchase.amountBs)}</td></tr>)}</tbody></table></div>}
+            {purchases.length > 0 && <div className="overflow-x-auto"><table className="w-full text-xs"><thead><tr className="text-left text-slate-500"><th className="py-1 pr-3">Trabajador</th><th className="py-1 pr-3">Producto</th><th className="py-1 pr-3">Proveedor</th><th className="py-1 text-right">Descuento</th><th className="py-1 text-center">Acciones</th></tr></thead><tbody className="divide-y">{purchases.map((purchase) => <tr key={purchase.id}><td className="py-1 pr-3 font-semibold">{purchase.employeeName || 'Sin trabajador'}</td><td className="py-1 pr-3">{purchase.product}</td><td className="py-1 pr-3">{purchase.supplier}</td><td className="py-1 text-right">{formatBs(purchase.amountBs)}</td><td className="py-1 text-center"><button title="Editar" onClick={() => startEdit(purchase)} className="p-1 text-blue-600"><Pencil className="w-3.5 h-3.5" /></button><button title="Eliminar" onClick={() => onDeletePurchase(purchase.id)} className="p-1 text-red-600"><Trash2 className="w-3.5 h-3.5" /></button></td></tr>)}</tbody></table></div>}
           </div>
         )}
-        {tab === 'loans' && <>{loans.length} préstamos registrados.</>}
+        {tab === 'loans' && <>{loans.length} préstamos registrados.{loans.length > 0 && <div className="overflow-x-auto mt-3"><table className="w-full"><thead><tr className="text-left text-slate-500"><th className="py-1 pr-3">Trabajador</th><th className="py-1 pr-3">Concepto</th><th className="py-1 text-right">Saldo</th><th className="py-1 text-center">Acciones</th></tr></thead><tbody className="divide-y">{loans.map((item) => <tr key={item.id}><td className="py-2 pr-3 font-semibold">{item.employeeName}</td><td className="py-2 pr-3">{item.description}</td><td className="py-2 text-right">{formatBs(item.outstandingBs)}</td><td className="py-2 text-center"><button title="Editar" onClick={() => startEdit(item)} className="p-1 text-blue-600"><Pencil className="w-3.5 h-3.5" /></button><button title="Eliminar" onClick={() => onDeleteLoan(item.id)} className="p-1 text-red-600"><Trash2 className="w-3.5 h-3.5" /></button></td></tr>)}</tbody></table></div>}</>}
       </div>
     </div>
   );

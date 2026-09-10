@@ -84,9 +84,9 @@ export function PayrollModule({
       });
 
     const totalNominaBs = updatedItems.reduce((sum, item) => sum + item.totalAsignacionesSalariales, 0);
-    const totalCestaticketBs = 0;
+    const totalCestaticketBs = updatedItems.reduce((sum, item) => sum + item.cestaticketPeriodo, 0);
     const totalAportesPatronalesBs = updatedItems.reduce((sum, item) => sum + item.totalAportesPatronales, 0);
-    const totalCostoEmpresaBs = totalNominaBs + totalAportesPatronalesBs;
+    const totalCostoEmpresaBs = totalNominaBs + totalCestaticketBs + totalAportesPatronalesBs;
 
     const newPayroll: PayrollPeriod = {
       ...payroll,
@@ -118,6 +118,7 @@ export function PayrollModule({
 
   const totalDeduccionesPeriodo = filteredItems.reduce((acc, i) => acc + i.totalDeducciones, 0);
   const totalNetoPagarPeriodo = filteredItems.reduce((acc, i) => acc + i.netoCobrarBs, 0);
+  const payrollDepartments = Array.from(new Set(payroll.items.map((item) => item.employee.departamento)));
   const payrollCurrencyLabel = 'Bs.';
   const referenceCurrencyLabel = 'USD';
 
@@ -203,6 +204,17 @@ export function PayrollModule({
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
           <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+            Cestaticket Socialista (Aplicable)
+          </span>
+          <div className="text-xl font-bold text-blue-700 font-mono mt-1">
+            {formatBs(payroll.totalCestaticketBs)}
+            <span className="ml-2 text-[10px] align-middle font-bold text-blue-500">({payrollCurrencyLabel})</span>
+          </div>
+          <div className="text-xs text-slate-500 mt-0.5">Solo trabajadores configurados para recibirlo</div>
+        </div>
+
+        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
             Total Asignaciones Sueldo
           </span>
           <div className="text-xl font-bold text-slate-900 font-mono mt-1">
@@ -263,13 +275,7 @@ export function PayrollModule({
               className="text-xs bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5"
             >
               <option value="todos">Todos</option>
-              <option value="Operaciones">Operaciones</option>
-              <option value="Tecnología">Tecnología</option>
-              <option value="Finanzas">Finanzas</option>
-              <option value="Producción">Producción</option>
-              <option value="Ventas">Ventas</option>
-              <option value="Talento Humano">Talento Humano</option>
-              <option value="Seguridad & Salud Laboral">Seguridad & Salud Laboral</option>
+              {payrollDepartments.map((department) => <option key={department} value={department}>{department}</option>)}
             </select>
           </div>
         </div>
@@ -280,6 +286,7 @@ export function PayrollModule({
               <tr>
                 <th className="py-3 px-3">Colaborador</th>
                 <th className="py-3 px-3 text-right">Sueldo Período</th>
+                <th className="py-3 px-3 text-right text-blue-700">Cestaticket</th>
                 <th className="py-3 px-3 text-right text-sky-700">Viáticos</th>
                 <th className="py-3 px-3 text-right text-amber-700">IVSS (4%)</th>
                 <th className="py-3 px-3 text-right text-amber-700">Paro (0.5%)</th>
@@ -303,6 +310,10 @@ export function PayrollModule({
 
                   <td className="py-3 px-3 text-right font-medium text-slate-800">
                     {formatBs(item.totalAsignacionesSalariales)}
+                  </td>
+
+                  <td className="py-3 px-3 text-right font-medium text-blue-700">
+                    {formatBs(item.cestaticketPeriodo)}
                   </td>
 
                   <td className="py-3 px-3 text-right font-medium text-sky-700">

@@ -29,6 +29,12 @@ export function DigitalPaySlipModal({
   const [signatureDate, setSignatureDate] = useState(item.firmaFecha || new Date().toLocaleString('es-VE'));
   const slipCurrencyLabel = 'Bs.';
   const slipReferenceCurrencyLabel = 'USD';
+  const paymentMethodLabels: Record<string, string> = {
+    transferencia: 'Transferencia bancaria',
+    pago_movil: 'Pago móvil',
+    efectivo_bs: 'Efectivo en bolívares',
+    efectivo_usd: 'Efectivo en dólares',
+  };
 
   const handleSign = () => {
     setIsSigned(true);
@@ -149,6 +155,10 @@ export function DigitalPaySlipModal({
             <div>
               <span className="text-slate-500 block">Días Liquidados:</span>
               <strong className="text-slate-900">{item.diasTrabajados} días</strong>
+            </div>
+            <div>
+              <span className="text-slate-500 block">Modalidad de pago:</span>
+              <strong className="text-slate-900">{paymentMethodLabels[item.employee.metodoPago || ''] || 'No especificada'}</strong>
             </div>
           </div>
 

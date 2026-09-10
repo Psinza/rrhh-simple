@@ -25,7 +25,7 @@ export function WorkCertificateModal({
   onClose,
 }: WorkCertificateModalProps) {
   const [destinatario, setDestinatario] = useState('A QUIEN PUEDA INTERESAR');
-  const [incluirCestaticket, setIncluirCestaticket] = useState(true);
+  const [incluirCestaticket, setIncluirCestaticket] = useState(employee.cestaticketAplica !== false);
   const [tipoSalario, setTipoSalario] = useState<'basico' | 'integral'>('basico');
   const [firmaId, setFirmaId] = useState('user-dueno-elias');
   const [ciudadEmision] = useState(company.ciudad || 'Caracas');
@@ -183,7 +183,7 @@ export function WorkCertificateModal({
               {company.tasaBCV_USD > 0 && displayCurrency === 'USD' && (
                 <span> (equivalente referencial a <strong>{formatUSD(salarioAMostrar / company.tasaBCV_USD)}</strong> según la tasa oficial del Banco Central de Venezuela)</span>
               )}
-              {incluirCestaticket && (
+              {incluirCestaticket && employee.cestaticketAplica !== false && (
                 <span>
                   , más el beneficio legal de alimentación (Cestaticket Socialista de los Trabajadores y las Trabajadoras)
                   por un monto mensual indexado de <strong>{cestaticketDisplay}</strong> conforme a la legislación laboral vigente

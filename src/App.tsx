@@ -374,9 +374,23 @@ export default function App() {
     addAuditLog('Registro de Venta', 'Nómina', `Venta de ${record.vendedorNombre} por ${record.montoBs.toFixed(2)} Bs. con comisión de ${record.comisionBs.toFixed(2)} Bs.`);
   };
 
+  const handleUpdateSale = (record: SalesRecord) => {
+    setSales((previous) => previous.map((item) => item.id === record.id ? record : item));
+    addAuditLog('Actualización de Venta', 'Nómina', `Venta de ${record.vendedorNombre} actualizada.`);
+  };
+  const handleDeleteSale = (id: string) => {
+    if (!window.confirm('¿Desea eliminar esta venta? Esta acción también retirará su comisión de la nómina.')) return;
+    setSales((previous) => previous.filter((item) => item.id !== id));
+  };
   const handleAddAssignment = (item: ProductAssignment) => setProductAssignments((previous) => [item, ...previous]);
   const handleAddPurchase = (item: ProductPurchase) => setProductPurchases((previous) => [item, ...previous]);
   const handleAddLoan = (item: EmployeeLoan) => setEmployeeLoans((previous) => [item, ...previous]);
+  const handleUpdateAssignment = (item: ProductAssignment) => setProductAssignments((previous) => previous.map((current) => current.id === item.id ? item : current));
+  const handleUpdatePurchase = (item: ProductPurchase) => setProductPurchases((previous) => previous.map((current) => current.id === item.id ? item : current));
+  const handleUpdateLoan = (item: EmployeeLoan) => setEmployeeLoans((previous) => previous.map((current) => current.id === item.id ? item : current));
+  const handleDeleteAssignment = (id: string) => { if (window.confirm('¿Eliminar esta asignación?')) setProductAssignments((previous) => previous.filter((item) => item.id !== id)); };
+  const handleDeletePurchase = (id: string) => { if (window.confirm('¿Eliminar esta compra? El descuento dejará de aplicarse en nómina.')) setProductPurchases((previous) => previous.filter((item) => item.id !== id)); };
+  const handleDeleteLoan = (id: string) => { if (window.confirm('¿Eliminar este préstamo? La cuota dejará de aplicarse en nómina.')) setEmployeeLoans((previous) => previous.filter((item) => item.id !== id)); };
 
   const commissionByEmployee = sales.reduce<Record<string, number>>((totals, sale) => {
     totals[sale.vendedorId] = (totals[sale.vendedorId] || 0) + sale.comisionBs;
@@ -942,7 +956,7 @@ export default function App() {
           )}
 
           {activeTab === 'sales' && (
-            <SalesModule employees={employees} records={sales} onAddRecord={handleAddSale} exchangeRate={company.tasaBCV_USD} />
+            <SalesModule employees={employees} records={sales} onAddRecord={handleAddSale} onUpdateRecord={handleUpdateSale} onDeleteRecord={handleDeleteSale} exchangeRate={company.tasaBCV_USD} />
           )}
 
           {activeTab === 'products_loans' && (
@@ -954,6 +968,12 @@ export default function App() {
               onAddAssignment={handleAddAssignment}
               onAddPurchase={handleAddPurchase}
               onAddLoan={handleAddLoan}
+              onUpdateAssignment={handleUpdateAssignment}
+              onUpdatePurchase={handleUpdatePurchase}
+              onUpdateLoan={handleUpdateLoan}
+              onDeleteAssignment={handleDeleteAssignment}
+              onDeletePurchase={handleDeletePurchase}
+              onDeleteLoan={handleDeleteLoan}
               exchangeRate={company.tasaBCV_USD}
             />
           )}

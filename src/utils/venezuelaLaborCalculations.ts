@@ -108,9 +108,9 @@ export function calculatePayrollDeductionsAndContributions(
   const lunes = frecuencia === 'semanal' ? 1 : frecuencia === 'quincenal' ? Math.round(company.lunesDelMesActual / 2) : company.lunesDelMesActual;
 
   const sueldoBasePeriodo = employee.salarioMensualBase * factorPeriodo;
-  // La empresa no cancela cestaticket; se conserva el dato configurado del empleado
-  // únicamente para otros módulos que puedan requerirlo.
-  const cestaticketPeriodo = 0;
+  const cestaticketPeriodo = employee.cestaticketAplica === false
+    ? 0
+    : (employee.cestaticketMensual || company.montoCestaticketNacional) * factorPeriodo;
 
   // Cálculo de horas extras legales (Art. 118 LOTTT: 50% de recargo; Art. 117: 30% recargo nocturno)
   const valorHoraOrdinaria = employee.salarioMensualBase / 30 / 8;

@@ -89,6 +89,9 @@ export interface Employee {
   frecuenciaPago: PayrollFrequency;
   cestaticketMensual: number; // Se almacena en Bs. para cálculos internos
   cestaticketMoneda?: MoneyCurrency; // Si se registró en USD/BS por el usuario
+  cestaticketAplica?: boolean;
+  cestaticketMetodoPago?: EmployeePaymentMethod;
+  cestaticketBancoReceptor?: string;
   diasUtilidadesAnuales: number; // Mínimo 30 días, máximo 120 días (Art. 131 LOTTT)
   horasExtrasDiurnasPendientes: number;
   horasExtrasNocturnasPendientes: number;
@@ -102,6 +105,7 @@ export interface Employee {
   banco: string;
   numeroCuenta: string; // 20 dígitos estándar venezolano
   tipoCuenta: 'Corriente' | 'Ahorro';
+  metodoPago?: EmployeePaymentMethod;
 
   // Historial e Informes
   historialLaboral: WorkHistoryEvent[];
@@ -338,6 +342,7 @@ export interface LegalNotification {
 
 export type AppUserRole = 'admin_sistema' | 'rrhh' | 'dueno';
 export type SellerPaymentMode = 'sueldo_comisiones' | 'viaticos_comisiones' | 'solo_comisiones';
+export type EmployeePaymentMethod = 'transferencia' | 'pago_movil' | 'efectivo_bs' | 'efectivo_usd';
 
 export interface AppUser {
   id: string;

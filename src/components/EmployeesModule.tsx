@@ -14,7 +14,7 @@ import {
   X,
   Eye,
 } from 'lucide-react';
-import { Employee, CompanySettings, AppUser, PayrollFrequency, EmployeeDocument, EmployeeDocumentType, SellerPaymentMode } from '../types';
+import { Employee, CompanySettings, AppUser, PayrollFrequency, EmployeeDocument, EmployeeDocumentType, SellerPaymentMode, EmployeePaymentMethod } from '../types';
 import {
   formatBs,
   formatUSD,
@@ -60,6 +60,7 @@ export function EmployeesModule({
   const [formEstado, setFormEstado] = useState('Distrito Capital');
   const [formCargo, setFormCargo] = useState('');
   const [formDepartamento, setFormDepartamento] = useState('Operaciones');
+  const [formNuevoDepartamento, setFormNuevoDepartamento] = useState('');
   const [formFechaIngreso, setFormFechaIngreso] = useState(new Date().toISOString().split('T')[0]);
   const [formSalario, setFormSalario] = useState('25000');
   const [formSalarioMoneda, setFormSalarioMoneda] = useState<'BS' | 'USD'>('BS');
@@ -70,6 +71,10 @@ export function EmployeesModule({
   const [formViaticosMoneda, setFormViaticosMoneda] = useState<'BS' | 'USD'>('BS');
   const [formCestaticket, setFormCestaticket] = useState(String(company.montoCestaticketNacional));
   const [formCestaticketMoneda, setFormCestaticketMoneda] = useState<'BS' | 'USD'>('BS');
+  const [formCestaticketAplica, setFormCestaticketAplica] = useState(true);
+  const [formCestaticketMetodoPago, setFormCestaticketMetodoPago] = useState<EmployeePaymentMethod>('transferencia');
+  const [formCestaticketBanco, setFormCestaticketBanco] = useState('Banco de Venezuela');
+  const [formMetodoPago, setFormMetodoPago] = useState<EmployeePaymentMethod>('transferencia');
   const [formBanco, setFormBanco] = useState('Banco de Venezuela');
   const [formNumeroCuenta, setFormNumeroCuenta] = useState('');
   const [formCargas, setFormCargas] = useState('1');
@@ -136,7 +141,12 @@ export function EmployeesModule({
     const salarioBaseBs = formModalidadVendedor === 'solo_comisiones'
       ? 0
       : formSalarioMoneda === 'USD' ? salarioNum * company.tasaBCV_USD : salarioNum;
-    const cestaticketBaseBs = formCestaticketMoneda === 'USD' ? (parseFloat(formCestaticket) || 0) * company.tasaBCV_USD : (parseFloat(formCestaticket) || 0);
+    const departamento = formDepartamento === '__nuevo__' ? formNuevoDepartamento.trim() : formDepartamento;
+    if (!departamento) {
+      alert('Indique el nombre del nuevo departamento.');
+      return;
+    }
+    const cestaticketBaseBs = !formCestaticketAplica ? 0 : formCestaticketMoneda === 'USD' ? (parseFloat(formCestaticket) || 0) * company.tasaBCV_USD : (parseFloat(formCestaticket) || 0);
 
     const newEmp: Employee = {
       id: `emp-${Date.now()}`,
@@ -155,19 +165,22 @@ export function EmployeesModule({
       ciudad: formCiudad,
       estado: formEstado,
       cargo: formCargo.trim(),
-      departamento: formDepartamento,
+      departamento,
       fechaIngreso: formFechaIngreso,
       tipoContrato: 'indeterminado',
       status: 'activo',
       numeroAfiliacionIVSS: `IVSS-${cleanCedula}`,
       salarioMensualBase: salarioBaseBs,
       salarioMoneda: formSalarioMoneda,
-      modalidadVendedor: formDepartamento === 'Ventas & Mercadeo' ? formModalidadVendedor : undefined,
-      descripcionPagoVendedor: formDepartamento === 'Ventas & Mercadeo' ? formDescripcionPagoVendedor.trim() : undefined,
-      porcentajeComision: formDepartamento === 'Ventas & Mercadeo' ? Number(formPorcentajeComision) || 0 : undefined,
+      modalidadVendedor: departamento === 'Ventas & Mercadeo' ? formModalidadVendedor : undefined,
+      descripcionPagoVendedor: departamento === 'Ventas & Mercadeo' ? formDescripcionPagoVendedor.trim() : undefined,
+      porcentajeComision: departamento === 'Ventas & Mercadeo' ? Number(formPorcentajeComision) || 0 : undefined,
       frecuenciaPago: formFrecuenciaPago,
-      cestaticketMensual: cestaticketBaseBs || company.montoCestaticketNacional,
+      cestaticketMensual: cestaticketBaseBs,
       cestaticketMoneda: formCestaticketMoneda,
+      cestaticketAplica: formCestaticketAplica,
+      cestaticketMetodoPago: formCestaticketAplica ? formCestaticketMetodoPago : undefined,
+      cestaticketBancoReceptor: formCestaticketAplica ? formCestaticketBanco : undefined,
       diasUtilidadesAnuales: company.diasUtilidadesEmpresa,
       horasExtrasDiurnasPendientes: 0,
       horasExtrasNocturnasPendientes: 0,
@@ -175,6 +188,7 @@ export function EmployeesModule({
       banco: formBanco,
       numeroCuenta: formNumeroCuenta.padEnd(20, '0'),
       tipoCuenta: 'Corriente',
+      metodoPago: formMetodoPago,
       cargasFamiliares: parseInt(formCargas) || 0,
       vacacionesDisfrutadas: 0,
       anticiposPrestaciones: [],
@@ -494,7 +508,11 @@ export function EmployeesModule({
                   <label className="block font-medium text-slate-700 mb-1">Departamento</label>
                   <select
                     value={formDepartamento}
-                    onChange={(e) => setFormDepartamento(e.target.value)}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      setFormDepartamento(value);
+                      if (value !== '__nuevo__') setFormNuevoDepartamento('');
+                    }}
                     className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg"
                   >
                     <option value="Operaciones">Operaciones</option>
@@ -507,7 +525,17 @@ export function EmployeesModule({
                     <option value="Talento Humano">Talento Humano</option>
                     <option value="Seguridad & Salud Laboral">Seguridad & Salud Laboral</option>
                     <option value="Ventas & Mercadeo">Ventas & Mercadeo</option>
+                    <option value="__nuevo__">+ Agregar nuevo departamento</option>
                   </select>
+                  {formDepartamento === '__nuevo__' && (
+                    <input
+                      required
+                      value={formNuevoDepartamento}
+                      onChange={(e) => setFormNuevoDepartamento(e.target.value)}
+                      placeholder="Nombre del nuevo departamento"
+                      className="w-full mt-2 p-2 bg-white border border-sky-200 rounded-lg"
+                    />
+                  )}
                 </div>
                 <div>
                   <label className="block font-medium text-slate-700 mb-1">Fecha de Ingreso *</label>
@@ -585,7 +613,17 @@ export function EmployeesModule({
                   <label className="block font-medium text-slate-800 mb-1">
                     Cestaticket Socialista
                   </label>
-                  <div className="flex gap-2">
+                  <div className="flex items-center gap-3 mb-2">
+                    <label className="inline-flex items-center gap-2">
+                      <input type="radio" checked={formCestaticketAplica} onChange={() => setFormCestaticketAplica(true)} />
+                      Sí aplica y se cancela
+                    </label>
+                    <label className="inline-flex items-center gap-2">
+                      <input type="radio" checked={!formCestaticketAplica} onChange={() => setFormCestaticketAplica(false)} />
+                      No aplica
+                    </label>
+                  </div>
+                  {formCestaticketAplica && <div className="flex gap-2">
                     <input
                       type="number"
                       step="0.01"
@@ -601,7 +639,16 @@ export function EmployeesModule({
                       <option value="BS">Bs.</option>
                       <option value="USD">USD</option>
                     </select>
-                  </div>
+                  </div>}
+                  {formCestaticketAplica && <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
+                    <select value={formCestaticketMetodoPago} onChange={(e) => setFormCestaticketMetodoPago(e.target.value as EmployeePaymentMethod)} className="p-2 bg-white border border-sky-200 rounded-lg">
+                      <option value="transferencia">Transferencia bancaria</option>
+                      <option value="pago_movil">Pago móvil</option>
+                      <option value="efectivo_bs">Efectivo en bolívares</option>
+                      <option value="efectivo_usd">Efectivo en dólares</option>
+                    </select>
+                    <input value={formCestaticketBanco} onChange={(e) => setFormCestaticketBanco(e.target.value)} placeholder="Banco receptor (si aplica)" className="p-2 bg-white border border-sky-200 rounded-lg" />
+                  </div>}
                   <span className="text-[10px] text-slate-500 mt-1 block">
                     Beneficio de alimentación legal exento (no salarial) y registrado en la moneda elegida.
                   </span>
@@ -643,6 +690,15 @@ export function EmployeesModule({
                     <option value="Banco Provincial">Banco Provincial (0108)</option>
                     <option value="Banesco Banco Universal">Banesco Banco Universal (0134)</option>
                     <option value="Bancaribe">Bancaribe (0114)</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block font-medium text-slate-700 mb-1">Modalidad de pago del sueldo</label>
+                  <select value={formMetodoPago} onChange={(e) => setFormMetodoPago(e.target.value as EmployeePaymentMethod)} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg">
+                    <option value="transferencia">Transferencia bancaria</option>
+                    <option value="pago_movil">Pago móvil</option>
+                    <option value="efectivo_bs">Efectivo en bolívares</option>
+                    <option value="efectivo_usd">Efectivo en dólares</option>
                   </select>
                 </div>
                 <div>

@@ -1,5 +1,5 @@
 import { FormEvent, useMemo, useState } from 'react';
-import { BadgeDollarSign, Plus, Receipt, TrendingUp } from 'lucide-react';
+import { BadgeDollarSign, Pencil, Plus, Receipt, Trash2, TrendingUp } from 'lucide-react';
 import { Employee, MoneyCurrency, SalesRecord } from '../types';
 import { convertAmountToBaseCurrency, formatBs, formatUSD } from '../utils/venezuelaLaborCalculations';
 
@@ -7,10 +7,12 @@ interface SalesModuleProps {
   employees: Employee[];
   records: SalesRecord[];
   onAddRecord: (record: SalesRecord) => void;
+  onUpdateRecord: (record: SalesRecord) => void;
+  onDeleteRecord: (id: string) => void;
   exchangeRate: number;
 }
 
-export function SalesModule({ employees, records, onAddRecord, exchangeRate }: SalesModuleProps) {
+export function SalesModule({ employees, records, onAddRecord, onUpdateRecord, onDeleteRecord, exchangeRate }: SalesModuleProps) {
   const sellers = employees.filter((employee) => employee.status === 'activo');
   const [showForm, setShowForm] = useState(false);
   const [vendedorId, setVendedorId] = useState(sellers[0]?.id || '');
@@ -20,6 +22,7 @@ export function SalesModule({ employees, records, onAddRecord, exchangeRate }: S
   const [moneda, setMoneda] = useState<MoneyCurrency>('BS');
   const [porcentaje, setPorcentaje] = useState('3');
   const [observaciones, setObservaciones] = useState('');
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   const totals = useMemo(
     () => records.reduce(
@@ -42,8 +45,8 @@ export function SalesModule({ employees, records, onAddRecord, exchangeRate }: S
       alert('Complete vendedor, cliente, monto y porcentaje de comisión.');
       return;
     }
-    onAddRecord({
-      id: `sale-${Date.now()}`,
+    const record: SalesRecord = {
+      id: editingId || `sale-${Date.now()}`,
       fecha: new Date().toISOString().split('T')[0],
       vendedorId: vendedor.id,
       vendedorNombre: `${vendedor.primerNombre} ${vendedor.primerApellido}`,
@@ -56,13 +59,28 @@ export function SalesModule({ employees, records, onAddRecord, exchangeRate }: S
       comisionBs: montoBs * (porcentajeComision / 100),
       estatus: 'Pendiente',
       observaciones: observaciones.trim() || undefined,
-    });
+    };
+    if (editingId) onUpdateRecord(record);
+    else onAddRecord(record);
     setCliente('');
     setReferencia('');
     setMonto('');
     setMoneda('BS');
     setObservaciones('');
     setShowForm(false);
+    setEditingId(null);
+  };
+
+  const startEdit = (record: SalesRecord) => {
+    setEditingId(record.id);
+    setVendedorId(record.vendedorId);
+    setCliente(record.cliente);
+    setReferencia(record.referencia);
+    setMoneda(record.moneda || 'BS');
+    setMonto(String(record.montoOriginal ?? record.montoBs));
+    setPorcentaje(String(record.porcentajeComision));
+    setObservaciones(record.observaciones || '');
+    setShowForm(true);
   };
 
   return (
@@ -77,7 +95,7 @@ export function SalesModule({ employees, records, onAddRecord, exchangeRate }: S
           </div>
           <p className="text-xs text-slate-500 mt-1">Registre ventas por vendedor y controle la comisión pendiente de liquidar en nómina.</p>
         </div>
-        <button onClick={() => setShowForm(!showForm)} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-violet-600 hover:bg-violet-500 text-white text-xs font-bold">
+        <button onClick={() => { setEditingId(null); setShowForm(!showForm); }} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-violet-600 hover:bg-violet-500 text-white text-xs font-bold">
           <Plus className="w-4 h-4" /> Registrar venta
         </button>
       </div>
@@ -98,13 +116,13 @@ export function SalesModule({ employees, records, onAddRecord, exchangeRate }: S
             <label className="text-xs font-semibold text-slate-700">% Comisión<input required type="number" min="0" max="100" step="0.01" value={porcentaje} onChange={(e) => setPorcentaje(e.target.value)} className="mt-1 w-full p-2 border rounded-lg font-normal" /></label>
             <label className="text-xs font-semibold text-slate-700">Observaciones<input value={observaciones} onChange={(e) => setObservaciones(e.target.value)} className="mt-1 w-full p-2 border rounded-lg font-normal" /></label>
           </div>
-          <div className="flex justify-end gap-2"><button type="button" onClick={() => setShowForm(false)} className="px-3 py-2 text-xs text-slate-600">Cancelar</button><button className="px-4 py-2 rounded-lg bg-violet-600 text-white text-xs font-bold">Guardar venta</button></div>
+          <div className="flex justify-end gap-2"><button type="button" onClick={() => { setShowForm(false); setEditingId(null); }} className="px-3 py-2 text-xs text-slate-600">Cancelar</button><button className="px-4 py-2 rounded-lg bg-violet-600 text-white text-xs font-bold">{editingId ? 'Actualizar venta' : 'Guardar venta'}</button></div>
         </form>
       )}
 
       <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
         <div className="p-4 border-b border-slate-100 flex items-center gap-2"><Receipt className="w-4 h-4 text-violet-600" /><h2 className="font-bold text-sm">Historial de ventas</h2></div>
-        <div className="overflow-x-auto"><table className="w-full text-xs"><thead className="bg-slate-50 text-slate-500 uppercase text-[10px]"><tr><th className="p-3 text-left">Fecha / Vendedor</th><th className="p-3 text-left">Cliente</th><th className="p-3 text-right">Venta</th><th className="p-3 text-right">Comisión</th><th className="p-3 text-center">Estatus</th></tr></thead><tbody className="divide-y divide-slate-100">{records.map((record) => { const seller = employees.find((employee) => employee.id === record.vendedorId); const original = record.montoOriginal ?? record.montoBs; const currency = record.moneda || 'BS'; return <tr key={record.id}><td className="p-3"><div className="font-semibold">{record.vendedorNombre}</div><div className="text-slate-400">{record.fecha}</div>{seller && <div className="text-[10px] text-slate-500">Sueldo: {formatBs(seller.salarioMensualBase)} • Viáticos: {formatBs(seller.viaticosPendientes || 0)}</div>}</td><td className="p-3">{record.cliente}<div className="text-slate-400">{record.referencia}</div></td><td className="p-3 text-right">{currency === 'USD' ? formatUSD(original) : formatBs(original)}<div className="text-[10px] text-slate-400">{currency === 'USD' ? formatBs(record.montoBs) : formatUSD(record.montoBs / exchangeRate)}</div></td><td className="p-3 text-right font-bold text-violet-700">{formatBs(record.comisionBs)}<div className="text-[10px] text-slate-400">{formatUSD(record.comisionBs / exchangeRate)} • {record.porcentajeComision}%</div></td><td className="p-3 text-center"><span className={`px-2 py-1 rounded-full text-[10px] font-bold ${record.estatus === 'Liquidada' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>{record.estatus}</span></td></tr>; })}</tbody></table>{records.length === 0 && <div className="p-8 text-center text-xs text-slate-400"><TrendingUp className="w-5 h-5 mx-auto mb-2" />No hay ventas registradas.</div>}</div>
+        <div className="overflow-x-auto"><table className="w-full text-xs"><thead className="bg-slate-50 text-slate-500 uppercase text-[10px]"><tr><th className="p-3 text-left">Fecha / Vendedor</th><th className="p-3 text-left">Cliente</th><th className="p-3 text-right">Venta</th><th className="p-3 text-right">Comisión</th><th className="p-3 text-center">Estatus</th><th className="p-3 text-center">Acciones</th></tr></thead><tbody className="divide-y divide-slate-100">{records.map((record) => { const seller = employees.find((employee) => employee.id === record.vendedorId); const original = record.montoOriginal ?? record.montoBs; const currency = record.moneda || 'BS'; return <tr key={record.id}><td className="p-3"><div className="font-semibold">{record.vendedorNombre}</div><div className="text-slate-400">{record.fecha}</div>{seller && <div className="text-[10px] text-slate-500">Sueldo: {formatBs(seller.salarioMensualBase)} • Viáticos: {formatBs(seller.viaticosPendientes || 0)}</div>}</td><td className="p-3">{record.cliente}<div className="text-slate-400">{record.referencia}</div></td><td className="p-3 text-right">{currency === 'USD' ? formatUSD(original) : formatBs(original)}<div className="text-[10px] text-slate-400">{currency === 'USD' ? formatBs(record.montoBs) : formatUSD(record.montoBs / exchangeRate)}</div></td><td className="p-3 text-right font-bold text-violet-700">{formatBs(record.comisionBs)}<div className="text-[10px] text-slate-400">{formatUSD(record.comisionBs / exchangeRate)} • {record.porcentajeComision}%</div></td><td className="p-3 text-center"><span className={`px-2 py-1 rounded-full text-[10px] font-bold ${record.estatus === 'Liquidada' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>{record.estatus}</span></td><td className="p-3"><div className="flex justify-center gap-1"><button title="Editar venta" onClick={() => startEdit(record)} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded"><Pencil className="w-3.5 h-3.5" /></button><button title="Eliminar venta" onClick={() => onDeleteRecord(record.id)} className="p-1.5 text-red-600 hover:bg-red-50 rounded"><Trash2 className="w-3.5 h-3.5" /></button></div></td></tr>; })}</tbody></table>{records.length === 0 && <div className="p-8 text-center text-xs text-slate-400"><TrendingUp className="w-5 h-5 mx-auto mb-2" />No hay ventas registradas.</div>}</div>
       </div>
     </div>
   );
