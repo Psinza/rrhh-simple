@@ -174,7 +174,7 @@ export function WorkCertificateModal({
               (R.I.F.) N° <strong>{employee.rif}</strong>, presta sus servicios profesionales para esta entidad de trabajo
               desde el <strong>{new Date(employee.fechaIngreso).toLocaleDateString('es-VE', opcionesFecha)}</strong>,
               desempeñando a la fecha el cargo de <strong>{employee.cargo}</strong> adscrito al departamento de{' '}
-              <strong>{employee.departamento}</strong>, bajo un contrato de trabajo por tiempo indeterminado.
+              <strong>{employee.departamento}</strong>.
             </p>
 
             <p>
