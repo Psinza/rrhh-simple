@@ -73,12 +73,18 @@ export function ProductBenefitsModule({
         product: product.trim(), quantity: quantityNumber, amountBs, currency, amountOriginal, month, status: 'Asignado',
       });
     } else if (tab === 'purchases') {
+      if (!employee) {
+        alert('Seleccione el trabajador al que se le descontará la compra.');
+        return;
+      }
       if (!supplier.trim()) {
         alert('Indique el proveedor de la compra.');
         return;
       }
       onAddPurchase({
-        id: `purchase-${Date.now()}`, product: product.trim(), supplier: supplier.trim(),
+        id: `purchase-${Date.now()}`, employeeId: employee.id,
+        employeeName: `${employee.primerNombre} ${employee.primerApellido}`,
+        product: product.trim(), supplier: supplier.trim(),
         quantity: quantityNumber, amountBs, currency, amountOriginal, purchaseDate: new Date().toISOString().split('T')[0],
         notes: description.trim() || undefined,
       });
@@ -116,7 +122,7 @@ export function ProductBenefitsModule({
       </div>
       <form onSubmit={handleSubmit} className="bg-white border border-orange-200 rounded-xl p-5 space-y-4">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          {(tab !== 'purchases') && <label className="text-xs font-semibold">Trabajador<select value={employeeId} onChange={(event) => setEmployeeId(event.target.value)} className="mt-1 w-full p-2 border rounded-lg font-normal"><option value="">Seleccione</option>{employees.filter((item) => item.status === 'activo').map((item) => <option key={item.id} value={item.id}>{item.primerNombre} {item.primerApellido}</option>)}</select></label>}
+          <label className="text-xs font-semibold">Trabajador{tab === 'purchases' && <span className="text-orange-700"> (se descuenta en nómina)</span>}<select required value={employeeId} onChange={(event) => setEmployeeId(event.target.value)} className="mt-1 w-full p-2 border rounded-lg font-normal"><option value="">Seleccione</option>{employees.filter((item) => item.status === 'activo').map((item) => <option key={item.id} value={item.id}>{item.primerNombre} {item.primerApellido}</option>)}</select></label>
           <label className="text-xs font-semibold">{tab === 'loans' ? 'Concepto' : 'Producto'}<input required value={product} onChange={(event) => setProduct(event.target.value)} className="mt-1 w-full p-2 border rounded-lg font-normal" /></label>
           {tab === 'purchases' && <label className="text-xs font-semibold">Proveedor<input required value={supplier} onChange={(event) => setSupplier(event.target.value)} className="mt-1 w-full p-2 border rounded-lg font-normal" /></label>}
           <label className="text-xs font-semibold">Cantidad<input type="number" min="1" value={quantity} onChange={(event) => setQuantity(event.target.value)} className="mt-1 w-full p-2 border rounded-lg font-normal" /></label>
@@ -129,7 +135,12 @@ export function ProductBenefitsModule({
       </form>
       <div className="bg-white border rounded-xl p-4 text-xs text-slate-600">
         {tab === 'assignments' && <>{assignments.length} asignaciones registradas este mes.</>}
-        {tab === 'purchases' && <>{purchases.length} compras registradas.</>}
+        {tab === 'purchases' && (
+          <div className="space-y-2">
+            <div>{purchases.length} compras registradas.</div>
+            {purchases.length > 0 && <div className="overflow-x-auto"><table className="w-full text-xs"><thead><tr className="text-left text-slate-500"><th className="py-1 pr-3">Trabajador</th><th className="py-1 pr-3">Producto</th><th className="py-1 pr-3">Proveedor</th><th className="py-1 text-right">Descuento</th></tr></thead><tbody className="divide-y">{purchases.map((purchase) => <tr key={purchase.id}><td className="py-1 pr-3 font-semibold">{purchase.employeeName || 'Sin trabajador'}</td><td className="py-1 pr-3">{purchase.product}</td><td className="py-1 pr-3">{purchase.supplier}</td><td className="py-1 text-right">{formatBs(purchase.amountBs)}</td></tr>)}</tbody></table></div>}
+          </div>
+        )}
         {tab === 'loans' && <>{loans.length} préstamos registrados.</>}
       </div>
     </div>

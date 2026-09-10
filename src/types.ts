@@ -239,6 +239,8 @@ export interface ProductAssignment {
 
 export interface ProductPurchase {
   id: string;
+  employeeId?: string;
+  employeeName?: string;
   product: string;
   supplier: string;
   quantity: number;

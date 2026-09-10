@@ -390,6 +390,11 @@ export default function App() {
     if (assignment.status === 'Asignado') totals[assignment.employeeId] = (totals[assignment.employeeId] || 0) + assignment.amountBs;
     return totals;
   }, {});
+  productPurchases.forEach((purchase) => {
+    if (purchase.employeeId) {
+      productDeductionByEmployee[purchase.employeeId] = (productDeductionByEmployee[purchase.employeeId] || 0) + purchase.amountBs;
+    }
+  });
 
   const handleSaveCompany = (updatedCompany: CompanySettings) => {
     setCompany(updatedCompany);
