@@ -129,7 +129,7 @@ export function WorkCertificateModal({
         </div>
 
         {/* --- OFFICIAL CERTIFICATE PRINTABLE AREA --- */}
-        <div className="p-4 sm:p-6 border border-slate-200 rounded-xl bg-white space-y-5 font-serif text-slate-900 leading-relaxed text-xs shadow-xs">
+        <div className="print-document p-4 sm:p-6 border border-slate-200 rounded-xl bg-white space-y-5 font-serif text-slate-900 leading-relaxed text-xs shadow-xs">
           {/* Official Letterhead */}
           <div className="text-center border-b-2 border-slate-900 pb-6 space-y-2">
             {company.logoUrl && (

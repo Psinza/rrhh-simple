@@ -13,6 +13,21 @@
 
 @layer utilities {
   @media print {
+    /* Print only the selected payroll slip or work certificate. */
+    body * {
+      visibility: hidden !important;
+    }
+    .print-document,
+    .print-document * {
+      visibility: visible !important;
+    }
+    .print-document {
+      position: absolute !important;
+      inset: 0 !important;
+      width: 100% !important;
+      max-width: none !important;
+      margin: 0 !important;
+    }
     .no-print {
       display: none !important;
     }

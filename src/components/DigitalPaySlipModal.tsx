@@ -77,7 +77,7 @@ export function DigitalPaySlipModal({
         </div>
 
         {/* --- OFFICIAL PAY SLIP PRINTABLE AREA --- */}
-        <div className="space-y-3 text-[11px] font-sans text-slate-900 border border-slate-200 p-3 sm:p-4 rounded-xl bg-white shadow-xs">
+        <div className="print-document space-y-3 text-[11px] font-sans text-slate-900 border border-slate-200 p-3 sm:p-4 rounded-xl bg-white shadow-xs">
           {/* Header */}
           <div className="border-b-2 border-slate-900 pb-4">
             <div className="flex items-start justify-between gap-4">
