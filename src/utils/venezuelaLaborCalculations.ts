@@ -103,7 +103,7 @@ export function calculatePayrollDeductionsAndContributions(
   deduccionesProductos: number = 0,
   aplicarRetencionesGubernamentales: boolean = true
 ): Omit<PayrollItem, 'id' | 'employeeId' | 'employee' | 'fechaGeneracion' | 'firmadoDigitalmente' | 'hashCriptografico'> {
-  const factorPeriodo = frecuencia === 'semanal' ? 7 / 30 : frecuencia === 'quincenal' ? 0.5 : 1.0;
+  const factorPeriodo = frecuencia === 'semanal' ? 5 / 30 : frecuencia === 'quincenal' ? 0.5 : 1.0;
   // Lunes en la quincena o mes (típicamente 2 en quincena, 4 o 5 en mes)
   const lunes = frecuencia === 'semanal' ? 1 : frecuencia === 'quincenal' ? Math.round(company.lunesDelMesActual / 2) : company.lunesDelMesActual;
 
@@ -169,7 +169,7 @@ export function calculatePayrollDeductionsAndContributions(
   const totalAportesPatronales = aportePatronalIVSS + aportePatronalRPE + aportePatronalFAOV + aportePatronalINCES;
 
   return {
-    diasTrabajados: frecuencia === 'semanal' ? 7 : frecuencia === 'quincenal' ? 15 : 30,
+    diasTrabajados: frecuencia === 'semanal' ? 5 : frecuencia === 'quincenal' ? 15 : 30,
     horasExtrasDiurnas,
     horasExtrasNocturnas,
     sueldoBasePeriodo,
