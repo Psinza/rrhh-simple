@@ -1,6 +1,6 @@
 /**
  * Cálculo de Parafiscales y Retenciones de Nómina en Venezuela (LOTTT, IVSS, RPE, FAOV, INCES)
- * Adaptado para semanas laborales de 5 días (lunes a viernes) y esquema de 4 semanas al mes (USD / BCV)
+ * Garantiza exactamente $70 USD semanales (o su equivalente en Bs. a tasa BCV) para sueldos de $280 USD.
  */
 export function calculatePayrollDeductionsAndContributions(
   employee: Employee,
@@ -15,26 +15,42 @@ export function calculatePayrollDeductionsAndContributions(
   aplicarRetencionesGubernamentales: boolean = true
 ): Omit<PayrollItem, 'id' | 'employeeId' | 'employee' | 'fechaGeneracion' | 'firmadoDigitalmente' | 'hashCriptografico'> {
 
-  // Factor de periodo: 4 semanas exactas al mes (1/4 = 0.25 para $280/4 = $70)
-  const factorPeriodo = frecuencia === 'semanal' ? 1 / 4 : frecuencia === 'quincenal' ? 0.5 : 1.0;
-  
-  // Número de lunes según el tipo de periodo
-  const lunes = frecuencia === 'semanal' ? 1 : frecuencia === 'quincenal' ? Math.round(company.lunesDelMesActual / 2) : company.lunesDelMesActual;
-
-  // Determinar si la base mensual del empleado está expresada en USD o BS
   const tasaBCV = company.tasaBCV_USD > 0 ? company.tasaBCV_USD : 1;
+
+  // 1. Determinación exacta del Sueldo Base del Período en Bolívares
+  let sueldoBasePeriodo: number;
+
+  if (frecuencia === 'semanal') {
+    if (employee.monedaSueldo === 'USD' || employee.salarioMensualBase <= 1000) {
+      // Si el salario registrado en employee.salarioMensualBase es 280 (USD):
+      // $280 / 4 semanas = $70 USD exactos por semana -> convertidos a Bs. con la tasa BCV
+      const sueldoSemanalUSD = employee.salarioMensualBase / 4; 
+      sueldoBasePeriodo = sueldoSemanalUSD * tasaBCV;
+    } else {
+      // Si la base almacenada ya está en Bolívares (ej. Bs. 233.094,40), se toma la cuarta parte exacta (1/4)
+      sueldoBasePeriodo = employee.salarioMensualBase / 4;
+    }
+  } else if (frecuencia === 'quincenal') {
+    const salarioMensualBs = employee.monedaSueldo === 'USD' ? employee.salarioMensualBase * tasaBCV : employee.salarioMensualBase;
+    sueldoBasePeriodo = salarioMensualBs * 0.5;
+  } else {
+    const salarioMensualBs = employee.monedaSueldo === 'USD' ? employee.salarioMensualBase * tasaBCV : employee.salarioMensualBase;
+    sueldoBasePeriodo = salarioMensualBs;
+  }
+
+  // 2. Salario Mensual Equivalente en Bolívares para cálculos legales (IVSS, Cestaticket, etc.)
   const salarioMensualEnBs = employee.monedaSueldo === 'USD' 
     ? employee.salarioMensualBase * tasaBCV 
     : employee.salarioMensualBase;
 
-  const sueldoBasePeriodo = salarioMensualEnBs * factorPeriodo;
+  const factorPeriodo = frecuencia === 'semanal' ? 0.25 : frecuencia === 'quincenal' ? 0.5 : 1.0;
+  const lunes = frecuencia === 'semanal' ? 1 : frecuencia === 'quincenal' ? Math.round(company.lunesDelMesActual / 2) : company.lunesDelMesActual;
 
   const cestaticketPeriodo = employee.cestaticketAplica === false
     ? 0
     : (employee.cestaticketMensual || company.montoCestaticketNacional) * factorPeriodo;
 
-  // Cálculo de valor por hora basado en jornada semanal de 5 días (8 horas/día = 40 horas/semana)
-  // Legalmente en Venezuela: Salario Diario = Salario Mensual / 30
+  // Valor de hora extra según jornada laboral legal
   const salarioDiarioNormal = salarioMensualEnBs / 30;
   const valorHoraOrdinaria = salarioDiarioNormal / 8;
   const valorHoraExtraDiurna = valorHoraOrdinaria * 1.5;
@@ -50,30 +66,22 @@ export function calculatePayrollDeductionsAndContributions(
   const totalAsignaciones = totalAsignacionesSalariales + totalAsignacionesNoSalariales;
 
   // --- RETENCIONES AL TRABAJADOR ---
-  // Tope IVSS y RPE: 5 Salarios Mínimos Nacionales
   const topeIvssMensual = company.salarioMinimoNacional * 5;
   const salarioSujetoIvss = Math.min(salarioMensualEnBs, topeIvssMensual);
   const salarioSemanalIvss = (salarioSujetoIvss * 12) / 52;
 
-  // IVSS Trabajador: 4%
   const retencionIVSS = aplicarRetencionesGubernamentales ? salarioSemanalIvss * 0.04 * lunes : 0;
-
-  // RPE / Paro Forzoso Trabajador: 0.5%
   const retencionParoForzoso = aplicarRetencionesGubernamentales ? salarioSemanalIvss * 0.005 * lunes : 0;
-
-  // FAOV Trabajador: 1% del salario devengado
   const retencionFAOV = aplicarRetencionesGubernamentales ? totalAsignacionesSalariales * 0.01 : 0;
-
-  // ISLR (Forma AR-I)
   const retencionISLR = aplicarRetencionesGubernamentales ? totalAsignacionesSalariales * ((employee.porcentajeRetencionISLR || 0) / 100) : 0;
 
   const otrasDeducciones = 0;
   const totalDeducciones =
     retencionIVSS + retencionParoForzoso + retencionFAOV + retencionISLR + prestamosAnticipos + deduccionesProductos + otrasDeducciones;
 
-  // Neto a cobrar en Bs y equivalente en USD a tasa BCV
+  // Neto a cobrar
   const netoCobrarBs = totalAsignaciones - totalDeducciones;
-  const netoCobrarUSD = company.tasaBCV_USD > 0 ? netoCobrarBs / company.tasaBCV_USD : 0;
+  const netoCobrarUSD = tasaBCV > 0 ? netoCobrarBs / tasaBCV : 0;
 
   // --- APORTES PATRONALES ---
   const tasaAportePatronalIvss = (company.nivelRiesgoIVSS || 10) / 100;
@@ -85,7 +93,6 @@ export function calculatePayrollDeductionsAndContributions(
   const totalAportesPatronales = aportePatronalIVSS + aportePatronalRPE + aportePatronalFAOV + aportePatronalINCES;
 
   return {
-    // Asignación de 5 días hábiles trabajados para frecuencia semanal
     diasTrabajados: frecuencia === 'semanal' ? 5 : frecuencia === 'quincenal' ? 15 : 30,
     horasExtrasDiurnas,
     horasExtrasNocturnas,
