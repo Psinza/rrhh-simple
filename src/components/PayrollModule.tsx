@@ -24,17 +24,24 @@ import { formatBs, formatUSD } from '../utils/venezuelaLaborCalculations';
 interface PayrollModuleProps {
   company: CompanySettings;
   payroll: PayrollPeriod;
+  employees?: Employee[];
   currentUser?: { rol?: string; nombre?: string };
   onUpdatePayroll: (payroll: PayrollPeriod) => void;
-  onOpenPayslip: (item: PayrollItem) => void;
+  onOpenSlip?: (item: PayrollItem) => void;
+  onOpenPayslip?: (item: PayrollItem) => void;
   onApprovePayroll?: () => void;
+  commissionByEmployee?: Record<string, number>;
+  loanInstallmentByEmployee?: Record<string, number>;
+  productDeductionByEmployee?: Record<string, number>;
 }
 
 export function PayrollModule({
   company,
   payroll,
+  employees,
   currentUser,
   onUpdatePayroll,
+  onOpenSlip,
   onOpenPayslip,
   onApprovePayroll,
 }: PayrollModuleProps) {
