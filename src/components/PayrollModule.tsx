@@ -47,25 +47,39 @@ export function PayrollModule({
   const [showApprovedNotice, setShowApprovedNotice] = useState(false);
 
   const handleRecalculate = () => {
-    const recalculatedItems = payroll.items.map((item) => {
+    const activeEmployees = (employees && employees.length > 0 ? employees : payroll.items.map((item) => item.employee))
+      .filter((emp) => emp.status === 'activo');
+
+    const sourceItems = activeEmployees.length > 0 ? activeEmployees : payroll.items;
+    const recalculatedItems = sourceItems.map((source) => {
+      const employee = 'employee' in source ? source.employee : source;
       const calc = calculatePayrollDeductionsAndContributions(
-        item.employee,
+        employee,
         company,
         activeFrequency,
-        item.horasExtrasDiurnas,
-        item.horasExtrasNocturnas,
-        item.bonoProductividad,
-        item.viaticos,
-        item.prestamosAnticipos,
-        item.deduccionesProductos,
+        'horasExtrasDiurnas' in source ? source.horasExtrasDiurnas : 0,
+        'horasExtrasNocturnas' in source ? source.horasExtrasNocturnas : 0,
+        'bonoProductividad' in source ? source.bonoProductividad : 0,
+        'viaticos' in source ? source.viaticos : 0,
+        'prestamosAnticipos' in source ? source.prestamosAnticipos : 0,
+        'deduccionesProductos' in source ? source.deduccionesProductos : 0,
         aplicarRetencionesGubernamentales
       );
 
+      const baseItem = 'employee' in source ? source : {
+        id: `slip-${employee.id}-${payroll.id}`,
+        employeeId: employee.id,
+        employee,
+        fechaGeneracion: payroll.fechaPago,
+        firmadoDigitalmente: false,
+        hashCriptografico: `payroll-${employee.id}-${Date.now()}`,
+      };
+
       return {
-        ...item,
+        ...baseItem,
         ...calc,
         employee: {
-          ...item.employee,
+          ...employee,
           frecuenciaPago: activeFrequency,
         },
       };

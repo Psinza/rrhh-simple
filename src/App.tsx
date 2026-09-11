@@ -107,6 +107,19 @@ export default function App() {
   const [employeeLoans, setEmployeeLoans] = useState<EmployeeLoan[]>([]);
   const [lastBackupTime, setLastBackupTime] = useState('10:45 AM');
 
+  useEffect(() => {
+    const activeEmployees = employees.filter((emp) => emp.status === 'activo');
+    const shouldSyncPayroll =
+      activeEmployees.length > 0 &&
+      (payroll.items.length === 0 ||
+        payroll.items.length !== activeEmployees.length ||
+        activeEmployees.some((emp) => !payroll.items.some((item) => item.employeeId === emp.id)));
+
+    if (shouldSyncPayroll) {
+      setPayroll(buildInitialPayrollPeriod(company, activeEmployees));
+    }
+  }, [employees, company, payroll.items]);
+
   // Modals
   const [selectedSlip, setSelectedSlip] = useState<PayrollItem | null>(null);
   const [selectedDetailEmployee, setSelectedDetailEmployee] = useState<Employee | null>(null);
