@@ -122,6 +122,13 @@ export function PayrollModule({
   const payrollCurrencyLabel = 'Bs.';
   const referenceCurrencyLabel = 'USD';
 
+  const frequencySummary =
+    activeFrequency === 'semanal'
+      ? 'Semanal • 1 mes dividido en 4 semanas'
+      : activeFrequency === 'quincenal'
+        ? 'Quincenal • 1 mes dividido en 2 quincenas'
+        : 'Mensual • 1 pago por mes completo';
+
   return (
     <div className="space-y-6">
       {/* Top Banner and Summary */}
@@ -141,13 +148,16 @@ export function PayrollModule({
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
-          <label className="text-xs text-slate-600 font-semibold">Tipo de nómina
-            <select value={activeFrequency} onChange={(e) => setActiveFrequency(e.target.value as 'semanal' | 'quincenal' | 'mensual')} className="ml-2 px-2 py-2 text-xs bg-slate-50 border border-slate-200 rounded">
-              <option value="semanal">Semanal - Obreros</option>
-              <option value="quincenal">Quincenal - Administrativos</option>
-              <option value="mensual">Mensual</option>
-            </select>
-          </label>
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-slate-600 font-semibold">Tipo de nómina
+              <select value={activeFrequency} onChange={(e) => setActiveFrequency(e.target.value as 'semanal' | 'quincenal' | 'mensual')} className="ml-2 px-2 py-2 text-xs bg-slate-50 border border-slate-200 rounded">
+                <option value="semanal">Semanal - Obreros</option>
+                <option value="quincenal">Quincenal - Administrativos</option>
+                <option value="mensual">Mensual</option>
+              </select>
+            </label>
+            <span className="ml-2 text-[10px] font-medium text-slate-500">{frequencySummary}</span>
+          </div>
           <label className="flex items-center gap-2 text-xs text-slate-600 font-semibold cursor-pointer">
             <input type="checkbox" checked={aplicarRetencionesGubernamentales} onChange={(e) => setAplicarRetencionesGubernamentales(e.target.checked)} className="rounded border-slate-300 text-blue-600" />
             Aplicar retenciones gubernamentales
