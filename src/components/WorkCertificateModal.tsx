@@ -12,6 +12,7 @@ import {
   formatUSD,
   formatMoneyWithEmployeeCurrency,
   normalizeSalaryToBs,
+  canDeclareIntegralSalary,
 } from '../utils/venezuelaLaborCalculations';
 
 interface WorkCertificateModalProps {
@@ -40,11 +41,12 @@ export function WorkCertificateModal({
     employee.diasUtilidadesAnuales || company.diasUtilidadesEmpresa
   );
   const displayCurrency = employee.salarioMoneda || 'BS';
+  const puedeDeclararIntegral = canDeclareIntegralSalary(employee);
 
   const salaryBaseNormalizedBs = employee.salarioMoneda === 'USD'
     ? normalizeSalaryToBs(employee, company.tasaBCV_USD)
     : employee.salarioMensualBase;
-  const salarioAMostrar = tipoSalario === 'basico' ? salaryBaseNormalizedBs : integral.salarioIntegralMensual;
+  const salarioAMostrar = tipoSalario === 'basico' || !puedeDeclararIntegral ? salaryBaseNormalizedBs : integral.salarioIntegralMensual;
   const cestaticketMonto = employee.cestaticketMensual || company.montoCestaticketNacional;
   const salarioAMostrarDisplay = formatMoneyWithEmployeeCurrency(salarioAMostrar, displayCurrency, company.tasaBCV_USD);
   const cestaticketDisplay = formatMoneyWithEmployeeCurrency(cestaticketMonto, employee.cestaticketMoneda || displayCurrency, company.tasaBCV_USD);
@@ -101,12 +103,15 @@ export function WorkCertificateModal({
           <div>
             <label className="block font-medium text-slate-700 mb-1">Tipo de Salario a Declarar:</label>
             <select
-              value={tipoSalario}
+              value={puedeDeclararIntegral ? tipoSalario : 'basico'}
               onChange={(e) => setTipoSalario(e.target.value as 'basico' | 'integral')}
-              className="w-full p-2 bg-white border border-slate-200 rounded text-slate-800"
+              disabled={!puedeDeclararIntegral}
+              className="w-full p-2 bg-white border border-slate-200 rounded text-slate-800 disabled:opacity-60 disabled:cursor-not-allowed"
             >
               <option value="basico">Salario Mensual Básico</option>
-              <option value="integral">Salario Integral (Art. 122 LOTTT)</option>
+              {puedeDeclararIntegral && (
+                <option value="integral">Salario Integral (Art. 122 LOTTT)</option>
+              )}
             </select>
           </div>
 

@@ -68,6 +68,10 @@ export function normalizeSalaryToBs(employee: Partial<Employee>, exchangeRate: n
   return storedSalary;
 }
 
+export function canDeclareIntegralSalary(employee: Partial<Employee>): boolean {
+  return employee.cestaticketAplica !== false;
+}
+
 export function calculateTenure(fechaIngreso: string): { anios: number; meses: number; dias: number } {
   const start = new Date(fechaIngreso);
   const now = new Date();

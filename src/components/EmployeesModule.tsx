@@ -21,6 +21,7 @@ import {
   calculateTenure,
   calculateIntegralSalary,
   formatMoneyWithEmployeeCurrency,
+  canDeclareIntegralSalary,
 } from '../utils/venezuelaLaborCalculations';
 
 interface EmployeesModuleProps {
@@ -304,6 +305,7 @@ export function EmployeesModule({
             tenure.anios,
             emp.diasUtilidadesAnuales || company.diasUtilidadesEmpresa
           );
+          const mostrarIntegral = canDeclareIntegralSalary(emp);
 
           return (
             <div
@@ -361,13 +363,15 @@ export function EmployeesModule({
                     </span>
                   </div>
 
-                  <div className="flex items-center justify-between text-[11px] border-t border-slate-200/60 pt-1.5">
-                    <span className="text-slate-500">Salario Integral (Art. 122):</span>
-                    <span className="font-medium text-emerald-700">
-                      {formatMoneyWithEmployeeCurrency(integral.salarioIntegralMensual, emp.salarioMoneda, company.tasaBCV_USD)}
-                      <span className="ml-1 text-[10px] align-middle font-bold text-emerald-600">({emp.salarioMoneda === 'USD' ? 'USD' : 'Bs.'})</span>
-                    </span>
-                  </div>
+                  {mostrarIntegral && (
+                    <div className="flex items-center justify-between text-[11px] border-t border-slate-200/60 pt-1.5">
+                      <span className="text-slate-500">Salario Integral (Art. 122):</span>
+                      <span className="font-medium text-emerald-700">
+                        {formatMoneyWithEmployeeCurrency(integral.salarioIntegralMensual, emp.salarioMoneda, company.tasaBCV_USD)}
+                        <span className="ml-1 text-[10px] align-middle font-bold text-emerald-600">({emp.salarioMoneda === 'USD' ? 'USD' : 'Bs.'})</span>
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
 
