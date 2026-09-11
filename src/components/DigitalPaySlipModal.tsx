@@ -10,7 +10,7 @@ import {
   Download,
 } from 'lucide-react';
 import { PayrollItem, CompanySettings } from '../types';
-import { formatBs, formatUSD } from '../utils/venezuelaLaborCalculations';
+import { formatBs, formatMoneyWithEmployeeCurrency, formatUSD, normalizeSalaryToBs } from '../utils/venezuelaLaborCalculations';
 
 interface DigitalPaySlipModalProps {
   item: PayrollItem;
@@ -27,7 +27,9 @@ export function DigitalPaySlipModal({
 }: DigitalPaySlipModalProps) {
   const [isSigned, setIsSigned] = useState(item.firmadoDigitalmente);
   const [signatureDate, setSignatureDate] = useState(item.firmaFecha || new Date().toLocaleString('es-VE'));
-  const slipCurrencyLabel = 'Bs.';
+  const salaryDisplayCurrency = item.employee.salarioMoneda || 'BS';
+  const normalizedSalaryBaseBs = normalizeSalaryToBs(item.employee, company.tasaBCV_USD);
+  const slipCurrencyLabel = salaryDisplayCurrency === 'USD' ? 'USD' : 'Bs.';
   const slipReferenceCurrencyLabel = 'USD';
   const paymentMethodLabels: Record<string, string> = {
     transferencia: 'Transferencia bancaria',
@@ -48,7 +50,6 @@ export function DigitalPaySlipModal({
   return (
     <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
       <div className="bg-white rounded-xl max-w-2xl w-full max-h-[calc(100vh-1rem)] overflow-y-auto p-3 sm:p-5 shadow-xl border border-slate-200 my-2 space-y-4 print-card">
-        {/* Top Control Bar (Hidden on print) */}
         <div className="flex items-center justify-between no-print border-b border-slate-100 pb-3">
           <div className="flex items-center gap-2">
             <span className="text-xs font-bold px-2.5 py-1 rounded bg-blue-50 text-blue-800 border border-blue-200 flex items-center gap-1.5">
@@ -76,9 +77,7 @@ export function DigitalPaySlipModal({
           </div>
         </div>
 
-        {/* --- OFFICIAL PAY SLIP PRINTABLE AREA --- */}
         <div className="print-document space-y-3 text-[11px] font-sans text-slate-900 border border-slate-200 p-3 sm:p-4 rounded-xl bg-white shadow-xs">
-          {/* Header */}
           <div className="border-b-2 border-slate-900 pb-4">
             <div className="flex items-start justify-between gap-4">
               <div className="flex items-start gap-3">
@@ -115,7 +114,6 @@ export function DigitalPaySlipModal({
             </div>
           </div>
 
-          {/* Employee Identification Grid */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 bg-slate-50 p-3 rounded-xl border border-slate-200 text-[11px]">
             <div>
               <span className="text-slate-500 block">Colaborador:</span>
@@ -148,7 +146,7 @@ export function DigitalPaySlipModal({
             <div>
               <span className="text-slate-500 block">Salario Mensual Base:</span>
               <strong className="text-slate-900">
-                {formatBs(item.employee.salarioMensualBase)}
+                {formatMoneyWithEmployeeCurrency(normalizedSalaryBaseBs, salaryDisplayCurrency, company.tasaBCV_USD)}
                 <span className="ml-1 text-[10px] align-middle font-bold text-slate-500">({slipCurrencyLabel})</span>
               </strong>
             </div>
@@ -162,7 +160,6 @@ export function DigitalPaySlipModal({
             </div>
           </div>
 
-          {/* Concepts Table: Asignaciones y Deducciones */}
           <div className="overflow-x-auto border border-slate-200 rounded-xl">
             <table className="w-full text-left text-xs">
               <thead className="bg-slate-100 border-b border-slate-200 font-bold text-slate-700 text-[10px] uppercase">
@@ -174,7 +171,6 @@ export function DigitalPaySlipModal({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {/* Sueldo Base Periodo */}
                 <tr>
                   <td className="py-1.5 px-3 font-mono text-slate-500 text-[11px]">001</td>
                   <td className="py-1.5 px-3">Sueldo Base del Período ({item.diasTrabajados} días)</td>
@@ -182,7 +178,6 @@ export function DigitalPaySlipModal({
                   <td className="py-1.5 px-3 text-right text-slate-400">-</td>
                 </tr>
 
-                {/* Horas Extras Diurnas */}
                 {item.horasExtrasDiurnas > 0 && (
                   <tr>
                     <td className="py-1.5 px-3 font-mono text-slate-500 text-[11px]">005</td>
@@ -192,7 +187,6 @@ export function DigitalPaySlipModal({
                   </tr>
                 )}
 
-                {/* Horas Extras Nocturnas */}
                 {item.horasExtrasNocturnas > 0 && (
                   <tr>
                     <td className="py-1.5 px-3 font-mono text-slate-500 text-[11px]">006</td>
@@ -220,7 +214,6 @@ export function DigitalPaySlipModal({
                   </tr>
                 )}
 
-                {/* Deducción IVSS 4% */}
                 <tr>
                   <td className="py-1.5 px-3 font-mono text-slate-500 text-[11px]">101</td>
                   <td className="py-1.5 px-3 text-slate-700">Retención Seguro Social Obligatorio (IVSS 4% s/tope)</td>
@@ -228,7 +221,6 @@ export function DigitalPaySlipModal({
                   <td className="py-1.5 px-3 text-right text-amber-800 font-medium">{formatBs(item.retencionIVSS)}</td>
                 </tr>
 
-                {/* Deducción Paro Forzoso 0.5% */}
                 <tr>
                   <td className="py-1.5 px-3 font-mono text-slate-500 text-[11px]">102</td>
                   <td className="py-1.5 px-3 text-slate-700">Retención Régimen Prestacional de Empleo (RPE / Paro 0.5%)</td>
@@ -236,7 +228,6 @@ export function DigitalPaySlipModal({
                   <td className="py-1.5 px-3 text-right text-amber-800 font-medium">{formatBs(item.retencionParoForzoso)}</td>
                 </tr>
 
-                {/* Deducción FAOV 1% */}
                 <tr>
                   <td className="py-1.5 px-3 font-mono text-slate-500 text-[11px]">103</td>
                   <td className="py-1.5 px-3 text-slate-700">Retención Ahorro Habitacional BANAVIH (FAOV 1%)</td>
@@ -244,7 +235,6 @@ export function DigitalPaySlipModal({
                   <td className="py-1.5 px-3 text-right text-amber-800 font-medium">{formatBs(item.retencionFAOV)}</td>
                 </tr>
 
-                {/* Deducción ISLR si aplica */}
                 {item.retencionISLR > 0 && (
                   <tr>
                     <td className="py-1.5 px-3 font-mono text-slate-500 text-[11px]">104</td>
@@ -273,7 +263,6 @@ export function DigitalPaySlipModal({
             </table>
           </div>
 
-          {/* Subtotals and Net Payable */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
             <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs space-y-1">
               <div className="flex justify-between text-slate-600">
@@ -308,7 +297,6 @@ export function DigitalPaySlipModal({
             </div>
           </div>
 
-          {/* Informative Employer Contributions (Seguridad Social) */}
           <div className="bg-slate-50/80 p-3 rounded-xl border border-slate-200 text-[10px] space-y-1">
             <span className="font-bold uppercase tracking-wider text-slate-600 block">
               Aportes Patronales de Seguridad Social (Informativo - No deducible del trabajador)
@@ -321,9 +309,7 @@ export function DigitalPaySlipModal({
             </div>
           </div>
 
-          {/* Legal Signatures and Audit Seals */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-6 border-t border-slate-200">
-            {/* Employer Signature */}
             <div className="text-center space-y-1">
               <div className="h-10 flex items-center justify-center">
                 <span className="font-serif italic text-slate-700 text-sm font-bold">
@@ -337,7 +323,6 @@ export function DigitalPaySlipModal({
               </div>
             </div>
 
-            {/* Employee Digital Signature */}
             <div className="text-center space-y-1">
               <div className="h-10 flex items-center justify-center">
                 {isSigned ? (
@@ -361,7 +346,6 @@ export function DigitalPaySlipModal({
             </div>
           </div>
 
-          {/* Cryptographic Security Hash */}
           <div className="pt-2 text-[9px] text-slate-400 text-center font-mono border-t border-slate-100">
             Seguridad Criptográfica: {item.hashCriptografico} • Sistema TalentoVE Cloud • Cumplimiento LOTTT
           </div>

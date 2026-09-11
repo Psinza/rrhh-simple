@@ -11,6 +11,7 @@ import {
   calculateIntegralSalary,
   formatUSD,
   formatMoneyWithEmployeeCurrency,
+  normalizeSalaryToBs,
 } from '../utils/venezuelaLaborCalculations';
 
 interface WorkCertificateModalProps {
@@ -40,7 +41,10 @@ export function WorkCertificateModal({
   );
   const displayCurrency = employee.salarioMoneda || 'BS';
 
-  const salarioAMostrar = tipoSalario === 'basico' ? employee.salarioMensualBase : integral.salarioIntegralMensual;
+  const salaryBaseNormalizedBs = employee.salarioMoneda === 'USD'
+    ? normalizeSalaryToBs(employee, company.tasaBCV_USD)
+    : employee.salarioMensualBase;
+  const salarioAMostrar = tipoSalario === 'basico' ? salaryBaseNormalizedBs : integral.salarioIntegralMensual;
   const cestaticketMonto = employee.cestaticketMensual || company.montoCestaticketNacional;
   const salarioAMostrarDisplay = formatMoneyWithEmployeeCurrency(salarioAMostrar, displayCurrency, company.tasaBCV_USD);
   const cestaticketDisplay = formatMoneyWithEmployeeCurrency(cestaticketMonto, employee.cestaticketMoneda || displayCurrency, company.tasaBCV_USD);
@@ -55,7 +59,6 @@ export function WorkCertificateModal({
   return (
     <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
       <div className="bg-white rounded-xl max-w-2xl w-full max-h-[calc(100vh-1rem)] overflow-y-auto p-3 sm:p-5 shadow-xl border border-slate-200 my-2 space-y-4 print-card">
-        {/* Top Control Bar (Hidden on print) */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 no-print border-b border-slate-100 pb-3">
           <div className="flex items-center gap-2">
             <span className="text-xs font-bold px-2.5 py-1 rounded bg-blue-50 text-blue-800 border border-blue-200 flex items-center gap-1.5">
@@ -80,7 +83,6 @@ export function WorkCertificateModal({
           </div>
         </div>
 
-        {/* Options Panel (Hidden on print) */}
         <div className="no-print p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs grid grid-cols-1 sm:grid-cols-4 gap-3">
           <div>
             <label className="block font-medium text-slate-700 mb-1">Destinatario:</label>
@@ -128,9 +130,7 @@ export function WorkCertificateModal({
           </div>
         </div>
 
-        {/* --- OFFICIAL CERTIFICATE PRINTABLE AREA --- */}
         <div className="print-document p-4 sm:p-6 border border-slate-200 rounded-xl bg-white space-y-5 font-serif text-slate-900 leading-relaxed text-xs shadow-xs">
-          {/* Official Letterhead */}
           <div className="text-center border-b-2 border-slate-900 pb-6 space-y-2">
             {company.logoUrl && (
               <div className="flex justify-center mb-2">
@@ -152,7 +152,6 @@ export function WorkCertificateModal({
             </p>
           </div>
 
-          {/* Certificate Title */}
           <div className="text-center space-y-3 pt-2">
             <h2 className="text-xl font-bold uppercase tracking-widest font-sans underline decoration-2 underline-offset-4">
               CONSTANCIA DE TRABAJO
@@ -162,7 +161,6 @@ export function WorkCertificateModal({
             </p>
           </div>
 
-          {/* Formal Body Text */}
           <div className="text-justify space-y-4 text-slate-800 leading-loose text-base">
             <p>
               Por medio de la presente se hace constar que el (la) ciudadano(a){' '}

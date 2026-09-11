@@ -1,7 +1,181 @@
+import type { CompanySettings, Employee, GovernmentExportFile, PayrollItem, SocialBenefitsReport } from '../types';
+
 /**
  * Cálculo de Parafiscales y Retenciones de Nómina en Venezuela (LOTTT, IVSS, RPE, FAOV, INCES)
  * Garantiza exactamente $70 USD semanales (o su equivalente en Bs. a tasa BCV) para sueldos de $280 USD.
  */
+export function convertAmountToBaseCurrency(
+  amount: number,
+  currency?: 'BS' | 'USD',
+  exchangeRate: number = 1
+): number {
+  const numericAmount = Number(amount) || 0;
+
+  if (!Number.isFinite(numericAmount)) {
+    return 0;
+  }
+
+  if (currency === 'USD' && exchangeRate > 0) {
+    return numericAmount * exchangeRate;
+  }
+
+  return numericAmount;
+}
+
+export function formatBs(value: number): string {
+  return new Intl.NumberFormat('es-VE', {
+    style: 'currency',
+    currency: 'VES',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(Number(value) || 0);
+}
+
+export function formatUSD(value: number): string {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(Number(value) || 0);
+}
+
+export function formatMoneyWithEmployeeCurrency(
+  value: number,
+  displayCurrency: 'BS' | 'USD',
+  exchangeRate: number
+): string {
+  if (displayCurrency === 'USD') {
+    const usdAmount = exchangeRate > 0 ? Number(value) / exchangeRate : Number(value);
+    return formatUSD(usdAmount);
+  }
+
+  return formatBs(Number(value) || 0);
+}
+
+export function normalizeSalaryToBs(employee: Partial<Employee>, exchangeRate: number): number {
+  const storedSalary = Number(employee.salarioMensualBase) || 0;
+
+  if (!storedSalary || exchangeRate <= 0) {
+    return storedSalary;
+  }
+
+  if (employee.salarioMoneda === 'USD') {
+    const probableLegacyRawUsd = storedSalary < 1000 && storedSalary > 0;
+    return probableLegacyRawUsd ? storedSalary * exchangeRate : storedSalary;
+  }
+
+  return storedSalary;
+}
+
+export function calculateTenure(fechaIngreso: string): { anios: number; meses: number; dias: number } {
+  const start = new Date(fechaIngreso);
+  const now = new Date();
+
+  if (Number.isNaN(start.getTime())) {
+    return { anios: 0, meses: 0, dias: 0 };
+  }
+
+  let years = now.getFullYear() - start.getFullYear();
+  let months = now.getMonth() - start.getMonth();
+  let days = now.getDate() - start.getDate();
+
+  if (days < 0) {
+    months -= 1;
+    const priorMonth = new Date(now.getFullYear(), now.getMonth(), 0);
+    days += priorMonth.getDate();
+  }
+
+  if (months < 0) {
+    years -= 1;
+    months += 12;
+  }
+
+  return { anios: Math.max(0, years), meses: Math.max(0, months), dias: Math.max(0, days) };
+}
+
+export function calculateIntegralSalary(
+  salarioMensualBase: number,
+  aniosServicio: number,
+  diasUtilidadesAnuales: number
+): {
+  salarioDiarioNormal: number;
+  alicuotaBonoVacacionalDiaria: number;
+  alicuotaUtilidadesDiaria: number;
+  salarioDiarioIntegral: number;
+  salarioIntegralMensual: number;
+  bonoVacacional: number;
+  utilidades: number;
+  diasBonoVacacional: number;
+} {
+  const salarioDiarioNormal = salarioMensualBase / 30;
+  const bonoVacacional = salarioDiarioNormal * (diasUtilidadesAnuales || 30);
+  const utilidades = salarioDiarioNormal * (diasUtilidadesAnuales || 30);
+  const diasBonoVacacional = Math.min(30, 15 + Math.max(0, aniosServicio - 1));
+  const alicuotaBonoVacacionalDiaria = salarioDiarioNormal * 0.3;
+  const alicuotaUtilidadesDiaria = salarioDiarioNormal * 0.3;
+  const salarioDiarioIntegral = salarioDiarioNormal + alicuotaBonoVacacionalDiaria + alicuotaUtilidadesDiaria;
+  const salarioIntegralMensual = salarioMensualBase + bonoVacacional + utilidades + (aniosServicio > 0 ? salarioMensualBase * 0.12 : 0);
+
+  return {
+    salarioDiarioNormal,
+    alicuotaBonoVacacionalDiaria,
+    alicuotaUtilidadesDiaria,
+    salarioDiarioIntegral,
+    salarioIntegralMensual,
+    bonoVacacional,
+    utilidades,
+    diasBonoVacacional,
+  };
+}
+
+export function calculateSocialBenefits(
+  employee: Employee,
+  company: CompanySettings
+): SocialBenefitsReport {
+  const tenure = calculateTenure(employee.fechaIngreso);
+  const salarioBase = Number(employee.salarioMensualBase) || 0;
+  const salarioDiarioNormal = salarioBase / 30;
+  const diasGarantiaAcumulados = 15;
+  const diasAdicionalesAntiguedad = Math.max(0, tenure.anios * 2);
+  const totalDiasGarantia = diasGarantiaAcumulados + diasAdicionalesAntiguedad;
+  const montoGarantiaTotal = totalDiasGarantia * salarioDiarioNormal;
+  const interesesAcumulados = montoGarantiaTotal * ((company.tasaInteresPrestacionesBCV || 0) / 100) * (Math.max(1, tenure.meses) / 12);
+  const totalAnticiposConcedidos = (employee.anticiposPrestaciones || []).reduce((sum, item) => sum + Number(item.monto || 0), 0);
+  const limiteMaximoAnticipo75 = (montoGarantiaTotal + interesesAcumulados) * 0.75;
+  const disponibleParaAnticipo = Math.max(0, limiteMaximoAnticipo75 - totalAnticiposConcedidos);
+  const montoRetroactivoArt142c = salarioDiarioNormal * 30;
+  const montoMayorAPagar = Math.max(montoGarantiaTotal + interesesAcumulados, montoRetroactivoArt142c) - totalAnticiposConcedidos;
+  const saldoNetoActual = montoGarantiaTotal + interesesAcumulados - totalAnticiposConcedidos;
+
+  return {
+    antiguedadAnios: tenure.anios,
+    antiguedadMeses: tenure.meses,
+    antiguedadDias: tenure.dias,
+    salarioDiarioNormal,
+    alicuotaBonoVacacional: salarioDiarioNormal * 0.3,
+    alicuotaUtilidades: salarioDiarioNormal * 0.3,
+    salarioDiarioIntegral: salarioDiarioNormal + salarioDiarioNormal * 0.3 + salarioDiarioNormal * 0.3,
+    salarioIntegralMensual: salarioBase + salarioBase * 0.12,
+    diasGarantiaAcumulados,
+    diasAdicionalesAntiguedad,
+    totalDiasGarantia,
+    montoGarantiaTotal,
+    interesesAcumulados,
+    historialIntereses: [],
+    totalAnticiposConcedidos,
+    limiteMaximoAnticipo75,
+    disponibleParaAnticipo,
+    montoRetroactivoArt142c,
+    montoMayorAPagar,
+    saldoNetoActual,
+  };
+}
+
+export function getSalaryBaseInBs(employee: Partial<Employee>, exchangeRate: number): number {
+  return normalizeSalaryToBs(employee, exchangeRate);
+}
+
 export function calculatePayrollDeductionsAndContributions(
   employee: Employee,
   company: CompanySettings,
@@ -16,15 +190,11 @@ export function calculatePayrollDeductionsAndContributions(
 ): Omit<PayrollItem, 'id' | 'employeeId' | 'employee' | 'fechaGeneracion' | 'firmadoDigitalmente' | 'hashCriptografico'> {
 
   const tasaBCV = company.tasaBCV_USD > 0 ? company.tasaBCV_USD : 1;
+  const salarioMensualBaseBs = getSalaryBaseInBs(employee, tasaBCV);
 
-  const salarioMensualBaseEnBs = employee.salarioMoneda === 'USD'
-    ? employee.salarioMensualBase * tasaBCV
-    : employee.salarioMensualBase;
-
-  const factorPeriodo = frecuencia === 'semanal' ? 0.25 : frecuencia === 'quincenal' ? 0.5 : 1;
-  const sueldoBasePeriodo = salarioMensualBaseEnBs * factorPeriodo;
-
-  const salarioMensualEnBs = salarioMensualBaseEnBs;
+  const factorPeriodo = frecuencia === 'semanal' ? 1 / 4 : frecuencia === 'quincenal' ? 1 / 2 : 1;
+  const sueldoBasePeriodo = salarioMensualBaseBs * factorPeriodo;
+  const salarioMensualEnBs = salarioMensualBaseBs;
   const lunes = frecuencia === 'semanal' ? 1 : frecuencia === 'quincenal' ? Math.round(company.lunesDelMesActual / 2) : company.lunesDelMesActual;
 
   const cestaticketPeriodo = employee.cestaticketAplica === false
@@ -66,7 +236,6 @@ export function calculatePayrollDeductionsAndContributions(
   const aportePatronalRPE = salarioSemanalIvss * 0.02 * lunes;
   const aportePatronalFAOV = totalAsignacionesSalariales * 0.02;
   const aportePatronalINCES = totalAsignacionesSalariales * 0.02;
-
   const totalAportesPatronales = aportePatronalIVSS + aportePatronalRPE + aportePatronalFAOV + aportePatronalINCES;
 
   return {
@@ -104,291 +273,92 @@ export function calculatePayrollDeductionsAndContributions(
   };
 }
 
-/**
- * Cálculo Completo de Prestaciones Sociales según la LOTTT (Art. 142 y 143)
- */
-export function calculateSocialBenefits(employee: Employee, company: CompanySettings): SocialBenefitsReport {
-  const tenure = calculateTenure(employee.fechaIngreso);
-  const integral = calculateIntegralSalary(
-    employee.salarioMensualBase,
-    tenure.anios,
-    employee.diasUtilidadesAnuales || company.diasUtilidadesEmpresa
-  );
-
-  const trimestresCompletos = Math.floor(tenure.totalDias / 90);
-  const diasGarantiaTrimestral = trimestresCompletos * 15;
-
-  let diasAdicionalesAntiguedad = 0;
-  if (tenure.anios >= 2) {
-    diasAdicionalesAntiguedad = Math.min(30, (tenure.anios - 1) * 2);
-  }
-
-  const totalDiasGarantia = diasGarantiaTrimestral + diasAdicionalesAntiguedad;
-  const montoGarantiaTotal = totalDiasGarantia * integral.salarioDiarioIntegral;
-
-  const tasaAnual = company.tasaInteresPrestacionesBCV || 52.8;
-  const tasaMensual = (tasaAnual / 100) / 12;
-
-  const historialIntereses: MonthlyInterestRecord[] = [];
-  let acumuladoIntereses = 0;
-
-  const mesesHistorial = Math.min(12, Math.max(1, tenure.anios * 12 + tenure.meses));
-  const dateCursor = new Date();
-
-  for (let i = mesesHistorial; i >= 1; i--) {
-    const curMonthDate = new Date(dateCursor.getFullYear(), dateCursor.getMonth() - i, 1);
-    const nombreMes = curMonthDate.toLocaleDateString('es-VE', { month: 'long' });
-    const anio = curMonthDate.getFullYear();
-
-    const capitalMes = Math.max(100, (montoGarantiaTotal / mesesHistorial) * (mesesHistorial - i + 1));
-    const interesGenerado = capitalMes * tasaMensual;
-    acumuladoIntereses += interesGenerado;
-
-    historialIntereses.push({
-      mes: nombreMes.charAt(0).toUpperCase() + nombreMes.slice(1),
-      anio,
-      salarioIntegralMensual: integral.salarioIntegralMensual,
-      capitalAcumulado: capitalMes,
-      tasaActivaBCV: tasaAnual,
-      interesGenerado,
-      pagadoO_Abonado: 'Abonado a Fideicomiso',
-    });
-  }
-
-  const totalAnticiposConcedidos = (employee.anticiposPrestaciones || []).reduce(
-    (sum, a) => sum + a.monto,
-    0
-  );
-  const limiteMaximoAnticipo75 = (montoGarantiaTotal + acumuladoIntereses) * 0.75;
-  const disponibleParaAnticipo = Math.max(0, limiteMaximoAnticipo75 - totalAnticiposConcedidos);
-
-  let aniosParaFiniquito = tenure.anios;
-  if (tenure.meses >= 6) {
-    aniosParaFiniquito += 1;
-  }
-  const montoRetroactivoArt142c = Math.max(1, aniosParaFiniquito) * 30 * integral.salarioDiarioIntegral;
-
-  const montoMayorAPagar = Math.max(montoGarantiaTotal + acumuladoIntereses, montoRetroactivoArt142c);
-  const saldoNetoActual = montoGarantiaTotal + acumuladoIntereses - totalAnticiposConcedidos;
-
-  return {
-    antiguedadAnios: tenure.anios,
-    antiguedadMeses: tenure.meses,
-    antiguedadDias: tenure.dias,
-    salarioDiarioNormal: integral.salarioDiarioNormal,
-    alicuotaBonoVacacional: integral.alicuotaBonoVacacionalDiaria,
-    alicuotaUtilidades: integral.alicuotaUtilidadesDiaria,
-    salarioDiarioIntegral: integral.salarioDiarioIntegral,
-    salarioIntegralMensual: integral.salarioIntegralMensual,
-    diasGarantiaAcumulados: diasGarantiaTrimestral,
-    diasAdicionalesAntiguedad,
-    totalDiasGarantia,
-    montoGarantiaTotal,
-    interesesAcumulados: acumuladoIntereses,
-    historialIntereses,
-    totalAnticiposConcedidos,
-    limiteMaximoAnticipo75,
-    disponibleParaAnticipo,
-    montoRetroactivoArt142c,
-    montoMayorAPagar,
-    saldoNetoActual,
-  };
-}
-
-/**
- * Generador Oficial de Archivo para el Sistema TIUNA del IVSS (Forma 14-02 Registro de Ingresos)
- * Formato de texto posicional / delimitado estándar para carga en portal IVSS Tiuna
- */
 export function generateTiunaIvssFile(
   company: CompanySettings,
   employees: Employee[],
   tipo: 'INGRESOS_1402' | 'MOVIMIENTOS_SALARIO'
 ): GovernmentExportFile {
-  const lines: string[] = [];
-  const numeroPatronal = (company.numeroPatronalIVSS || 'D00000000').padEnd(9, ' ').substring(0, 9);
+  const rows = employees
+    .filter((employee) => employee.status === 'activo')
+    .map((employee) => {
+      const baseBs = Number(employee.salarioMensualBase) || 0;
+      return `${employee.cedula},${employee.primerNombre},${employee.primerApellido},${baseBs.toFixed(2)}`;
+    })
+    .join('\n');
 
-  employees.forEach((emp) => {
-    const nacionalidad = emp.nacionalidad || 'V';
-    const numCedula = emp.cedula.replace(/[^0-9]/g, '').padStart(9, '0');
-    const pNombre = emp.primerNombre.toUpperCase().padEnd(15, ' ').substring(0, 15);
-    const sNombre = (emp.segundoNombre || '').toUpperCase().padEnd(15, ' ').substring(0, 15);
-    const pApellido = emp.primerApellido.toUpperCase().padEnd(15, ' ').substring(0, 15);
-    const sApellido = (emp.segundoApellido || '').toUpperCase().padEnd(15, ' ').substring(0, 15);
-
-    const fIngresoDate = new Date(emp.fechaIngreso);
-    const dd = String(fIngresoDate.getDate()).padStart(2, '0');
-    const mm = String(fIngresoDate.getMonth() + 1).padStart(2, '0');
-    const yyyy = fIngresoDate.getFullYear();
-    const fechaFormatted = `${dd}${mm}${yyyy}`;
-
-    const salarioEntero = Math.round(emp.salarioMensualBase * 100);
-    const salarioPadded = String(salarioEntero).padStart(12, '0');
-
-    if (tipo === 'INGRESOS_1402') {
-      const line = `${numeroPatronal}${nacionalidad}${numCedula}${pApellido}${sApellido}${pNombre}${sNombre}${fechaFormatted}${salarioPadded}EMPLEADO GENERAL    `;
-      lines.push(line);
-    } else {
-      const line = `${numeroPatronal},${nacionalidad},${numCedula},${fechaFormatted},${emp.salarioMensualBase.toFixed(2)},01`;
-      lines.push(line);
-    }
-  });
-
-  const content = lines.join('\r\n');
-  const filename = tipo === 'INGRESOS_1402' ? `TIUNA_FORMA_1402_${company.rif}.txt` : `TIUNA_SALARIOS_${company.rif}.txt`;
-
+  const contenido = `# Tipo=${tipo}\n# RIF=${company.rif}\n# Tasa BCV=${company.tasaBCV_USD.toFixed(2)}\n${rows}`;
   return {
     tipo: tipo === 'INGRESOS_1402' ? 'IVSS_TIUNA_1402' : 'IVSS_TIUNA_SALARIO',
-    nombreArchivo: filename,
-    descripcion:
-      tipo === 'INGRESOS_1402'
-        ? 'Archivo de Carga Masiva para Registro de Ingresos de Personal en portal TIUNA IVSS (Forma 14-02).'
-        : 'Archivo de Notificación de Modificación Salarial de Trabajadores en portal TIUNA IVSS.',
-    enteRegulador: 'Instituto Venezolano de los Seguros Sociales (IVSS)',
-    contenido: content,
+    nombreArchivo: `${tipo.toLowerCase()}_${company.rif}.txt`,
+    descripcion: 'Archivo de cumplimiento IVSS para carga masiva en TIUNA',
+    enteRegulador: 'IVSS',
+    contenido,
     formato: 'TXT',
     totalRegistros: employees.length,
+    montoTotalBs: employees.reduce((sum, employee) => sum + (Number(employee.salarioMensualBase) || 0), 0),
   };
 }
 
-/**
- * Generador Oficial de Archivo para BANAVIH / FAOV
- * Formato oficial estructurado para declaración de nómina de ahorro habitacional
- */
 export function generateBanavihFaovFile(
   company: CompanySettings,
   employees: Employee[],
-  periodoMes: string = '08',
-  periodoAnio: number = 2026
+  mes: string,
+  anio: number
 ): GovernmentExportFile {
-  const header = `RIF_PATRONO;PERIODO;CANTIDAD_TRABAJADORES\n${company.rif};${periodoAnio}${periodoMes};${employees.length}\n`;
-  const subHeader = `NAC;CEDULA;PRIMER_APELLIDO;SEGUNDO_APELLIDO;PRIMER_NOMBRE;SEGUNDO_NOMBRE;SALARIO_INTEGRAL;RETENCION_TRABAJADOR_1%;APORTE_PATRONAL_2%;TOTAL_APORTE_3%\n`;
-
-  let montoTotalBs = 0;
-  const lines: string[] = [];
-
-  employees.forEach((emp) => {
-    const integral = calculateIntegralSalary(emp.salarioMensualBase, 1, emp.diasUtilidadesAnuales || company.diasUtilidadesEmpresa);
-    const salarioBase = integral.salarioIntegralMensual;
-    const ret1 = salarioBase * 0.01;
-    const apo2 = salarioBase * 0.02;
-    const total3 = ret1 + apo2;
-    montoTotalBs += total3;
-
-    const line = `${emp.nacionalidad};${emp.cedula.replace(/[^0-9]/g, '')};${emp.primerApellido};${emp.segundoApellido || ''};${emp.primerNombre};${emp.segundoNombre || ''};${salarioBase.toFixed(2)};${ret1.toFixed(2)};${apo2.toFixed(2)};${total3.toFixed(2)}`;
-    lines.push(line);
-  });
-
-  const fullContent = header + subHeader + lines.join('\n');
-  const filename = `FAOV_BANAVIH_${company.rif}_${periodoAnio}${periodoMes}.csv`;
+  const rows = employees
+    .filter((employee) => employee.status === 'activo')
+    .map((employee) => {
+      const baseBs = Number(employee.salarioMensualBase) || 0;
+      return `${employee.cedula},${baseBs.toFixed(2)}`;
+    })
+    .join('\n');
 
   return {
     tipo: 'BANAVIH_FAOV',
-    nombreArchivo: filename,
-    descripcion:
-      'Archivo de Carga Masiva de Nómina de Aportes para el Fondo de Ahorro Obligatorio para la Vivienda (BANAVIH / FAOV) con retención 1% y aporte 2%.',
-    enteRegulador: 'Banco Nacional de Vivienda y Hábitat (BANAVIH / FAOV)',
-    contenido: fullContent,
+    nombreArchivo: `BANAVIH_FAOV_${mes}_${anio}.csv`,
+    descripcion: 'Reporte de aportes FAOV a BANAVIH',
+    enteRegulador: 'BANAVIH',
+    contenido: `cedula,monto_bs\n${rows}`,
     formato: 'CSV',
     totalRegistros: employees.length,
-    montoTotalBs,
+    montoTotalBs: employees.reduce((sum, employee) => sum + (Number(employee.salarioMensualBase) || 0), 0),
   };
 }
 
-/**
- * Generador de Reporte y Resumen Trimestral para el INCES
- */
 export function generateIncesReport(
   company: CompanySettings,
   employees: Employee[],
-  trimestre: number = 3,
-  anio: number = 2026
+  trimestre: number,
+  anio: number
 ): GovernmentExportFile {
-  const totalSalariosMensual = employees.reduce((sum, e) => sum + e.salarioMensualBase, 0);
-  const totalSalariosTrimestral = totalSalariosMensual * 3;
-  const aportePatronal2 = totalSalariosTrimestral * 0.02;
-
-  const content = `========================================================================
-REPÚBLICA BOLIVARIANA DE VENEZUELA
-INSTITUTO NACIONAL DE CAPACITACIÓN Y EDUCACIÓN SOCIALISTA (INCES)
-DECLARACIÓN TRIMESTRAL DE CONTRIBUCIÓN PARAFISCAL PATRONAL (2%)
-========================================================================
-DATOS DE LA ENTIDAD DE TRABAJO:
-Razón Social: ${company.razonSocial}
-R.I.F.: ${company.rif}
-Número de Aportante INCES: ${company.codigoInces}
-Dirección Fiscal: ${company.direccionFiscal}, ${company.ciudad}, ${company.estado}
-Período Fiscal: Trimestre ${trimestre} - Año ${anio}
-Cantidad de Trabajadores Registrados: ${employees.length}
-
-DETALLE ECONÓMICO BASE DE CÁLCULO:
-Monto Total Nómina Mensual Base: Bs. ${totalSalariosMensual.toLocaleString('es-VE', { minimumFractionDigits: 2 })}
-Monto Total Salarios Pagados en el Trimestre: Bs. ${totalSalariosTrimestral.toLocaleString('es-VE', { minimumFractionDigits: 2 })}
-
-OBLIGACIÓN PARAFISCAL (Art. 14 Ley del INCES):
-Aporte Patronal Aplicable (2%): Bs. ${aportePatronal2.toLocaleString('es-VE', { minimumFractionDigits: 2 })}
-
-LISTADO DE TRABAJADORES COTIZANTES:
-${employees
-  .map(
-    (e, idx) =>
-      `${idx + 1}. ${e.cedula} - ${e.primerApellido} ${e.primerNombre} | Cargo: ${e.cargo} | Salario Mensual: Bs. ${e.salarioMensualBase.toFixed(2)}`
-  )
-  .join('\n')}
-
-========================================================================
-Certificado digital generado por el Sistema TalentoVE.
-Fecha de generación: ${new Date().toLocaleDateString('es-VE')}
-Firma y Sello de la Entidad de Trabajo: ___________________________
-`;
+  const rows = employees
+    .filter((employee) => employee.status === 'activo')
+    .map((employee) => {
+      const baseBs = Number(employee.salarioMensualBase) || 0;
+      return `${employee.cedula},${baseBs.toFixed(2)}`;
+    })
+    .join('\n');
 
   return {
     tipo: 'INCES_TRIMESTRAL',
-    nombreArchivo: `INCES_DECLARACION_T${trimestre}_${anio}_${company.rif}.txt`,
-    descripcion: 'Declaración jurada y cálculo trimestral del aporte parafiscal del 2% patronal para el INCES.',
-    enteRegulador: 'Instituto Nacional de Capacitación y Educación Socialista (INCES)',
-    contenido: content,
-    formato: 'TXT',
+    nombreArchivo: `INCES_TRIMESTRE_${trimestre}_${anio}.csv`,
+    descripcion: 'Reporte trimestral de ingreso para INCES',
+    enteRegulador: 'INCES',
+    contenido: `cedula,salario_bs\n${rows}`,
+    formato: 'CSV',
     totalRegistros: employees.length,
-    montoTotalBs: aportePatronal2,
+    montoTotalBs: employees.reduce((sum, employee) => sum + (Number(employee.salarioMensualBase) || 0), 0),
   };
 }
 
-/**
- * Función para descargar archivos generados directamente en el navegador
- */
-export function downloadFile(content: string, filename: string, mimeType: string = 'text/plain;charset=utf-8') {
-  const blob = new Blob([content], { type: mimeType });
+export function downloadFile(contenido: string, nombreArchivo: string, mimeType: string): void {
+  const blob = new Blob([contenido], { type: mimeType });
   const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = nombreArchivo;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
   URL.revokeObjectURL(url);
-}
-
-/**
- * Formateo de moneda en Bolívares (Bs.) y USD con tasa BCV
- */
-export function formatBs(amount: number): string {
-  return `Bs. ${amount.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-}
-
-export function formatUSD(amount: number): string {
-  return `$${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-}
-
-export function toBolivaresFromSalaryMode(
-  amount: number,
-  mode: 'bolivares' | 'dolares' | 'mixto',
-  tasaBCV: number,
-  montoBsAdicional: number = 0
-): number {
-  if (!Number.isFinite(amount) || amount < 0) return 0;
-
-  if (mode === 'bolivares') return amount;
-  if (mode === 'dolares') return amount * tasaBCV;
-
-  return amount * tasaBCV + montoBsAdicional;
 }
