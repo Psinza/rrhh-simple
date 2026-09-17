@@ -71,6 +71,11 @@ export function EmployeeDetailModal({
 
   // Editable personal data state (for RRHH/Admin)
   const [editMode, setEditMode] = useState(false);
+  const [editCedula, setEditCedula] = useState(employee.cedula || '');
+  const [editPrimerNombre, setEditPrimerNombre] = useState(employee.primerNombre || '');
+  const [editSegundoNombre, setEditSegundoNombre] = useState(employee.segundoNombre || '');
+  const [editPrimerApellido, setEditPrimerApellido] = useState(employee.primerApellido || '');
+  const [editSegundoApellido, setEditSegundoApellido] = useState(employee.segundoApellido || '');
   const [editEmail, setEditEmail] = useState(employee.email || '');
   const [editTelefono, setEditTelefono] = useState(employee.telefono || '');
   const [editDireccion, setEditDireccion] = useState(employee.direccion || '');
@@ -316,8 +321,20 @@ export function EmployeeDetailModal({
                     <button
                       onClick={() => {
                         // Save edits
+                        const cedula = editCedula.trim();
+                        const primerNombre = editPrimerNombre.trim();
+                        const primerApellido = editPrimerApellido.trim();
+                        if (!cedula || !primerNombre || !primerApellido) {
+                          alert('La cédula, el primer nombre y el primer apellido son obligatorios.');
+                          return;
+                        }
                         const updated: Employee = {
                           ...employee,
+                          cedula,
+                          primerNombre,
+                          segundoNombre: editSegundoNombre.trim(),
+                          primerApellido,
+                          segundoApellido: editSegundoApellido.trim(),
                           email: editEmail,
                           telefono: editTelefono,
                           direccion: editDireccion,
@@ -343,6 +360,11 @@ export function EmployeeDetailModal({
                         };
                         onUpdateEmployee(updated);
                         setEditMode(false);
+                        setEditCedula(cedula);
+                        setEditPrimerNombre(primerNombre);
+                        setEditSegundoNombre(editSegundoNombre.trim());
+                        setEditPrimerApellido(primerApellido);
+                        setEditSegundoApellido(editSegundoApellido.trim());
                       }}
                       className="px-3 py-2 text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white rounded transition-colors border border-emerald-200"
                     >
@@ -352,6 +374,11 @@ export function EmployeeDetailModal({
                       onClick={() => {
                         // Revert edits
                         setEditMode(false);
+                        setEditCedula(employee.cedula || '');
+                        setEditPrimerNombre(employee.primerNombre || '');
+                        setEditSegundoNombre(employee.segundoNombre || '');
+                        setEditPrimerApellido(employee.primerApellido || '');
+                        setEditSegundoApellido(employee.segundoApellido || '');
                         setEditEmail(employee.email || '');
                         setEditTelefono(employee.telefono || '');
                         setEditDireccion(employee.direccion || '');
@@ -908,6 +935,28 @@ export function EmployeeDetailModal({
                   <p><strong className="text-slate-800">R.I.F.:</strong> {employee.rif}</p>
                   {editMode ? (
                     <>
+                      <div>
+                        <label className="block text-[11px] font-medium text-slate-700">Cédula</label>
+                        <input value={editCedula} onChange={(e) => setEditCedula(e.target.value)} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-sm" />
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <div>
+                          <label className="block text-[11px] font-medium text-slate-700">Primer nombre</label>
+                          <input value={editPrimerNombre} onChange={(e) => setEditPrimerNombre(e.target.value)} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-sm" />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-medium text-slate-700">Segundo nombre</label>
+                          <input value={editSegundoNombre} onChange={(e) => setEditSegundoNombre(e.target.value)} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-sm" />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-medium text-slate-700">Primer apellido</label>
+                          <input value={editPrimerApellido} onChange={(e) => setEditPrimerApellido(e.target.value)} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-sm" />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-medium text-slate-700">Segundo apellido</label>
+                          <input value={editSegundoApellido} onChange={(e) => setEditSegundoApellido(e.target.value)} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-sm" />
+                        </div>
+                      </div>
                       <div>
                         <label className="block text-[11px] font-medium text-slate-700">Correo Electrónico</label>
                         <input value={editEmail} onChange={(e) => setEditEmail(e.target.value)} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-sm" />
