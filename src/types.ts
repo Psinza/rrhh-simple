@@ -86,6 +86,7 @@ export interface Employee {
   // Salarios y Beneficios LOTTT
   salarioMensualBase: number; // Se almacena en Bs. para cálculos internos
   salarioMoneda?: MoneyCurrency; // Si se registró en USD/BS por el usuario
+  salarioMensualUSD?: number; // Monto original en USD para actualizarlo con la tasa diaria
   frecuenciaPago: PayrollFrequency;
   cestaticketMensual: number; // Se almacena en Bs. para cálculos internos
   cestaticketMoneda?: MoneyCurrency; // Si se registró en USD/BS por el usuario

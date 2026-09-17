@@ -173,6 +173,7 @@ export function EmployeesModule({
       numeroAfiliacionIVSS: `IVSS-${cleanCedula}`,
       salarioMensualBase: salarioBaseBs,
       salarioMoneda: formSalarioMoneda,
+      salarioMensualUSD: formSalarioMoneda === 'USD' ? salarioNum : undefined,
       modalidadVendedor: departamento === 'Ventas & Mercadeo' ? formModalidadVendedor : undefined,
       descripcionPagoVendedor: departamento === 'Ventas & Mercadeo' ? formDescripcionPagoVendedor.trim() : undefined,
       porcentajeComision: departamento === 'Ventas & Mercadeo' ? Number(formPorcentajeComision) || 0 : undefined,

@@ -99,7 +99,7 @@ export const initialAuditLogs: AuditLog[] = [
     rol: 'Administrador RRHH',
     accion: 'Cálculo y Validación de Nómina 2da Quincena Agosto',
     modulo: 'Nómina',
-    detalles: 'Generación automática de deducciones IVSS, Paro Forzoso y FAOV.',
+    detalles: 'Control de deducciones de nómina: préstamos, compras de productos y otros conceptos autorizados.',
     ip: '190.202.88.14',
     cifrado: true,
   },

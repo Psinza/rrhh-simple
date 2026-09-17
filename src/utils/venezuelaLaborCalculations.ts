@@ -1,7 +1,7 @@
 import type { CompanySettings, Employee, GovernmentExportFile, PayrollItem, SocialBenefitsReport } from '../types';
 
 /**
- * Cálculo de Parafiscales y Retenciones de Nómina en Venezuela (LOTTT, IVSS, RPE, FAOV, INCES)
+ * Cálculo de aportes patronales y retenciones habilitadas de nómina en Venezuela.
  * Garantiza exactamente $70 USD semanales (o su equivalente en Bs. a tasa BCV) para sueldos de $280 USD.
  */
 export function convertAmountToBaseCurrency(
@@ -61,6 +61,10 @@ export function normalizeSalaryToBs(employee: Partial<Employee>, exchangeRate: n
   }
 
   if (employee.salarioMoneda === 'USD') {
+    const originalUsdSalary = Number(employee.salarioMensualUSD);
+    if (Number.isFinite(originalUsdSalary) && originalUsdSalary > 0) {
+      return originalUsdSalary * exchangeRate;
+    }
     const probableLegacyRawUsd = storedSalary < 1000 && storedSalary > 0;
     return probableLegacyRawUsd ? storedSalary * exchangeRate : storedSalary;
   }
@@ -223,9 +227,11 @@ export function calculatePayrollDeductionsAndContributions(
   const salarioSujetoIvss = Math.min(salarioMensualEnBs, topeIvssMensual);
   const salarioSemanalIvss = (salarioSujetoIvss * 12) / 52;
 
-  const retencionIVSS = aplicarRetencionesGubernamentales ? salarioSemanalIvss * 0.04 * lunes : 0;
-  const retencionParoForzoso = aplicarRetencionesGubernamentales ? salarioSemanalIvss * 0.005 * lunes : 0;
-  const retencionFAOV = aplicarRetencionesGubernamentales ? totalAsignacionesSalariales * 0.01 : 0;
+  // Las retenciones laborales IVSS, RPE y FAOV no se descuentan al trabajador.
+  // Se conservan los campos para mantener compatibilidad con recibos históricos.
+  const retencionIVSS = 0;
+  const retencionParoForzoso = 0;
+  const retencionFAOV = 0;
   const retencionISLR = aplicarRetencionesGubernamentales ? totalAsignacionesSalariales * ((employee.porcentajeRetencionISLR || 0) / 100) : 0;
 
   const otrasDeducciones = 0;

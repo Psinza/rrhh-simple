@@ -214,27 +214,6 @@ export function DigitalPaySlipModal({
                   </tr>
                 )}
 
-                <tr>
-                  <td className="py-1.5 px-3 font-mono text-slate-500 text-[11px]">101</td>
-                  <td className="py-1.5 px-3 text-slate-700">Retención Seguro Social Obligatorio (IVSS 4% s/tope)</td>
-                  <td className="py-1.5 px-3 text-right text-slate-400">-</td>
-                  <td className="py-1.5 px-3 text-right text-amber-800 font-medium">{formatBs(item.retencionIVSS)}</td>
-                </tr>
-
-                <tr>
-                  <td className="py-1.5 px-3 font-mono text-slate-500 text-[11px]">102</td>
-                  <td className="py-1.5 px-3 text-slate-700">Retención Régimen Prestacional de Empleo (RPE / Paro 0.5%)</td>
-                  <td className="py-1.5 px-3 text-right text-slate-400">-</td>
-                  <td className="py-1.5 px-3 text-right text-amber-800 font-medium">{formatBs(item.retencionParoForzoso)}</td>
-                </tr>
-
-                <tr>
-                  <td className="py-1.5 px-3 font-mono text-slate-500 text-[11px]">103</td>
-                  <td className="py-1.5 px-3 text-slate-700">Retención Ahorro Habitacional BANAVIH (FAOV 1%)</td>
-                  <td className="py-1.5 px-3 text-right text-slate-400">-</td>
-                  <td className="py-1.5 px-3 text-right text-amber-800 font-medium">{formatBs(item.retencionFAOV)}</td>
-                </tr>
-
                 {item.retencionISLR > 0 && (
                   <tr>
                     <td className="py-1.5 px-3 font-mono text-slate-500 text-[11px]">104</td>
@@ -294,18 +273,6 @@ export function DigitalPaySlipModal({
                 <span className="ml-1 text-[10px] align-middle font-bold text-emerald-700">({slipReferenceCurrencyLabel})</span>
                 <span className="ml-1">(Tasa: Bs. {company.tasaBCV_USD.toFixed(2)})</span>
               </span>
-            </div>
-          </div>
-
-          <div className="bg-slate-50/80 p-3 rounded-xl border border-slate-200 text-[10px] space-y-1">
-            <span className="font-bold uppercase tracking-wider text-slate-600 block">
-              Aportes Patronales de Seguridad Social (Informativo - No deducible del trabajador)
-            </span>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-slate-600">
-              <div>IVSS Patrono ({company.nivelRiesgoIVSS}%): <strong>{formatBs(item.aportePatronalIVSS)}</strong></div>
-              <div>RPE Patrono (2%): <strong>{formatBs(item.aportePatronalRPE)}</strong></div>
-              <div>FAOV Patrono (2%): <strong>{formatBs(item.aportePatronalFAOV)}</strong></div>
-              <div>INCES Patrono (2%): <strong>{formatBs(item.aportePatronalINCES)}</strong></div>
             </div>
           </div>
 

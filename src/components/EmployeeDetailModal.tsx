@@ -328,6 +328,7 @@ export function EmployeeDetailModal({
                           tipoCuenta: editTipoCuenta,
                           cargasFamiliares: parseInt(editCargasFamiliares) || 0,
                           salarioMensualBase: (Number(editSalario) || 0) * (editSalarioMoneda === 'USD' ? company.tasaBCV_USD : 1),
+                          salarioMensualUSD: editSalarioMoneda === 'USD' ? Number(editSalario) || 0 : undefined,
                           salarioMoneda: editSalarioMoneda,
                           cestaticketAplica: editCestaticketAplica,
                           cestaticketMensual: editCestaticketAplica ? (Number(editCestaticket) || 0) * (editCestaticketMoneda === 'USD' ? company.tasaBCV_USD : 1) : 0,

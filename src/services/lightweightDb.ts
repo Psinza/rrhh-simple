@@ -69,6 +69,17 @@ class LightweightDatabase {
     return state.currencyRates[state.currencyRates.length - 1];
   }
 
+  public getCurrencyRateForDate(date = new Date()): { date: string; rate: number; source?: string } | null {
+    const state = this.loadLocal();
+    const dateKey = date.toISOString().slice(0, 10);
+    const rates = state?.currencyRates || [];
+    return [...rates].reverse().find((record) => (
+      record.date.slice(0, 10) === dateKey
+      && Number.isFinite(record.rate)
+      && record.rate > 0
+    )) || null;
+  }
+
   public subscribeStatus(listener: (status: DbSyncStatus, message?: string) => void) {
     this.statusListeners.push(listener);
     listener(this.syncStatus);

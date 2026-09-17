@@ -4,12 +4,11 @@ const bcrypt = require('bcrypt');
 // The DATABASE_URL (or POSTGRES_URL) will be used if provided, otherwise it will fail or try defaults.
 // In Supabase, you can find the connection string and set it in your environment variables.
 const connectionString = process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.POSTGRES_PRISMA_URL;
+const useSsl = /^(1|true|require)$/i.test(process.env.DATABASE_SSL || process.env.PGSSLMODE || '');
 
 const pool = new Pool({
   connectionString,
-  ssl: {
-    rejectUnauthorized: false // Required for Supabase / Render connections usually
-  }
+  ssl: useSsl ? { rejectUnauthorized: false } : false
 });
 
 // Helper to convert SQLite `?` params into Postgres `$1, $2, ...`

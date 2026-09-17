@@ -9,6 +9,7 @@ import {
   Landmark,
 } from 'lucide-react';
 import { CompanySettings, Employee, PayrollItem, PayrollPeriod } from '../types';
+import { lightweightDb } from '../services/lightweightDb';
 import {
   calculatePayrollDeductionsAndContributions,
   formatBs,
@@ -47,6 +48,16 @@ export function PayrollModule({
   const [showApprovedNotice, setShowApprovedNotice] = useState(false);
 
   const handleRecalculate = () => {
+    const dailyRate = lightweightDb.getCurrencyRateForDate();
+    const exchangeRate = dailyRate?.rate || company.tasaBCV_USD;
+    if (!dailyRate) {
+      window.alert('No existe una tasa BCV registrada para hoy. Se utilizará la tasa vigente configurada; registre la tasa oficial del día antes del próximo recálculo.');
+    }
+    if (!Number.isFinite(exchangeRate) || exchangeRate <= 0) {
+      window.alert('La tasa BCV vigente no es válida. Registre una tasa positiva antes de recalcular la nómina.');
+      return;
+    }
+    const payrollCompany = { ...company, tasaBCV_USD: exchangeRate };
     const activeEmployees = (employees && employees.length > 0 ? employees : payroll.items.map((item) => item.employee))
       .filter((emp) => emp.status === 'activo');
 
@@ -55,7 +66,7 @@ export function PayrollModule({
       const employee = 'employee' in source ? source.employee : source;
       const calc = calculatePayrollDeductionsAndContributions(
         employee,
-        company,
+        payrollCompany,
         activeFrequency,
         'horasExtrasDiurnas' in source ? source.horasExtrasDiurnas : 0,
         'horasExtrasNocturnas' in source ? source.horasExtrasNocturnas : 0,
@@ -157,7 +168,7 @@ export function PayrollModule({
               onChange={(e) => setAplicarRetencionesGubernamentales(e.target.checked)}
               className="rounded border-slate-300 text-blue-600"
             />
-            Aplicar retenciones gubernamentales
+            Aplicar retención ISLR
           </label>
 
           {(currentUser?.rol === 'rrhh' || currentUser?.rol === 'admin_sistema') && (

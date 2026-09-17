@@ -134,7 +134,10 @@ export default function App() {
   useEffect(() => {
     lightweightDb.initDatabase().then((dbState) => {
       if (dbState) {
-        if (dbState.company) setCompany(dbState.company);
+        if (dbState.company) {
+          const dailyRate = lightweightDb.getCurrencyRateForDate();
+          setCompany(dailyRate ? { ...dbState.company, tasaBCV_USD: dailyRate.rate } : dbState.company);
+        }
         if (dbState.employees && dbState.employees.length > 0) setEmployees(dbState.employees);
         if (dbState.users && dbState.users.length > 0) {
           const dbUserIds = new Set(dbState.users.map((user) => user.id));
