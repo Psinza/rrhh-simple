@@ -22,6 +22,7 @@ import {
   calculateIntegralSalary,
   formatMoneyWithEmployeeCurrency,
   canDeclareIntegralSalary,
+  getSalaryInEmployeeCurrency,
 } from '../utils/venezuelaLaborCalculations';
 
 interface EmployeesModuleProps {
@@ -173,7 +174,7 @@ export function EmployeesModule({
       numeroAfiliacionIVSS: `IVSS-${cleanCedula}`,
       salarioMensualBase: salarioBaseBs,
       salarioMoneda: formSalarioMoneda,
-      salarioMensualUSD: formSalarioMoneda === 'USD' ? salarioNum : undefined,
+      salarioMensualBaseOriginal: salarioNum,
       modalidadVendedor: departamento === 'Ventas & Mercadeo' ? formModalidadVendedor : undefined,
       descripcionPagoVendedor: departamento === 'Ventas & Mercadeo' ? formDescripcionPagoVendedor.trim() : undefined,
       porcentajeComision: departamento === 'Ventas & Mercadeo' ? Number(formPorcentajeComision) || 0 : undefined,
@@ -359,7 +360,9 @@ export function EmployeesModule({
                       <DollarSign className="w-3.5 h-3.5 text-slate-400" /> Salario Mensual Base:
                     </span>
                     <span className="font-bold text-slate-900">
-                      {formatMoneyWithEmployeeCurrency(emp.salarioMensualBase, emp.salarioMoneda, company.tasaBCV_USD)}
+                      {emp.salarioMoneda === 'USD'
+                        ? formatUSD(getSalaryInEmployeeCurrency(emp, company.tasaBCV_USD))
+                        : formatMoneyWithEmployeeCurrency(emp.salarioMensualBase, emp.salarioMoneda, company.tasaBCV_USD)}
                       <span className="ml-1 text-[10px] align-middle font-bold text-slate-500">({emp.salarioMoneda === 'USD' ? 'USD' : 'Bs.'})</span>
                     </span>
                   </div>

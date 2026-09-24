@@ -7,14 +7,15 @@ import {
   Users,
   Wallet,
   Landmark,
+  Download,
 } from 'lucide-react';
 import { CompanySettings, Employee, PayrollItem, PayrollPeriod } from '../types';
-import { lightweightDb } from '../services/lightweightDb';
 import {
   calculatePayrollDeductionsAndContributions,
   formatBs,
   formatUSD,
 } from '../utils/venezuelaLaborCalculations';
+import { buildBankPayrollFile, defaultSourceIdentifier, downloadBankPayrollFile } from '../utils/bankPayrollFile';
 
 interface PayrollModuleProps {
   company: CompanySettings;
@@ -46,18 +47,26 @@ export function PayrollModule({
   const [filterDept, setFilterDept] = useState<string>('todos');
   const [aplicarRetencionesGubernamentales, setAplicarRetencionesGubernamentales] = useState(true);
   const [showApprovedNotice, setShowApprovedNotice] = useState(false);
+  const defaultIdentifier = defaultSourceIdentifier(company);
+  const [showBankExport, setShowBankExport] = useState(false);
+  const [sourceAccount, setSourceAccount] = useState('');
+  const [sourceNationality, setSourceNationality] = useState(defaultIdentifier.nationality);
+  const [sourceIdentifier, setSourceIdentifier] = useState(defaultIdentifier.identifier);
+  const [bankExportError, setBankExportError] = useState('');
+
+  const handleBankExport = () => {
+    try {
+      const result = buildBankPayrollFile(payroll, { sourceAccount, sourceNationality, sourceIdentifier });
+      downloadBankPayrollFile(result.content, payroll.nombre);
+      setBankExportError('');
+      setShowBankExport(false);
+      alert(`Archivo bancario generado: ${result.transferredItems.length} transferencias. Se omitieron ${result.skippedItems.length} empleados con neto cero.`);
+    } catch (error) {
+      setBankExportError(error instanceof Error ? error.message : 'No se pudo generar el archivo bancario.');
+    }
+  };
 
   const handleRecalculate = () => {
-    const dailyRate = lightweightDb.getCurrencyRateForDate();
-    const exchangeRate = dailyRate?.rate || company.tasaBCV_USD;
-    if (!dailyRate) {
-      window.alert('No existe una tasa BCV registrada para hoy. Se utilizará la tasa vigente configurada; registre la tasa oficial del día antes del próximo recálculo.');
-    }
-    if (!Number.isFinite(exchangeRate) || exchangeRate <= 0) {
-      window.alert('La tasa BCV vigente no es válida. Registre una tasa positiva antes de recalcular la nómina.');
-      return;
-    }
-    const payrollCompany = { ...company, tasaBCV_USD: exchangeRate };
     const activeEmployees = (employees && employees.length > 0 ? employees : payroll.items.map((item) => item.employee))
       .filter((emp) => emp.status === 'activo');
 
@@ -66,7 +75,7 @@ export function PayrollModule({
       const employee = 'employee' in source ? source.employee : source;
       const calc = calculatePayrollDeductionsAndContributions(
         employee,
-        payrollCompany,
+        company,
         activeFrequency,
         'horasExtrasDiurnas' in source ? source.horasExtrasDiurnas : 0,
         'horasExtrasNocturnas' in source ? source.horasExtrasNocturnas : 0,
@@ -150,6 +159,13 @@ export function PayrollModule({
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
+          <button
+            onClick={() => setShowBankExport(true)}
+            className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white rounded transition-colors"
+            title="Generar archivo de carga bancaria"
+          >
+            <Download className="w-3.5 h-3.5" /> Archivo bancario
+          </button>
           <div className="flex flex-col gap-1">
             <label className="text-xs text-slate-600 font-semibold">Tipo de nómina
               <select value={activeFrequency} onChange={(e) => setActiveFrequency(e.target.value as 'semanal' | 'quincenal' | 'mensual')} className="ml-2 px-2 py-2 text-xs bg-slate-50 border border-slate-200 rounded">
@@ -168,7 +184,7 @@ export function PayrollModule({
               onChange={(e) => setAplicarRetencionesGubernamentales(e.target.checked)}
               className="rounded border-slate-300 text-blue-600"
             />
-            Aplicar retención ISLR
+            Aplicar retenciones gubernamentales
           </label>
 
           {(currentUser?.rol === 'rrhh' || currentUser?.rol === 'admin_sistema') && (
@@ -287,6 +303,35 @@ export function PayrollModule({
       {showApprovedNotice && (
         <div className="rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-800 px-4 py-3 text-xs font-medium">
           Nómina aprobada y sellada correctamente.
+        </div>
+      )}
+
+      {showBankExport && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-xl border border-slate-200 p-5 w-full max-w-md space-y-4">
+            <div>
+              <h2 className="font-bold text-slate-900">Archivo de pago bancario</h2>
+              <p className="text-xs text-slate-500 mt-1">Formato fijo ND/NC de 46 caracteres. Se usará el neto a pagar en Bs.</p>
+            </div>
+            <label className="block text-xs font-semibold text-slate-700">Cuenta origen (20 dígitos)
+              <input value={sourceAccount} onChange={(event) => setSourceAccount(event.target.value.replace(/\D/g, '').slice(0, 20))} inputMode="numeric" className="mt-1 w-full p-2 border border-slate-200 rounded font-mono" placeholder="01910000000000000000" />
+            </label>
+            <div className="grid grid-cols-3 gap-2">
+              <label className="text-xs font-semibold text-slate-700">Tipo
+                <select value={sourceNationality} onChange={(event) => setSourceNationality(event.target.value)} className="mt-1 w-full p-2 border border-slate-200 rounded">
+                  <option value="J">J</option><option value="V">V</option><option value="E">E</option>
+                </select>
+              </label>
+              <label className="col-span-2 text-xs font-semibold text-slate-700">Identificador (9 dígitos)
+                <input value={sourceIdentifier} onChange={(event) => setSourceIdentifier(event.target.value.replace(/\D/g, '').slice(0, 9))} inputMode="numeric" className="mt-1 w-full p-2 border border-slate-200 rounded font-mono" />
+              </label>
+            </div>
+            {bankExportError && <p className="text-xs text-rose-700 bg-rose-50 border border-rose-200 rounded p-2">{bankExportError}</p>}
+            <div className="flex justify-end gap-2">
+              <button onClick={() => { setShowBankExport(false); setBankExportError(''); }} className="px-3 py-2 text-xs font-semibold text-slate-700 bg-slate-100 rounded">Cancelar</button>
+              <button onClick={handleBankExport} className="px-3 py-2 text-xs font-bold text-white bg-emerald-600 rounded">Generar TXT</button>
+            </div>
+          </div>
         </div>
       )}
     </div>

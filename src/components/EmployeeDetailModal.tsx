@@ -71,16 +71,13 @@ export function EmployeeDetailModal({
 
   // Editable personal data state (for RRHH/Admin)
   const [editMode, setEditMode] = useState(false);
-  const [editCedula, setEditCedula] = useState(employee.cedula || '');
-  const [editPrimerNombre, setEditPrimerNombre] = useState(employee.primerNombre || '');
-  const [editSegundoNombre, setEditSegundoNombre] = useState(employee.segundoNombre || '');
-  const [editPrimerApellido, setEditPrimerApellido] = useState(employee.primerApellido || '');
-  const [editSegundoApellido, setEditSegundoApellido] = useState(employee.segundoApellido || '');
   const [editEmail, setEditEmail] = useState(employee.email || '');
   const [editTelefono, setEditTelefono] = useState(employee.telefono || '');
   const [editDireccion, setEditDireccion] = useState(employee.direccion || '');
   const [editCiudad, setEditCiudad] = useState(employee.ciudad || '');
   const [editEstado, setEditEstado] = useState(employee.estado || '');
+  const [editCargo, setEditCargo] = useState(employee.cargo || '');
+  const [editDepartamento, setEditDepartamento] = useState(employee.departamento || '');
   const [editBanco, setEditBanco] = useState(employee.banco || '');
   const [editNumeroCuenta, setEditNumeroCuenta] = useState(employee.numeroCuenta || '');
   const [editTipoCuenta, setEditTipoCuenta] = useState(employee.tipoCuenta || '');
@@ -89,7 +86,7 @@ export function EmployeeDetailModal({
   const [editHorasNocturnas, setEditHorasNocturnas] = useState(String(employee.horasExtrasNocturnasPendientes || 0));
   const [editViaticos, setEditViaticos] = useState(String(employee.viaticosMoneda === 'USD' ? (employee.viaticosPendientesOriginal || 0) : (employee.viaticosPendientes || 0)));
   const [editViaticosMoneda, setEditViaticosMoneda] = useState<MoneyCurrency>(employee.viaticosMoneda || 'BS');
-  const [editSalario, setEditSalario] = useState(String(employee.salarioMoneda === 'USD' ? employee.salarioMensualBase / company.tasaBCV_USD : employee.salarioMensualBase));
+  const [editSalario, setEditSalario] = useState(String(employee.salarioMoneda === 'USD' ? (employee.salarioMensualBaseOriginal || employee.salarioMensualBase / company.tasaBCV_USD) : employee.salarioMensualBase));
   const [editSalarioMoneda, setEditSalarioMoneda] = useState<MoneyCurrency>(employee.salarioMoneda || 'BS');
   const [editCestaticketAplica, setEditCestaticketAplica] = useState(employee.cestaticketAplica !== false);
   const [editCestaticket, setEditCestaticket] = useState(String(employee.cestaticketMoneda === 'USD' ? employee.cestaticketMensual / company.tasaBCV_USD : employee.cestaticketMensual));
@@ -321,31 +318,21 @@ export function EmployeeDetailModal({
                     <button
                       onClick={() => {
                         // Save edits
-                        const cedula = editCedula.trim();
-                        const primerNombre = editPrimerNombre.trim();
-                        const primerApellido = editPrimerApellido.trim();
-                        if (!cedula || !primerNombre || !primerApellido) {
-                          alert('La cédula, el primer nombre y el primer apellido son obligatorios.');
-                          return;
-                        }
                         const updated: Employee = {
                           ...employee,
-                          cedula,
-                          primerNombre,
-                          segundoNombre: editSegundoNombre.trim(),
-                          primerApellido,
-                          segundoApellido: editSegundoApellido.trim(),
                           email: editEmail,
                           telefono: editTelefono,
                           direccion: editDireccion,
                           ciudad: editCiudad,
                           estado: editEstado,
+                          cargo: editCargo.trim(),
+                          departamento: editDepartamento.trim(),
                           banco: editBanco,
                           numeroCuenta: editNumeroCuenta,
                           tipoCuenta: editTipoCuenta,
                           cargasFamiliares: parseInt(editCargasFamiliares) || 0,
                           salarioMensualBase: (Number(editSalario) || 0) * (editSalarioMoneda === 'USD' ? company.tasaBCV_USD : 1),
-                          salarioMensualUSD: editSalarioMoneda === 'USD' ? Number(editSalario) || 0 : undefined,
+                          salarioMensualBaseOriginal: Number(editSalario) || 0,
                           salarioMoneda: editSalarioMoneda,
                           cestaticketAplica: editCestaticketAplica,
                           cestaticketMensual: editCestaticketAplica ? (Number(editCestaticket) || 0) * (editCestaticketMoneda === 'USD' ? company.tasaBCV_USD : 1) : 0,
@@ -360,11 +347,6 @@ export function EmployeeDetailModal({
                         };
                         onUpdateEmployee(updated);
                         setEditMode(false);
-                        setEditCedula(cedula);
-                        setEditPrimerNombre(primerNombre);
-                        setEditSegundoNombre(editSegundoNombre.trim());
-                        setEditPrimerApellido(primerApellido);
-                        setEditSegundoApellido(editSegundoApellido.trim());
                       }}
                       className="px-3 py-2 text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white rounded transition-colors border border-emerald-200"
                     >
@@ -374,16 +356,13 @@ export function EmployeeDetailModal({
                       onClick={() => {
                         // Revert edits
                         setEditMode(false);
-                        setEditCedula(employee.cedula || '');
-                        setEditPrimerNombre(employee.primerNombre || '');
-                        setEditSegundoNombre(employee.segundoNombre || '');
-                        setEditPrimerApellido(employee.primerApellido || '');
-                        setEditSegundoApellido(employee.segundoApellido || '');
                         setEditEmail(employee.email || '');
                         setEditTelefono(employee.telefono || '');
                         setEditDireccion(employee.direccion || '');
                         setEditCiudad(employee.ciudad || '');
                         setEditEstado(employee.estado || '');
+                        setEditCargo(employee.cargo || '');
+                        setEditDepartamento(employee.departamento || '');
                         setEditBanco(employee.banco || '');
                         setEditNumeroCuenta(employee.numeroCuenta || '');
                         setEditTipoCuenta(employee.tipoCuenta || '');
@@ -392,7 +371,7 @@ export function EmployeeDetailModal({
                         setEditHorasNocturnas(String(employee.horasExtrasNocturnasPendientes || 0));
                         setEditViaticos(String(employee.viaticosMoneda === 'USD' ? (employee.viaticosPendientesOriginal || 0) : (employee.viaticosPendientes || 0)));
                         setEditViaticosMoneda(employee.viaticosMoneda || 'BS');
-                        setEditSalario(String(employee.salarioMoneda === 'USD' ? employee.salarioMensualBase / company.tasaBCV_USD : employee.salarioMensualBase));
+                        setEditSalario(String(employee.salarioMoneda === 'USD' ? (employee.salarioMensualBaseOriginal || employee.salarioMensualBase / company.tasaBCV_USD) : employee.salarioMensualBase));
                         setEditSalarioMoneda(employee.salarioMoneda || 'BS');
                         setEditCestaticketAplica(employee.cestaticketAplica !== false);
                         setEditCestaticket(String(employee.cestaticketMoneda === 'USD' ? employee.cestaticketMensual / company.tasaBCV_USD : employee.cestaticketMensual));
@@ -936,28 +915,6 @@ export function EmployeeDetailModal({
                   {editMode ? (
                     <>
                       <div>
-                        <label className="block text-[11px] font-medium text-slate-700">Cédula</label>
-                        <input value={editCedula} onChange={(e) => setEditCedula(e.target.value)} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-sm" />
-                      </div>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                        <div>
-                          <label className="block text-[11px] font-medium text-slate-700">Primer nombre</label>
-                          <input value={editPrimerNombre} onChange={(e) => setEditPrimerNombre(e.target.value)} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-sm" />
-                        </div>
-                        <div>
-                          <label className="block text-[11px] font-medium text-slate-700">Segundo nombre</label>
-                          <input value={editSegundoNombre} onChange={(e) => setEditSegundoNombre(e.target.value)} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-sm" />
-                        </div>
-                        <div>
-                          <label className="block text-[11px] font-medium text-slate-700">Primer apellido</label>
-                          <input value={editPrimerApellido} onChange={(e) => setEditPrimerApellido(e.target.value)} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-sm" />
-                        </div>
-                        <div>
-                          <label className="block text-[11px] font-medium text-slate-700">Segundo apellido</label>
-                          <input value={editSegundoApellido} onChange={(e) => setEditSegundoApellido(e.target.value)} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-sm" />
-                        </div>
-                      </div>
-                      <div>
                         <label className="block text-[11px] font-medium text-slate-700">Correo Electrónico</label>
                         <input value={editEmail} onChange={(e) => setEditEmail(e.target.value)} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-sm" />
                       </div>
@@ -977,6 +934,16 @@ export function EmployeeDetailModal({
                         <div>
                           <label className="block text-[11px] font-medium text-slate-700">Estado</label>
                           <input value={editEstado} onChange={(e) => setEditEstado(e.target.value)} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-sm" />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="block text-[11px] font-medium text-slate-700">Cargo</label>
+                          <input value={editCargo} onChange={(e) => setEditCargo(e.target.value)} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-sm" />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-medium text-slate-700">Departamento</label>
+                          <input value={editDepartamento} onChange={(e) => setEditDepartamento(e.target.value)} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-sm" />
                         </div>
                       </div>
                       <div>

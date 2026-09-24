@@ -134,10 +134,7 @@ export default function App() {
   useEffect(() => {
     lightweightDb.initDatabase().then((dbState) => {
       if (dbState) {
-        if (dbState.company) {
-          const dailyRate = lightweightDb.getCurrencyRateForDate();
-          setCompany(dailyRate ? { ...dbState.company, tasaBCV_USD: dailyRate.rate } : dbState.company);
-        }
+        if (dbState.company) setCompany(dbState.company);
         if (dbState.employees && dbState.employees.length > 0) setEmployees(dbState.employees);
         if (dbState.users && dbState.users.length > 0) {
           const dbUserIds = new Set(dbState.users.map((user) => user.id));
@@ -427,6 +424,16 @@ export default function App() {
   });
 
   const handleSaveCompany = (updatedCompany: CompanySettings) => {
+    if (updatedCompany.tasaBCV_USD !== company.tasaBCV_USD && company.tasaBCV_USD > 0) {
+      setEmployees((previous) => previous.map((employee) => {
+        if (employee.salarioMoneda !== 'USD' || employee.salarioMensualBaseOriginal) return employee;
+        const storedSalary = Number(employee.salarioMensualBase) || 0;
+        const originalSalary = storedSalary > 0 && storedSalary < 1000
+          ? storedSalary
+          : storedSalary / company.tasaBCV_USD;
+        return { ...employee, salarioMensualBaseOriginal: originalSalary };
+      }));
+    }
     setCompany(updatedCompany);
     addAuditLog('Ajuste de Parámetros', 'Configuración', `Actualización de parámetros fiscales y tasas BCV`);
   };

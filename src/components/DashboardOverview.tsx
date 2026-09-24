@@ -12,7 +12,7 @@ import {
   Download,
 } from 'lucide-react';
 import { CompanySettings, Employee, PayrollPeriod, LegalNotification } from '../types';
-import { formatBs, formatUSD, calculateSocialBenefits } from '../utils/venezuelaLaborCalculations';
+import { formatBs, formatUSD, calculateSocialBenefits, getSalaryInEmployeeCurrency } from '../utils/venezuelaLaborCalculations';
 
 interface DashboardOverviewProps {
   company: CompanySettings;
@@ -249,7 +249,7 @@ export function DashboardOverview({
                         {formatBs(emp.salarioMensualBase)}
                       </div>
                       <div className="text-[10px] text-slate-500 font-mono">
-                        {formatUSD(company.tasaBCV_USD > 0 ? emp.salarioMensualBase / company.tasaBCV_USD : 0)}
+                        {formatUSD(getSalaryInEmployeeCurrency(emp, company.tasaBCV_USD))}
                       </div>
                     </td>
                     <td className="py-3 px-3 text-center">
