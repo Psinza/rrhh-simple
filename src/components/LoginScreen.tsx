@@ -389,10 +389,10 @@ export function LoginScreen({ onLogin, users, company }: LoginScreenProps) {
                 {/* Hint de credenciales */}
                 <div className="mt-2 p-3 rounded-xl bg-slate-800/60 border border-slate-700/60 text-[11px] text-slate-400 space-y-1">
                   <p className="font-semibold text-slate-300 mb-1">Credenciales de prueba:</p>
-                  <p><span className="text-blue-300 font-mono">psinza / psinza</span> → Administrador (todos los módulos)</p>
-                  <p><span className="text-emerald-300 font-mono">rrhh / rrhh</span> → Módulo RRHH</p>
-                  <p><span className="text-amber-300 font-mono">jacobo / jacobo</span> → Dueño (Jacob Agai)</p>
-                  <p><span className="text-amber-300 font-mono">elias / elias</span> → Dueño (Elias Agai)</p>
+                  <p><span className="text-blue-300 font-mono">psinza</span> → Administrador (todos los módulos)</p>
+                  <p><span className="text-emerald-300 font-mono">rrhh</span> → Módulo RRHH</p>
+                  <p><span className="text-amber-300 font-mono">jacobo</span> → Dueño</p>
+                  <p><span className="text-amber-300 font-mono">elias</span> → Dueño</p>
                 </div>
               </div>
             </form>
