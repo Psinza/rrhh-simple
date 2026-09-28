@@ -16,6 +16,7 @@ import {
   formatUSD,
 } from '../utils/venezuelaLaborCalculations';
 import { buildBankPayrollFile, defaultSourceIdentifier, downloadBankPayrollFile } from '../utils/bankPayrollFile';
+import { downloadPayrollSummaryCsv } from '../utils/payrollSpreadsheet';
 
 interface PayrollModuleProps {
   company: CompanySettings;
@@ -175,6 +176,13 @@ export function PayrollModule({
             title="Generar archivo de carga bancaria"
           >
             <Download className="w-3.5 h-3.5" /> Archivo bancario
+          </button>
+          <button
+            onClick={() => downloadPayrollSummaryCsv(filteredItems, payroll.nombre)}
+            className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors"
+            title="Descargar resumen compatible con Excel"
+          >
+            <FileSpreadsheet className="w-3.5 h-3.5" /> Exportar Excel
           </button>
           <div className="flex flex-col gap-1">
             <label className="text-xs text-slate-600 font-semibold">Tipo de nómina
