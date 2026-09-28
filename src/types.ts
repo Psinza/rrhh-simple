@@ -168,6 +168,7 @@ export interface PayrollItem {
   feriadosTrabajados: number;
   bonoProductividad: number;
   comisionesVentas: number;
+  commissionSaleIds?: string[];
   deduccionesProductos: number;
   totalAsignacionesSalariales: number;
   totalAsignacionesNoSalariales: number;

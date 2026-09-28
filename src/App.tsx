@@ -47,6 +47,7 @@ import {
 import { predefinedUsers } from './data/authUsers';
 import { getApiBase } from './services/api';
 import { lightweightDb, DatabaseState } from './services/lightweightDb';
+import { buildPayrollAdjustmentMaps } from './utils/payrollAdjustments';
 
 // Subcomponents
 import { LoginScreen } from './components/LoginScreen';
@@ -331,6 +332,14 @@ export default function App() {
       ...prev,
       estatus: 'Aprobada',
     }));
+    const paidSaleIds = new Set(payroll.items.flatMap((item) => item.commissionSaleIds || []));
+    if (paidSaleIds.size > 0) {
+      setSales((previous) => previous.map((sale) =>
+        paidSaleIds.has(sale.id) && sale.estatus === 'Pendiente'
+          ? { ...sale, estatus: 'Liquidada' }
+          : sale
+      ));
+    }
     addAuditLog(
       'Aprobación Ejecutiva de Nómina',
       'Nómina',
@@ -405,23 +414,7 @@ export default function App() {
   const handleDeletePurchase = (id: string) => { if (window.confirm('¿Eliminar esta compra? El descuento dejará de aplicarse en nómina.')) setProductPurchases((previous) => previous.filter((item) => item.id !== id)); };
   const handleDeleteLoan = (id: string) => { if (window.confirm('¿Eliminar este préstamo? La cuota dejará de aplicarse en nómina.')) setEmployeeLoans((previous) => previous.filter((item) => item.id !== id)); };
 
-  const commissionByEmployee = sales.reduce<Record<string, number>>((totals, sale) => {
-    totals[sale.vendedorId] = (totals[sale.vendedorId] || 0) + sale.comisionBs;
-    return totals;
-  }, {});
-  const loanInstallmentByEmployee = employeeLoans.reduce<Record<string, number>>((totals, loan) => {
-    if (loan.status === 'Activo') totals[loan.employeeId] = (totals[loan.employeeId] || 0) + loan.installmentBs;
-    return totals;
-  }, {});
-  const productDeductionByEmployee = productAssignments.reduce<Record<string, number>>((totals, assignment) => {
-    if (assignment.status === 'Asignado') totals[assignment.employeeId] = (totals[assignment.employeeId] || 0) + assignment.amountBs;
-    return totals;
-  }, {});
-  productPurchases.forEach((purchase) => {
-    if (purchase.employeeId) {
-      productDeductionByEmployee[purchase.employeeId] = (productDeductionByEmployee[purchase.employeeId] || 0) + purchase.amountBs;
-    }
-  });
+  const payrollAdjustments = buildPayrollAdjustmentMaps(payroll, sales, productAssignments, productPurchases, employeeLoans);
 
   const handleSaveCompany = (updatedCompany: CompanySettings) => {
     if (updatedCompany.tasaBCV_USD !== company.tasaBCV_USD && company.tasaBCV_USD > 0) {
@@ -972,9 +965,11 @@ export default function App() {
                           onOpenSlip={(item) => setSelectedSlip(item)}
                           onUpdatePayroll={handleUpdatePayroll}
                           onApprovePayroll={handleApprovePayrollByOwner}
-                          commissionByEmployee={commissionByEmployee}
-                          loanInstallmentByEmployee={loanInstallmentByEmployee}
-                          productDeductionByEmployee={productDeductionByEmployee}
+                          commissionByEmployee={payrollAdjustments.commissionByEmployee}
+                          commissionSaleIdsByEmployee={payrollAdjustments.commissionSaleIdsByEmployee}
+                          loanInstallmentByEmployee={payrollAdjustments.loanInstallmentByEmployee}
+                          productDeductionByEmployee={payrollAdjustments.purchaseDeductionByEmployee}
+                          assignmentMonthlyByEmployee={payrollAdjustments.assignmentMonthlyByEmployee}
                         />
           )}
 
