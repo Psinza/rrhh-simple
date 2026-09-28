@@ -212,6 +212,7 @@ export function calculatePayrollDeductionsAndContributions(
   aplicarRetencionesGubernamentales: boolean = true
 ): Omit<PayrollItem, 'id' | 'employeeId' | 'employee' | 'fechaGeneracion' | 'firmadoDigitalmente' | 'hashCriptografico'> {
 
+  const retencionesGubernamentalesActivas = aplicarRetencionesGubernamentales && employee.cestaticketAplica !== false;
   const tasaBCV = company.tasaBCV_USD > 0 ? company.tasaBCV_USD : 1;
   const salarioMensualBaseBs = getSalaryBaseInBs(employee, tasaBCV);
 
@@ -242,10 +243,10 @@ export function calculatePayrollDeductionsAndContributions(
   const salarioSujetoIvss = Math.min(salarioMensualEnBs, topeIvssMensual);
   const salarioSemanalIvss = (salarioSujetoIvss * 12) / 52;
 
-  const retencionIVSS = aplicarRetencionesGubernamentales ? salarioSemanalIvss * 0.04 * lunes : 0;
-  const retencionParoForzoso = aplicarRetencionesGubernamentales ? salarioSemanalIvss * 0.005 * lunes : 0;
-  const retencionFAOV = aplicarRetencionesGubernamentales ? totalAsignacionesSalariales * 0.01 : 0;
-  const retencionISLR = aplicarRetencionesGubernamentales ? totalAsignacionesSalariales * ((employee.porcentajeRetencionISLR || 0) / 100) : 0;
+  const retencionIVSS = retencionesGubernamentalesActivas ? salarioSemanalIvss * 0.04 * lunes : 0;
+  const retencionParoForzoso = retencionesGubernamentalesActivas ? salarioSemanalIvss * 0.005 * lunes : 0;
+  const retencionFAOV = retencionesGubernamentalesActivas ? totalAsignacionesSalariales * 0.01 : 0;
+  const retencionISLR = retencionesGubernamentalesActivas ? totalAsignacionesSalariales * ((employee.porcentajeRetencionISLR || 0) / 100) : 0;
 
   const otrasDeducciones = 0;
   const totalDeducciones =

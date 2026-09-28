@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   FileSpreadsheet,
   ShieldCheck,
@@ -53,6 +53,16 @@ export function PayrollModule({
   const [sourceNationality, setSourceNationality] = useState(defaultIdentifier.nationality);
   const [sourceIdentifier, setSourceIdentifier] = useState(defaultIdentifier.identifier);
   const [bankExportError, setBankExportError] = useState('');
+
+  const activeEmployees = (employees && employees.length > 0 ? employees : payroll.items.map((item) => item.employee))
+    .filter((emp) => emp.status === 'activo');
+  const hayEmpleadosConCestaticket = activeEmployees.some((emp) => emp.cestaticketAplica !== false);
+
+  useEffect(() => {
+    if (!hayEmpleadosConCestaticket) {
+      setAplicarRetencionesGubernamentales(false);
+    }
+  }, [hayEmpleadosConCestaticket]);
 
   const handleBankExport = () => {
     try {
@@ -177,15 +187,17 @@ export function PayrollModule({
             <span className="ml-2 text-[10px] font-medium text-slate-500">{frequencySummary}</span>
           </div>
 
-          <label className="flex items-center gap-2 text-xs text-slate-600 font-semibold cursor-pointer">
-            <input
-              type="checkbox"
-              checked={aplicarRetencionesGubernamentales}
-              onChange={(e) => setAplicarRetencionesGubernamentales(e.target.checked)}
-              className="rounded border-slate-300 text-blue-600"
-            />
-            Aplicar retenciones gubernamentales
-          </label>
+          {hayEmpleadosConCestaticket && (
+            <label className="flex items-center gap-2 text-xs text-slate-600 font-semibold cursor-pointer">
+              <input
+                type="checkbox"
+                checked={aplicarRetencionesGubernamentales}
+                onChange={(e) => setAplicarRetencionesGubernamentales(e.target.checked)}
+                className="rounded border-slate-300 text-blue-600"
+              />
+              Aplicar retenciones gubernamentales
+            </label>
+          )}
 
           {(currentUser?.rol === 'rrhh' || currentUser?.rol === 'admin_sistema') && (
             <button
