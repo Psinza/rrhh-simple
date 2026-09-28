@@ -16,7 +16,7 @@ import {
   formatUSD,
 } from '../utils/venezuelaLaborCalculations';
 import { buildBankPayrollFile, defaultSourceIdentifier, downloadBankPayrollFile } from '../utils/bankPayrollFile';
-import { downloadPayrollSummaryCsv } from '../utils/payrollSpreadsheet';
+import { downloadBankPayrollWorkbook, downloadPayrollSummaryCsv } from '../utils/payrollSpreadsheet';
 
 interface PayrollModuleProps {
   company: CompanySettings;
@@ -74,6 +74,16 @@ export function PayrollModule({
       alert(`Archivo bancario generado: ${result.transferredItems.length} transferencias. Se omitieron ${result.skippedItems.length} empleados con neto cero.`);
     } catch (error) {
       setBankExportError(error instanceof Error ? error.message : 'No se pudo generar el archivo bancario.');
+    }
+  };
+
+  const handleBankWorkbookExport = async () => {
+    try {
+      await downloadBankPayrollWorkbook(payroll, { sourceAccount, sourceNationality, sourceIdentifier }, payroll.nombre);
+      setBankExportError('');
+      setShowBankExport(false);
+    } catch (error) {
+      setBankExportError(error instanceof Error ? error.message : 'No se pudo generar el Excel bancario.');
     }
   };
 
@@ -180,9 +190,9 @@ export function PayrollModule({
           <button
             onClick={() => downloadPayrollSummaryCsv(filteredItems, payroll.nombre)}
             className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors"
-            title="Descargar resumen compatible con Excel"
+            title="Descargar resumen de nómina en CSV"
           >
-            <FileSpreadsheet className="w-3.5 h-3.5" /> Exportar Excel
+            <FileSpreadsheet className="w-3.5 h-3.5" /> Resumen CSV
           </button>
           <div className="flex flex-col gap-1">
             <label className="text-xs text-slate-600 font-semibold">Tipo de nómina
@@ -350,6 +360,7 @@ export function PayrollModule({
             <div className="flex justify-end gap-2">
               <button onClick={() => { setShowBankExport(false); setBankExportError(''); }} className="px-3 py-2 text-xs font-semibold text-slate-700 bg-slate-100 rounded">Cancelar</button>
               <button onClick={handleBankExport} className="px-3 py-2 text-xs font-bold text-white bg-emerald-600 rounded">Generar TXT</button>
+              <button onClick={handleBankWorkbookExport} className="px-3 py-2 text-xs font-bold text-white bg-blue-600 rounded">Generar Excel del banco</button>
             </div>
           </div>
         </div>
