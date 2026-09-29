@@ -1,14 +1,23 @@
-require('dotenv').config();
+const path = require('node:path');
+require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 
 const express = require('express');
 const cors = require('cors');
 const cookieParser = require('cookie-parser');
 const jwt = require('jsonwebtoken');
-const { init, allAsync, runAsync, db } = require('./db');
+const { randomUUID } = require('node:crypto');
+const { init, allAsync, runAsUserAsync, db } = require('./db');
+const { createCommercialSalesRouter } = require('./commercialSales');
+const { createErpOperationsRouter } = require('./erpOperations');
 
 const app = express();
 const PORT = process.env.PORT || 4000;
-const JWT_SECRET = process.env.JWT_SECRET || 'replace_this_with_secure_secret';
+const HOST = process.env.HOST || '127.0.0.1';
+const JWT_SECRET = process.env.JWT_SECRET;
+
+if (!JWT_SECRET || JWT_SECRET.length < 32) {
+  throw new Error('Configure JWT_SECRET con al menos 32 caracteres antes de iniciar el servidor.');
+}
 
 // Configure CORS dynamically. In production set ALLOWED_ORIGIN to your frontend URL (e.g. https://rrhh-simple.onrender.com)
 const allowedOrigin = process.env.ALLOWED_ORIGIN || true;
@@ -16,7 +25,6 @@ app.use(cors({ origin: allowedOrigin, credentials: true }));
 app.use(express.json());
 app.use(cookieParser());
 
-const path = require('path');
 const staticPath = path.join(__dirname, '..', 'dist');
 
 // Serve static frontend when running as a single fullstack service (recommended for Render).
@@ -25,35 +33,51 @@ if (process.env.SERVE_STATIC === 'true') {
   app.use(express.static(staticPath));
 }
 
-// Initialize DB
-init().catch((e) => {
-  console.error('Failed to init DB', e);
-  process.exit(1);
-});
-
 // Helpers
-function signUserPayload(user) {
+function signUserPayload(user, sessionId) {
   return jwt.sign(
     {
       id: user.id,
       username: user.username,
       rol: user.rol,
       nombre: user.nombre,
+      jti: sessionId,
     },
     JWT_SECRET,
     { expiresIn: '8h' }
   );
 }
 
-function authMiddleware(req, res, next) {
+async function authMiddleware(req, res, next) {
   const token = req.cookies.token || req.headers.authorization?.replace('Bearer ', '');
   if (!token) return res.status(401).json({ error: 'No token' });
+  let payload;
   try {
-    const payload = jwt.verify(token, JWT_SECRET);
-    req.user = payload;
-    next();
+    payload = jwt.verify(token, JWT_SECRET);
   } catch (e) {
     return res.status(401).json({ error: 'Invalid token' });
+  }
+  try {
+    if (typeof payload.jti !== 'string') {
+      return res.status(401).json({ error: 'Session is no longer valid; please sign in again' });
+    }
+    const result = await db.query(
+      `SELECT 1
+       FROM users AS u
+       JOIN auth_sessions AS s ON s.user_id = u.id
+       WHERE u.id = $1 AND u.is_active
+         AND s.id = $2
+         AND s.token_hash = encode(digest($3, 'sha256'), 'hex')
+         AND s.ended_at IS NULL
+         AND s.expires_at > CURRENT_TIMESTAMP`,
+      [payload.id, payload.jti, token],
+    );
+    if (result.rowCount === 0) return res.status(401).json({ error: 'Session is no longer valid' });
+    req.user = payload;
+    next();
+  } catch (error) {
+    console.error('Failed to validate authenticated user:', error);
+    res.status(503).json({ error: 'Authentication service unavailable' });
   }
 }
 
@@ -65,9 +89,31 @@ function requireRole(role) {
   };
 }
 
+app.use('/api/commercial-sales', createCommercialSalesRouter(authMiddleware, db));
+app.use('/api/erp', createErpOperationsRouter(authMiddleware, db));
+
+function parsePermissions(value) {
+  if (Array.isArray(value)) return value;
+  if (typeof value === 'string') {
+    const parsed = JSON.parse(value);
+    if (Array.isArray(parsed)) return parsed;
+  }
+  return [];
+}
+
 // Routes
 app.get('/health', (req, res) => {
   res.json({ ok: true, service: 'rrhh-simple' });
+});
+
+app.get('/health/db', async (req, res) => {
+  try {
+    await db.query('SELECT 1');
+    res.json({ ok: true, database: 'postgresql' });
+  } catch (error) {
+    console.error('PostgreSQL health check failed:', error);
+    res.status(503).json({ ok: false, database: 'unavailable' });
+  }
 });
 
 app.post('/api/login', async (req, res) => {
@@ -78,11 +124,21 @@ app.post('/api/login', async (req, res) => {
     if (!rows || rows.length === 0) return res.status(401).json({ error: 'Credenciales inválidas' });
     const user = rows[0];
     const bcrypt = require('bcrypt');
+    if (!user.is_active || !user.password_hash) return res.status(401).json({ error: 'Credenciales inválidas' });
     const match = await bcrypt.compare(password, user.password_hash);
     if (!match) return res.status(401).json({ error: 'Credenciales inválidas' });
     if (selectedRole && user.rol !== selectedRole) return res.status(403).json({ error: 'Rol no coincide con perfil seleccionado' });
 
-    const token = signUserPayload(user);
+    const sessionId = randomUUID();
+    const token = signUserPayload(user, sessionId);
+    await runAsUserAsync(
+      user.id,
+      req.ip,
+      `INSERT INTO auth_sessions (id, user_id, token_hash, ip_address, user_agent, expires_at)
+       VALUES ($1, $2, encode(digest($3, 'sha256'), 'hex'), NULLIF($4, '')::INET,
+               $5, CURRENT_TIMESTAMP + INTERVAL '8 hours')`,
+      [sessionId, user.id, token, req.ip || '', req.get('user-agent') || ''],
+    );
     // Cookie security options: use secure & sameSite none in production when serving across domains
     const cookieOptions = { httpOnly: true, sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax' };
     if (process.env.NODE_ENV === 'production') cookieOptions.secure = true;
@@ -95,12 +151,12 @@ app.post('/api/login', async (req, res) => {
       nombre: user.nombre,
       cargo: user.cargo,
       rol: user.rol,
-      rolTitulo: user.rolTitulo,
+      rolTitulo: user.roltitulo,
       avatar: user.avatar,
       badgeColor: user.badgeColor,
       nivelAcceso: user.nivelAcceso,
       descripcionAcceso: user.descripcionAcceso,
-      permisos: JSON.parse(user.permisos || '[]'),
+      permisos: parsePermissions(user.permisos),
     };
     res.json({ user: safe });
   } catch (e) {
@@ -109,22 +165,44 @@ app.post('/api/login', async (req, res) => {
   }
 });
 
-app.post('/api/logout', (req, res) => {
+app.post('/api/logout', async (req, res) => {
+  const token = req.cookies.token || req.headers.authorization?.replace('Bearer ', '');
+  if (token) {
+    try {
+      const payload = jwt.verify(token, JWT_SECRET);
+      if (typeof payload.jti === 'string' && typeof payload.id === 'string') {
+        await runAsUserAsync(
+          payload.id,
+          req.ip,
+          `UPDATE auth_sessions SET ended_at = CURRENT_TIMESTAMP
+           WHERE id = $1 AND user_id = $2 AND ended_at IS NULL`,
+          [payload.jti, payload.id],
+        );
+      }
+    } catch (error) {
+      if (error instanceof jwt.JsonWebTokenError || error instanceof jwt.TokenExpiredError) {
+        res.clearCookie('token');
+        return res.json({ ok: true });
+      }
+      console.error('Failed to close authenticated session:', error);
+      return res.status(503).json({ error: 'Session service unavailable' });
+    }
+  }
   res.clearCookie('token');
   res.json({ ok: true });
 });
 
 app.get('/api/me', authMiddleware, async (req, res) => {
   const id = req.user.id;
-  const rows = await allAsync('SELECT id, username, email, nombre, cargo, rol, rolTitulo, avatar, badgeColor, nivelAcceso, descripcionAcceso, permisos FROM users WHERE id = ? LIMIT 1', [id]);
+  const rows = await allAsync('SELECT id, username, email, nombre, cargo, rol, rolTitulo AS "rolTitulo", avatar, badgeColor, nivelAcceso, descripcionAcceso, permisos FROM users WHERE id = ? LIMIT 1', [id]);
   if (!rows || rows.length === 0) return res.status(404).json({ error: 'User not found' });
-  res.json({ user: { ...rows[0], permisos: JSON.parse(rows[0].permisos || '[]') } });
+  res.json({ user: { ...rows[0], permisos: parsePermissions(rows[0].permisos) } });
 });
 
 // Admin: list users
 app.get('/api/users', authMiddleware, async (req, res) => {
   if (req.user.rol !== 'admin_sistema') return res.status(403).json({ error: 'Forbidden' });
-  const rows = await allAsync('SELECT id, username, email, nombre, rol, rolTitulo, avatar, badgeColor FROM users');
+  const rows = await allAsync('SELECT id, username, email, nombre, rol, rolTitulo AS "rolTitulo", avatar, badgeColor, is_active FROM users');
   res.json({ users: rows });
 });
 
@@ -137,21 +215,27 @@ app.post('/api/users', authMiddleware, async (req, res) => {
   const hash = await bcrypt.hash(u.password, 10);
   const id = u.id || `user-${Date.now()}`;
   try {
-    await runAsync('INSERT INTO users (id, username, email, password_hash, nombre, cargo, rol, rolTitulo, avatar, badgeColor, nivelAcceso, descripcionAcceso, permisos) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)', [
-      id,
-      u.username,
-      u.email || null,
-      hash,
-      u.nombre || '',
-      u.cargo || '',
-      u.rol,
-      u.rolTitulo || '',
-      u.avatar || '',
-      u.badgeColor || '',
-      u.nivelAcceso || '',
-      u.descripcionAcceso || '',
-      JSON.stringify(u.permisos || []),
-    ]);
+    await runAsUserAsync(
+      req.user.id,
+      req.ip,
+      `INSERT INTO users (id, username, email, password_hash, nombre, cargo, rol, rolTitulo, avatar, badgeColor, nivelAcceso, descripcionAcceso, permisos)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      [
+        id,
+        u.username,
+        u.email || null,
+        hash,
+        u.nombre || '',
+        u.cargo || '',
+        u.rol,
+        u.rolTitulo || '',
+        u.avatar || '',
+        u.badgeColor || '',
+        u.nivelAcceso || '',
+        u.descripcionAcceso || '',
+        JSON.stringify(u.permisos || []),
+      ],
+    );
     res.json({ ok: true, id });
   } catch (e) {
     console.error(e);
@@ -168,16 +252,16 @@ app.put('/api/users/:id', authMiddleware, async (req, res) => {
     if (u.password) {
     const bcrypt = require('bcrypt');
       const hash = await bcrypt.hash(u.password, 10);
-      await runAsync('UPDATE users SET password_hash = ? WHERE id = ?', [hash, id]);
+      await runAsUserAsync(req.user.id, req.ip, 'UPDATE users SET password_hash = ? WHERE id = ?', [hash, id]);
     }
     const fields = ['username','email','nombre','cargo','rol','rolTitulo','avatar','badgeColor','nivelAcceso','descripcionAcceso'];
     for (const f of fields) {
       if (u[f] !== undefined) {
-        await runAsync(`UPDATE users SET ${f} = ? WHERE id = ?`, [u[f], id]);
+        await runAsUserAsync(req.user.id, req.ip, `UPDATE users SET ${f} = ? WHERE id = ?`, [u[f], id]);
       }
     }
     if (u.permisos) {
-      await runAsync('UPDATE users SET permisos = ? WHERE id = ?', [JSON.stringify(u.permisos), id]);
+      await runAsUserAsync(req.user.id, req.ip, 'UPDATE users SET permisos = ? WHERE id = ?', [JSON.stringify(u.permisos), id]);
     }
     res.json({ ok: true });
   } catch (e) {
@@ -186,16 +270,22 @@ app.put('/api/users/:id', authMiddleware, async (req, res) => {
   }
 });
 
-// Admin delete
+// Deactivate an account without deleting historical references.
 app.delete('/api/users/:id', authMiddleware, async (req, res) => {
   if (req.user.rol !== 'admin_sistema') return res.status(403).json({ error: 'Forbidden' });
   const id = req.params.id;
   try {
-    await runAsync('DELETE FROM users WHERE id = ?', [id]);
-    res.json({ ok: true });
+    const result = await runAsUserAsync(
+      req.user.id,
+      req.ip,
+      'UPDATE users SET is_active = FALSE, updated_at = CURRENT_TIMESTAMP WHERE id = $1 RETURNING id',
+      [id],
+    );
+    if (result.rowCount === 0) return res.status(404).json({ error: 'User not found' });
+    res.json({ ok: true, deactivatedId: id });
   } catch (e) {
     console.error(e);
-    res.status(500).json({ error: 'Failed to delete user' });
+    res.status(500).json({ error: 'Failed to deactivate user' });
   }
 });
 
@@ -209,8 +299,23 @@ app.post('/api/payroll/approve', authMiddleware, async (req, res) => {
 // Protected action example: delete employee (admin)
 app.post('/api/employees/:id/delete', authMiddleware, async (req, res) => {
   if (req.user.rol !== 'admin_sistema') return res.status(403).json({ error: 'Forbidden' });
-  // This implementation is front-end/state only. A real implementation would modify employees table.
-  res.json({ ok: true, deletedId: req.params.id });
+  try {
+    const result = await runAsUserAsync(
+      req.user.id,
+      req.ip,
+      `UPDATE employees
+       SET status = 'egresado', termination_date = COALESCE(termination_date, CURRENT_DATE),
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $1
+       RETURNING id`,
+      [req.params.id],
+    );
+    if (result.rowCount === 0) return res.status(404).json({ error: 'Employee not found' });
+    res.json({ ok: true, deactivatedId: req.params.id });
+  } catch (error) {
+    console.error('Failed to deactivate employee:', error);
+    res.status(500).json({ error: 'Failed to deactivate employee' });
+  }
 });
 
 if (process.env.SERVE_STATIC === 'true') {
@@ -219,6 +324,13 @@ if (process.env.SERVE_STATIC === 'true') {
   });
 }
 
-app.listen(PORT, () => {
-  console.log(`Auth server listening on ${PORT}`);
-});
+init()
+  .then(() => {
+    app.listen(PORT, HOST, () => {
+      console.log(`Auth server listening on http://${HOST}:${PORT}`);
+    });
+  })
+  .catch((error) => {
+    console.error('Failed to initialize PostgreSQL:', error);
+    process.exit(1);
+  });

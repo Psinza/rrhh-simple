@@ -5,11 +5,15 @@ services:
     plan: free
     repo: "https://github.com/Psinza/rrhh-simple"
     branch: main
-    buildCommand: "npm install && npm run build"
+    buildCommand: "npm ci && npm ci --prefix server --omit=dev && npm run build"
     startCommand: "node server/index.js"
     envVars:
       - key: NODE_ENV
         value: production
+      - key: DATABASE_URL
+        sync: false
+      - key: DATABASE_SSL
+        value: "true"
       - key: SERVE_STATIC
         value: "true"
       - key: JWT_SECRET

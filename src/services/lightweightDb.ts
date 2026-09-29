@@ -1,8 +1,9 @@
 import { doc, getDoc, setDoc, collection, getDocs, writeBatch } from 'firebase/firestore';
 import { firestoreDb } from './firebase';
-import { Employee, CompanySettings, AppUser, AuditLog, PayrollPeriod, SalesRecord, ProductAssignment, ProductPurchase, EmployeeLoan } from '../types';
+import { Employee, CompanySettings, AppUser, AuditLog, PayrollPeriod, SalesRecord, ProductAssignment, ProductPurchase, EmployeeLoan, AccountingAccount, AccountingPeriod, JournalEntry, CompanyBranch } from '../types';
 import { initialCompanySettings, initialEmployees } from '../data/initialData';
 import { predefinedUsers } from '../data/authUsers';
+import { createAccountingPeriods, initialAccountingAccounts } from '../data/accountingInitialData';
 
 export interface DatabaseState {
   version: string;
@@ -18,6 +19,10 @@ export interface DatabaseState {
   socialBenefits: any[];
   auditLogs: AuditLog[];
   currencyRates: { date: string; rate: number; source?: string }[];
+  branches?: CompanyBranch[];
+  accountingAccounts?: AccountingAccount[];
+  accountingPeriods?: AccountingPeriod[];
+  journalEntries?: JournalEntry[];
 }
 
 export type DbSyncStatus = 'local_active' | 'cloud_connected' | 'syncing' | 'synced' | 'error';
@@ -47,6 +52,10 @@ class LightweightDatabase {
         socialBenefits: [],
         auditLogs: [],
         currencyRates: [],
+        branches: [],
+        accountingAccounts: initialAccountingAccounts,
+        accountingPeriods: createAccountingPeriods(new Date().getFullYear()),
+        journalEntries: [],
       } as DatabaseState;
 
       const record = { date: date || new Date().toISOString(), rate, source };
@@ -117,6 +126,10 @@ class LightweightDatabase {
         socialBenefits: [],
         auditLogs: [],
         currencyRates: [],
+        branches: [],
+        accountingAccounts: initialAccountingAccounts,
+        accountingPeriods: createAccountingPeriods(new Date().getFullYear()),
+        journalEntries: [],
       };
       this.saveLocal(state);
     }
@@ -136,7 +149,18 @@ class LightweightDatabase {
     try {
       const raw = localStorage.getItem(this.storageKey);
       if (raw) {
-        return JSON.parse(raw);
+        const state = JSON.parse(raw) as DatabaseState;
+        return {
+          ...state,
+          branches: Array.isArray(state.branches) ? state.branches : [],
+          accountingAccounts: Array.isArray(state.accountingAccounts)
+            ? state.accountingAccounts
+            : initialAccountingAccounts,
+          accountingPeriods: Array.isArray(state.accountingPeriods)
+            ? state.accountingPeriods
+            : createAccountingPeriods(new Date().getFullYear()),
+          journalEntries: Array.isArray(state.journalEntries) ? state.journalEntries : [],
+        };
       }
     } catch (e) {
       console.error('Error al leer base de datos local:', e);
@@ -235,6 +259,10 @@ class LightweightDatabase {
       socialBenefits: [],
       auditLogs: [],
       currencyRates: [],
+      branches: [],
+      accountingAccounts: initialAccountingAccounts,
+      accountingPeriods: createAccountingPeriods(new Date().getFullYear()),
+      journalEntries: [],
     };
 
     const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });

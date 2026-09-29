@@ -22,6 +22,7 @@ import {
   CloudUpload,
   Database,
   Building2,
+  Landmark,
 } from 'lucide-react';
 import {
   Employee,
@@ -36,6 +37,10 @@ import {
   ProductAssignment,
   ProductPurchase,
   EmployeeLoan,
+  AccountingAccount,
+  AccountingPeriod,
+  CompanyBranch,
+  JournalEntry,
 } from './types';
 import {
   initialEmployees,
@@ -66,6 +71,10 @@ import { DatabaseManagerModal } from './components/DatabaseManagerModal';
 import { RenderDeployModal } from './components/RenderDeployModal';
 import { SalesModule } from './components/SalesModule';
 import { ProductBenefitsModule } from './components/ProductBenefitsModule';
+import { AccountingCoreModule } from './components/AccountingCoreModule';
+import { CommercialSalesModule } from './components/CommercialSalesModule';
+import { ErpOperationsModule } from './components/ErpOperationsModule';
+import { createAccountingPeriods, initialAccountingAccounts } from './data/accountingInitialData';
 
 export default function App() {
   // Authentication & Session
@@ -74,7 +83,7 @@ export default function App() {
 
   // Navigation
   const [activeTab, setActiveTab] = useState<
-    'dashboard' | 'employees' | 'payroll' | 'benefits' | 'government_files' | 'company_identity' | 'sales' | 'products_loans'
+    'dashboard' | 'employees' | 'payroll' | 'benefits' | 'government_files' | 'company_identity' | 'sales' | 'commercial_sales' | 'products_loans' | 'accounting' | 'erp_operations'
   >('dashboard');
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
@@ -105,6 +114,16 @@ export default function App() {
   const [productAssignments, setProductAssignments] = useState<ProductAssignment[]>([]);
   const [productPurchases, setProductPurchases] = useState<ProductPurchase[]>([]);
   const [employeeLoans, setEmployeeLoans] = useState<EmployeeLoan[]>([]);
+  const [branches, setBranches] = useState<CompanyBranch[]>(() => lightweightDb.loadLocal()?.branches || []);
+  const [accountingAccounts, setAccountingAccounts] = useState<AccountingAccount[]>(
+    () => lightweightDb.loadLocal()?.accountingAccounts || initialAccountingAccounts
+  );
+  const [accountingPeriods, setAccountingPeriods] = useState<AccountingPeriod[]>(
+    () => lightweightDb.loadLocal()?.accountingPeriods || createAccountingPeriods(new Date().getFullYear())
+  );
+  const [journalEntries, setJournalEntries] = useState<JournalEntry[]>(
+    () => lightweightDb.loadLocal()?.journalEntries || []
+  );
   const [lastBackupTime, setLastBackupTime] = useState('10:45 AM');
 
   useEffect(() => {
@@ -149,6 +168,10 @@ export default function App() {
         if (dbState.productAssignments) setProductAssignments(dbState.productAssignments);
         if (dbState.productPurchases) setProductPurchases(dbState.productPurchases);
         if (dbState.employeeLoans) setEmployeeLoans(dbState.employeeLoans);
+        setBranches(dbState.branches || []);
+        setAccountingAccounts(dbState.accountingAccounts || initialAccountingAccounts);
+        setAccountingPeriods(dbState.accountingPeriods || createAccountingPeriods(new Date().getFullYear()));
+        setJournalEntries(dbState.journalEntries || []);
       }
     });
 
@@ -185,6 +208,10 @@ export default function App() {
       socialBenefits: [],
       auditLogs,
       currencyRates: lightweightDb.loadLocal()?.currencyRates || [],
+      branches,
+      accountingAccounts,
+      accountingPeriods,
+      journalEntries,
     });
     try {
       localStorage.setItem('ven_nomina_users', JSON.stringify(users));
@@ -192,14 +219,18 @@ export default function App() {
     } catch (e) {
       // Ignore quota error
     }
-  }, [company, employees, users, payroll, auditLogs, sales, productAssignments, productPurchases, employeeLoans]);
+  }, [company, employees, users, payroll, auditLogs, sales, productAssignments, productPurchases, employeeLoans, branches, accountingAccounts, accountingPeriods, journalEntries]);
 
-  const handleDataRestored = (restored: DatabaseState) => {
+  const handleDataRestored = (restored: Partial<DatabaseState>) => {
     if (restored.company) setCompany(restored.company);
     if (restored.employees) setEmployees(restored.employees);
     if (restored.productAssignments) setProductAssignments(restored.productAssignments);
     if (restored.productPurchases) setProductPurchases(restored.productPurchases);
     if (restored.employeeLoans) setEmployeeLoans(restored.employeeLoans);
+    if (restored.branches) setBranches(restored.branches);
+    if (restored.accountingAccounts) setAccountingAccounts(restored.accountingAccounts);
+    if (restored.accountingPeriods) setAccountingPeriods(restored.accountingPeriods);
+    if (restored.journalEntries) setJournalEntries(restored.journalEntries);
     if (restored.sales) setSales(restored.sales);
     if (restored.users) {
       setUsers(restored.users);
@@ -208,8 +239,34 @@ export default function App() {
         if (updatedMe) setCurrentUser(updatedMe);
       }
     }
+    if (restored.payrolls?.[0]) setPayroll(restored.payrolls[0]);
+    if (restored.auditLogs) setAuditLogs(restored.auditLogs);
     setLastBackupTime(new Date().toLocaleTimeString('es-VE', { hour: '2-digit', minute: '2-digit' }));
     addAuditLog('Restauración de Base de Datos', 'Seguridad', 'Base de datos restaurada correctamente');
+  };
+
+  const buildCurrentDatabaseState = (): DatabaseState => {
+    const storedState = lightweightDb.loadLocal();
+    return {
+      ...storedState,
+      version: '3.2.0',
+      timestamp: new Date().toISOString(),
+      company,
+      employees,
+      users,
+      payrolls: [payroll],
+      sales,
+      productAssignments,
+      productPurchases,
+      employeeLoans,
+      socialBenefits: storedState?.socialBenefits || [],
+      auditLogs,
+      currencyRates: storedState?.currencyRates || [],
+      branches,
+      accountingAccounts,
+      accountingPeriods,
+      journalEntries,
+    };
   };
 
   const unreadCount = notifications.filter((n) => !n.leida).length;
@@ -237,15 +294,15 @@ export default function App() {
   // Helper to record audit logs
   const addAuditLog = (
     accion: string,
-    modulo: 'Nómina' | 'Expedientes' | 'Prestaciones' | 'Archivos Gubernamentales' | 'Seguridad' | 'Configuración',
+    modulo: 'Nómina' | 'Expedientes' | 'Prestaciones' | 'Archivos Gubernamentales' | 'Seguridad' | 'Configuración' | 'Contabilidad' | 'Empresas',
     detalles: string
   ) => {
     const roleLabel =
       currentUser?.rol === 'admin_sistema'
-        ? 'Administrador RRHH'
+        ? 'Administrador ERP'
         : currentUser?.rol === 'rrhh'
         ? 'Especialista de Nómina'
-        : 'Auditor Legal';
+        : 'Propietario';
 
     const newLog: AuditLog = {
       id: `log-${Date.now()}`,
@@ -358,6 +415,27 @@ export default function App() {
         return [newEmp, ...prev];
       }
     });
+    void fetch(`${getApiBase()}/api/erp/workforce/employees/sync`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ employees: [newEmp] }),
+    }).then(async (response) => {
+      if (!response.ok) {
+        const responseText = await response.text();
+        let message = responseText || `Error HTTP ${response.status}`;
+        try {
+          const body = JSON.parse(responseText) as { error?: string };
+          message = body.error || message;
+        } catch {
+          // Keep the backend response for non-JSON errors.
+        }
+        throw new Error(message);
+      }
+    }).catch((syncError: unknown) => {
+      const message = syncError instanceof Error ? syncError.message : 'Error desconocido';
+      window.alert(`El empleado se guardó localmente, pero no se sincronizó con el ERP: ${message}. Abra ERP y RR. HH. para reintentar la sincronización.`);
+    });
   };
 
   const handleDeleteEmployee = (employeeId: string) => {
@@ -438,13 +516,6 @@ export default function App() {
     addAuditLog('Ajuste de Parámetros', 'Configuración', `Actualización de parámetros fiscales y tasas BCV`);
   };
 
-  const handleRestoreBackup = (backupData: any) => {
-    if (backupData.company) setCompany(backupData.company);
-    if (backupData.employees) setEmployees(backupData.employees);
-    if (backupData.payroll) setPayroll(backupData.payroll);
-    addAuditLog('Restauración de Respaldo', 'Seguridad', `Restauración completa de la base de datos desde respaldo JSON`);
-  };
-
   const handleMarkAllNotificationsAsRead = () => {
     setNotifications((prev) => prev.map((n) => ({ ...n, leida: true })));
   };
@@ -454,18 +525,21 @@ export default function App() {
     { id: 'employees', label: 'Gestión de Personal', icon: Users },
     { id: 'payroll', label: 'Cálculo de Nómina', icon: FileSpreadsheet },
     { id: 'sales', label: 'Ventas y Comisiones', icon: Briefcase },
+    { id: 'commercial_sales', label: 'Facturas y documentos', icon: FileSpreadsheet },
     { id: 'products_loans', label: 'Productos y Préstamos', icon: Coins },
     { id: 'government_files', label: 'Parafiscales (IVSS/FAOV)', icon: FileCheck },
     { id: 'benefits', label: 'Prestaciones Sociales', icon: Coins },
     { id: 'company_identity', label: 'Identidad & Usuarios', icon: Building2 },
+    { id: 'accounting', label: 'ERP & Contabilidad', icon: Landmark },
+    { id: 'erp_operations', label: 'Compras, bancos y bienes', icon: Landmark },
     { id: 'audit_reports', label: 'Reportes y Auditoría', icon: ShieldCheck },
   ];
 
   // Role-based navigation permissions
   const roleAllowedTabs: Record<string, string[]> = {
-    admin_sistema: ['dashboard', 'employees', 'payroll', 'sales', 'products_loans', 'government_files', 'benefits', 'company_identity', 'audit_reports'],
-    rrhh: ['dashboard', 'employees', 'payroll', 'sales', 'products_loans', 'government_files', 'benefits'],
-    dueno: ['dashboard', 'employees', 'payroll', 'sales', 'products_loans', 'government_files', 'benefits', 'company_identity'],
+    admin_sistema: ['dashboard', 'employees', 'payroll', 'sales', 'commercial_sales', 'products_loans', 'government_files', 'benefits', 'company_identity', 'accounting', 'erp_operations', 'audit_reports'],
+    rrhh: ['dashboard', 'employees', 'payroll', 'sales', 'products_loans', 'government_files', 'benefits', 'erp_operations'],
+    dueno: ['dashboard', 'employees', 'payroll', 'sales', 'commercial_sales', 'products_loans', 'government_files', 'benefits', 'company_identity', 'accounting', 'erp_operations'],
   };
 
   const getAllowedNavItems = (role?: string) => {
@@ -660,17 +734,23 @@ export default function App() {
               <Menu className="w-5 h-5" />
             </button>
             <h2 className="font-semibold text-slate-800 text-sm sm:text-base tracking-tight">
-              Módulo de Recursos Humanos (Venezuela)
+              {activeTab === 'accounting'
+                ? 'ERP Empresarial y Contabilidad'
+                : 'Módulo de Recursos Humanos (Venezuela)'}
             </h2>
-            <span className="hidden sm:inline-block bg-blue-100 text-blue-700 px-2 py-0.5 rounded text-[10px] font-bold uppercase">
-              Normativa LOTTT 2024
-            </span>
+            {activeTab !== 'accounting' && (
+              <span className="hidden sm:inline-block bg-blue-100 text-blue-700 px-2 py-0.5 rounded text-[10px] font-bold uppercase">
+                Normativa LOTTT 2024
+              </span>
+            )}
           </div>
 
           <div className="flex items-center gap-3 sm:gap-4">
-            <div className="relative px-3 py-1 bg-slate-100 rounded-full text-xs text-slate-500 border border-slate-200 hidden md:block">
-              Próximo Cierre: {payroll.fechaFin}
-            </div>
+            {activeTab !== 'accounting' && (
+              <div className="relative px-3 py-1 bg-slate-100 rounded-full text-xs text-slate-500 border border-slate-200 hidden md:block">
+                Próximo Cierre: {payroll.fechaFin}
+              </div>
+            )}
 
             <div className="hidden xl:flex items-center gap-1.5 px-3 py-1 bg-slate-100 rounded-full text-xs text-slate-600 border border-slate-200 font-mono">
               <span className="text-slate-400 font-sans">Tasa BCV:</span>
@@ -808,6 +888,29 @@ export default function App() {
 
         {/* Content Workspace */}
         <div className="p-4 sm:p-6 lg:p-8 flex-1 overflow-y-auto">
+          {activeTab === 'accounting' ? (
+            <AccountingCoreModule
+              company={company}
+              branches={branches}
+              users={users}
+              accounts={accountingAccounts}
+              periods={accountingPeriods}
+              entries={journalEntries}
+              canManage={currentUser.rol === 'admin_sistema'}
+              currentUserName={currentUser.nombre}
+              onBranchesChange={setBranches}
+              onAccountsChange={setAccountingAccounts}
+              onPeriodsChange={setAccountingPeriods}
+              onEntriesChange={setJournalEntries}
+              onManageUsers={() => setActiveTab('company_identity')}
+              onAudit={(action, module, details) => addAuditLog(action, module, details)}
+            />
+          ) : activeTab === 'commercial_sales' ? (
+            <CommercialSalesModule />
+          ) : activeTab === 'erp_operations' ? (
+            <ErpOperationsModule currentUser={currentUser} employees={employees} />
+          ) : (
+            <>
           {/* Role Specific Executive Banner: Dueño de la Empresa */}
           {currentUser.rol === 'dueno' && (
             <div className="mb-6 p-4 sm:p-5 rounded-xl bg-gradient-to-r from-amber-950 via-slate-900 to-slate-900 text-white border border-amber-500/40 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
@@ -1032,6 +1135,8 @@ export default function App() {
                           }}
                         />
           )}
+            </>
+          )}
         </div>
 
         {/* Footer (Professional Polish) */}
@@ -1098,10 +1203,9 @@ export default function App() {
         <SecurityAndCloudModal
           auditLogs={auditLogs}
           company={company}
-          employees={employees}
-          payroll={payroll}
+          backupState={buildCurrentDatabaseState()}
           onClose={() => setIsSecurityOpen(false)}
-          onRestoreBackup={handleRestoreBackup}
+          onRestoreBackup={handleDataRestored}
           lastBackupTime={lastBackupTime}
           setLastBackupTime={setLastBackupTime}
         />

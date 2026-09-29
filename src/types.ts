@@ -144,7 +144,67 @@ export interface CompanySettings {
   tasaBCV_USD: number; // Tasa oficial del Banco Central de Venezuela
   tasaInteresPrestacionesBCV: number; // % anual activa BCV
   lunesDelMesActual: number; // 4 o 5 lunes
-  diasUtilidadesEmpresa: number; // Mínimo legal 30 días
+  diasUtilidadesEmpresa: number;
+}
+
+export type AccountingAccountType =
+  | 'activo'
+  | 'pasivo'
+  | 'patrimonio'
+  | 'ingreso'
+  | 'gasto';
+
+export interface AccountingAccount {
+  id: string;
+  code: string;
+  name: string;
+  type: AccountingAccountType;
+  parentCode?: string;
+  isGroup: boolean;
+  active: boolean;
+}
+
+export interface CompanyBranch {
+  id: string;
+  name: string;
+  address: string;
+  city: string;
+  active: boolean;
+}
+
+export interface AccountingPeriod {
+  id: string;
+  name: string;
+  startDate: string;
+  endDate: string;
+  status: 'open' | 'closed';
+}
+
+export interface JournalLine {
+  id: string;
+  accountId: string;
+  description: string;
+  debit: number;
+  credit: number;
+}
+
+export interface JournalEntry {
+  id: string;
+  number: string;
+  date: string;
+  description: string;
+  periodId: string;
+  status: 'draft' | 'posted' | 'voided';
+  lines: JournalLine[];
+  createdAt: string;
+  createdBy: string;
+  postedAt?: string;
+  postedBy?: string;
+  voidedAt?: string;
+  voidedBy?: string;
+  voidReason?: string;
+  reversalOf?: string; // Mínimo legal 30 días
+  closingYear?: number;
 }
 
 export interface PayrollItem {
@@ -322,9 +382,9 @@ export interface AuditLog {
   id: string;
   timestamp: string;
   usuario: string;
-  rol: 'Administrador RRHH' | 'Especialista de Nómina' | 'Auditor Legal';
+  rol: 'Administrador RRHH' | 'Especialista de Nómina' | 'Auditor Legal' | 'Administrador ERP' | 'Propietario';
   accion: string;
-  modulo: 'Nómina' | 'Expedientes' | 'Prestaciones' | 'Archivos Gubernamentales' | 'Seguridad' | 'Configuración';
+  modulo: 'Nómina' | 'Expedientes' | 'Prestaciones' | 'Archivos Gubernamentales' | 'Seguridad' | 'Configuración' | 'Contabilidad' | 'Empresas';
   detalles: string;
   ip: string;
   cifrado: boolean;
