@@ -29,6 +29,7 @@ interface PayrollModuleProps {
   onApprovePayroll?: () => void;
   commissionByEmployee?: Record<string, number>;
   loanInstallmentByEmployee?: Record<string, number>;
+  loanDeductionsByEmployee?: Record<string, NonNullable<PayrollItem['prestamosAnticiposDetalle']>>;
   productDeductionByEmployee?: Record<string, number>;
 }
 
@@ -41,6 +42,9 @@ export function PayrollModule({
   onOpenSlip,
   onOpenPayslip,
   onApprovePayroll,
+  loanInstallmentByEmployee,
+  loanDeductionsByEmployee,
+  productDeductionByEmployee,
 }: PayrollModuleProps) {
   const [activeFrequency, setActiveFrequency] = useState<'semanal' | 'quincenal' | 'mensual'>(
     payroll.items[0]?.employee?.frecuenciaPago || 'mensual'
@@ -102,8 +106,12 @@ export function PayrollModule({
         'horasExtrasNocturnas' in source ? source.horasExtrasNocturnas : 0,
         'bonoProductividad' in source ? source.bonoProductividad : 0,
         'viaticos' in source ? source.viaticos : 0,
-        'prestamosAnticipos' in source ? source.prestamosAnticipos : 0,
-        'deduccionesProductos' in source ? source.deduccionesProductos : 0,
+        loanInstallmentByEmployee
+          ? loanInstallmentByEmployee[employee.id] || 0
+          : 'prestamosAnticipos' in source ? source.prestamosAnticipos : 0,
+        productDeductionByEmployee
+          ? productDeductionByEmployee[employee.id] || 0
+          : 'deduccionesProductos' in source ? source.deduccionesProductos : 0,
         aplicarRetencionesGubernamentales
       );
 
@@ -119,6 +127,9 @@ export function PayrollModule({
       return {
         ...baseItem,
         ...calc,
+        prestamosAnticiposDetalle: loanDeductionsByEmployee
+          ? loanDeductionsByEmployee[employee.id] || []
+          : baseItem.prestamosAnticiposDetalle,
         employee: {
           ...employee,
           frecuenciaPago: activeFrequency,

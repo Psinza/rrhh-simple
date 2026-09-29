@@ -230,14 +230,21 @@ export function DigitalPaySlipModal({
                     <td className="py-1.5 px-3 text-right text-amber-800 font-medium">{formatBs(item.deduccionesProductos)}</td>
                   </tr>
                 )}
-                {item.prestamosAnticipos > 0 && (
-                  <tr>
+                {(item.prestamosAnticiposDetalle?.length
+                  ? item.prestamosAnticiposDetalle
+                  : item.prestamosAnticipos > 0
+                    ? [{ loanId: 'legacy', description: 'Préstamo solicitado', amountOriginal: item.prestamosAnticipos, currency: 'BS' as const, amountBs: item.prestamosAnticipos }]
+                    : []
+                ).map((deduction) => (
+                  <tr key={deduction.loanId}>
                     <td className="py-1.5 px-3 font-mono text-slate-500 text-[11px]">116</td>
-                    <td className="py-1.5 px-3 text-slate-700">Cuota de préstamo solicitado</td>
+                    <td className="py-1.5 px-3 text-slate-700">
+                      Cuota de préstamo: {deduction.description} ({deduction.currency === 'USD' ? `${formatUSD(deduction.amountOriginal)} USD` : formatBs(deduction.amountOriginal)})
+                    </td>
                     <td className="py-1.5 px-3 text-right text-slate-400">-</td>
-                    <td className="py-1.5 px-3 text-right text-amber-800 font-medium">{formatBs(item.prestamosAnticipos)}</td>
+                    <td className="py-1.5 px-3 text-right text-amber-800 font-medium">{formatBs(deduction.amountBs)}</td>
                   </tr>
-                )}
+                ))}
               </tbody>
             </table>
           </div>

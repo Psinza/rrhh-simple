@@ -239,6 +239,13 @@ export interface PayrollItem {
   retencionFAOV: number; // 1%
   retencionISLR: number; // AR-I
   prestamosAnticipos: number;
+  prestamosAnticiposDetalle?: {
+    loanId: string;
+    description: string;
+    amountOriginal: number;
+    currency: MoneyCurrency;
+    amountBs: number;
+  }[];
   otrasDeducciones: number;
   totalDeducciones: number;
 

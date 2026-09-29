@@ -553,6 +553,20 @@ export default function App() {
     if (loan.status === 'Activo') totals[loan.employeeId] = (totals[loan.employeeId] || 0) + loan.installmentBs;
     return totals;
   }, {});
+  const loanDeductionsByEmployee = employeeLoans.reduce<Record<string, NonNullable<PayrollItem['prestamosAnticiposDetalle']>>>((totals, loan) => {
+    if (loan.status === 'Activo') {
+      const currency = loan.installmentCurrency || 'BS';
+      const amountOriginal = loan.installmentOriginal ?? loan.installmentBs;
+      (totals[loan.employeeId] ||= []).push({
+        loanId: loan.id,
+        description: loan.description,
+        amountOriginal,
+        currency,
+        amountBs: loan.installmentBs,
+      });
+    }
+    return totals;
+  }, {});
   const productDeductionByEmployee = productAssignments.reduce<Record<string, number>>((totals, assignment) => {
     if (assignment.status === 'Asignado') totals[assignment.employeeId] = (totals[assignment.employeeId] || 0) + assignment.amountBs;
     return totals;
@@ -1140,6 +1154,7 @@ export default function App() {
                           onApprovePayroll={handleApprovePayrollByOwner}
                           commissionByEmployee={commissionByEmployee}
                           loanInstallmentByEmployee={loanInstallmentByEmployee}
+                          loanDeductionsByEmployee={loanDeductionsByEmployee}
                           productDeductionByEmployee={productDeductionByEmployee}
                         />
           )}
