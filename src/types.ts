@@ -422,3 +422,12 @@ export interface AppUser {
   descripcionAcceso: string;
   permisos: string[];
 }
+
+export interface CreateAppUserInput {
+  username: string;
+  email: string;
+  password: string;
+  nombre: string;
+  cargo: string;
+  rol: AppUserRole;
+}

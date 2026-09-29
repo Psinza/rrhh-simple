@@ -33,6 +33,7 @@ import {
   AuditLog,
   AppUser,
   AppUserRole,
+  CreateAppUserInput,
   SalesRecord,
   ProductAssignment,
   ProductPurchase,
@@ -75,6 +76,24 @@ import { AccountingCoreModule } from './components/AccountingCoreModule';
 import { CommercialSalesModule } from './components/CommercialSalesModule';
 import { ErpOperationsModule } from './components/ErpOperationsModule';
 import { createAccountingPeriods, initialAccountingAccounts } from './data/accountingInitialData';
+
+function isCreatedUserProfile(value: unknown): value is Omit<AppUser, 'password'> {
+  if (!value || typeof value !== 'object') return false;
+  const user = value as Record<string, unknown>;
+  return typeof user.id === 'string'
+    && typeof user.username === 'string'
+    && typeof user.email === 'string'
+    && typeof user.nombre === 'string'
+    && typeof user.cargo === 'string'
+    && (user.rol === 'admin_sistema' || user.rol === 'rrhh' || user.rol === 'dueno')
+    && typeof user.rolTitulo === 'string'
+    && typeof user.avatar === 'string'
+    && typeof user.badgeColor === 'string'
+    && typeof user.nivelAcceso === 'string'
+    && typeof user.descripcionAcceso === 'string'
+    && Array.isArray(user.permisos)
+    && user.permisos.every((permission) => typeof permission === 'string');
+}
 
 export default function App() {
   // Authentication & Session
@@ -272,7 +291,7 @@ export default function App() {
   const unreadCount = notifications.filter((n) => !n.leida).length;
 
   const getCompleteUserProfile = (user: AppUser): AppUser => {
-    const predefinedProfile = predefinedUsers.find((u) => u.id === user.id || u.rol === user.rol);
+    const predefinedProfile = predefinedUsers.find((u) => u.id === user.id);
     return {
       ...(predefinedProfile || user),
       ...user,
@@ -281,7 +300,7 @@ export default function App() {
       telefono: user.telefono || predefinedProfile?.telefono,
       nivelAcceso: user.nivelAcceso || predefinedProfile?.nivelAcceso || '',
       descripcionAcceso: user.descripcionAcceso || predefinedProfile?.descripcionAcceso || '',
-      password: user.password || predefinedProfile?.password || '',
+      password: user.password || '',
     };
   };
 
@@ -347,6 +366,49 @@ export default function App() {
         // ignorar — el usuario local ya está activo
       }
     })();
+  };
+
+  const handleCreateUser = async (input: CreateAppUserInput): Promise<AppUser> => {
+    let response: Response;
+    try {
+      response = await fetch(`${getApiBase()}/api/users`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...input, companyRif: company.rif }),
+      });
+    } catch {
+      throw new Error('No se pudo conectar con el servidor. Verifique la conexión e inténtelo de nuevo.');
+    }
+
+    let payload: unknown;
+    try {
+      payload = await response.json();
+    } catch {
+      throw new Error(`El servidor respondió sin JSON válido (HTTP ${response.status}).`);
+    }
+    if (!response.ok) {
+      if (payload && typeof payload === 'object' && 'error' in payload && typeof payload.error === 'string') {
+        throw new Error(payload.error);
+      }
+      throw new Error(`No se pudo crear el usuario (HTTP ${response.status}).`);
+    }
+    if (!payload || typeof payload !== 'object' || !('user' in payload) || !isCreatedUserProfile(payload.user)) {
+      throw new Error('El servidor no devolvió los datos válidos del usuario creado.');
+    }
+
+    const createdUser: AppUser = { ...payload.user, password: '' };
+    setUsers((currentUsers) => (
+      currentUsers.some((existing) => existing.id === createdUser.id)
+        ? currentUsers.map((existing) => existing.id === createdUser.id ? createdUser : existing)
+        : [...currentUsers, createdUser]
+    ));
+    addAuditLog(
+      'Creación de usuario',
+      'Seguridad',
+      `Se creó ${createdUser.username} con el perfil ${createdUser.rolTitulo}.`,
+    );
+    return createdUser;
   };
 
   const handleLogout = async () => {
@@ -903,6 +965,7 @@ export default function App() {
               onPeriodsChange={setAccountingPeriods}
               onEntriesChange={setJournalEntries}
               onManageUsers={() => setActiveTab('company_identity')}
+              onCreateUser={handleCreateUser}
               onAudit={(action, module, details) => addAuditLog(action, module, details)}
             />
           ) : activeTab === 'commercial_sales' ? (
@@ -1123,17 +1186,20 @@ export default function App() {
             <CompanyIdentityAndUsersModule
               company={company}
               users={users}
-                          currentUser={currentUser}
-                          onSaveCompany={handleSaveCompany}
-                          onSaveUsers={(updatedUsers) => {
-                            setUsers(updatedUsers);
-                            if (currentUser) {
-                              const updatedMe = updatedUsers.find((u) => u.id === currentUser.id);
-                              if (updatedMe) setCurrentUser(updatedMe);
-                            }
-                            addAuditLog('Actualización de Directivos', 'Seguridad', 'Perfiles y accesos directivos actualizados');
-                          }}
-                        />
+              currentUser={currentUser}
+              onSaveCompany={handleSaveCompany}
+              onSaveUsers={(updatedUsers) => {
+                setUsers((previousUsers) => [
+                  ...previousUsers.map((user) => updatedUsers.find((updated) => updated.id === user.id) || user),
+                  ...updatedUsers.filter((user) => !previousUsers.some((existing) => existing.id === user.id)),
+                ]);
+                if (currentUser) {
+                  const updatedMe = updatedUsers.find((user) => user.id === currentUser.id);
+                  if (updatedMe) setCurrentUser(updatedMe);
+                }
+                addAuditLog('Actualización de Directivos', 'Seguridad', 'Perfiles y accesos directivos actualizados');
+              }}
+            />
           )}
             </>
           )}

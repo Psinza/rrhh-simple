@@ -364,7 +364,7 @@ export function CommercialSalesModule() {
     try {
       const { default: ExcelJS } = await import('exceljs');
       const workbook = new ExcelJS.Workbook();
-      workbook.creator = 'RRHH Simple';
+      workbook.creator = 'RRHH Contabilidad';
       workbook.created = new Date();
       const sheet = workbook.addWorksheet('Documentos comerciales');
       sheet.columns = [

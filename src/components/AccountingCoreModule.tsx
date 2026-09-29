@@ -27,6 +27,7 @@ import {
   AppUser,
   CompanyBranch,
   CompanySettings,
+  CreateAppUserInput,
   JournalEntry,
   JournalLine,
 } from '../types';
@@ -54,6 +55,7 @@ interface AccountingCoreModuleProps {
   onPeriodsChange: (periods: AccountingPeriod[]) => void;
   onEntriesChange: (entries: JournalEntry[]) => void;
   onManageUsers: () => void;
+  onCreateUser: (input: CreateAppUserInput) => Promise<AppUser>;
   onAudit: (action: string, module: 'Contabilidad' | 'Empresas', details: string) => void;
 }
 
@@ -111,6 +113,7 @@ export function AccountingCoreModule({
   onPeriodsChange,
   onEntriesChange,
   onManageUsers,
+  onCreateUser,
   onAudit,
 }: AccountingCoreModuleProps) {
   const [section, setSection] = useState<CoreSection>('overview');
@@ -128,6 +131,17 @@ export function AccountingCoreModule({
   const [entryDescription, setEntryDescription] = useState('');
   const [entryLines, setEntryLines] = useState<JournalLine[]>([blankLine(), blankLine()]);
   const [closingYear, setClosingYear] = useState(String(new Date().getFullYear()));
+  const [newUser, setNewUser] = useState<CreateAppUserInput>({
+    username: '',
+    email: '',
+    password: '',
+    nombre: '',
+    cargo: '',
+    rol: 'rrhh',
+  });
+  const [creatingUser, setCreatingUser] = useState(false);
+  const [userFormError, setUserFormError] = useState('');
+  const [userFormSuccess, setUserFormSuccess] = useState('');
   const [retainedEarningsAccountId, setRetainedEarningsAccountId] = useState('');
   const [annualCloseResult, setAnnualCloseResult] = useState('');
   const [formError, setFormError] = useState('');
@@ -468,6 +482,22 @@ export function AccountingCoreModule({
 
   const balanceStatus = Math.abs(debitTotal - creditTotal) < 0.005;
 
+  async function createUser(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setCreatingUser(true);
+    setUserFormError('');
+    setUserFormSuccess('');
+    try {
+      const created = await onCreateUser(newUser);
+      setUserFormSuccess(`Usuario ${created.username} creado con perfil ${created.rolTitulo}.`);
+      setNewUser({ username: '', email: '', password: '', nombre: '', cargo: '', rol: 'rrhh' });
+    } catch (error) {
+      setUserFormError(error instanceof Error ? error.message : 'No se pudo crear el usuario.');
+    } finally {
+      setCreatingUser(false);
+    }
+  }
+
   return (
     <section className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -614,18 +644,45 @@ export function AccountingCoreModule({
       )}
 
       {section === 'users' && (
-        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div><h2 className="font-bold text-slate-900">Usuarios y perfiles de acceso</h2><p className="mt-1 text-xs text-slate-500">Se conserva el directorio de usuarios existente; cada perfil muestra sus permisos registrados.</p></div>
-            {canManage && <button type="button" onClick={onManageUsers} className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-700 px-3 py-2 text-xs font-bold text-white hover:bg-blue-800"><Users className="h-4 w-4" /> Administrar usuarios</button>}
+        <div className="space-y-4">
+          {canManage && (
+            <form onSubmit={createUser} className="space-y-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+              <div>
+                <h2 className="font-bold text-slate-900">Crear usuario y asignar perfil</h2>
+                <p className="mt-1 text-xs text-slate-500">La cuenta se guarda en el backend para la empresa activa (RIF {company.rif}); la contraseña no se conserva en el navegador.</p>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                <input required minLength={3} maxLength={64} pattern="[A-Za-z0-9._-]+" autoComplete="username" aria-label="Nombre de usuario" value={newUser.username} onChange={(event) => setNewUser({ ...newUser, username: event.target.value })} placeholder="Usuario" className="rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-blue-400" />
+                <input required type="email" maxLength={254} autoComplete="email" aria-label="Correo electrónico" value={newUser.email} onChange={(event) => setNewUser({ ...newUser, email: event.target.value })} placeholder="Correo electrónico" className="rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-blue-400" />
+                <input required minLength={12} maxLength={72} type="password" autoComplete="new-password" aria-label="Contraseña inicial" value={newUser.password} onChange={(event) => setNewUser({ ...newUser, password: event.target.value })} placeholder="Contraseña inicial (mín. 12 caracteres)" className="rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-blue-400" />
+                <input required maxLength={160} autoComplete="name" aria-label="Nombre completo" value={newUser.nombre} onChange={(event) => setNewUser({ ...newUser, nombre: event.target.value })} placeholder="Nombre completo" className="rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-blue-400" />
+                <input maxLength={120} aria-label="Cargo" value={newUser.cargo} onChange={(event) => setNewUser({ ...newUser, cargo: event.target.value })} placeholder="Cargo (opcional)" className="rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-blue-400" />
+                <select aria-label="Perfil de acceso" value={newUser.rol} onChange={(event) => setNewUser({ ...newUser, rol: event.target.value as CreateAppUserInput['rol'] })} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-blue-400">
+                  <option value="rrhh">Gerente de RRHH</option>
+                  <option value="dueno">Dueño de la Empresa</option>
+                  <option value="admin_sistema">Administrador del Sistema</option>
+                </select>
+              </div>
+              {userFormError && <p role="alert" className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">{userFormError}</p>}
+              {userFormSuccess && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">{userFormSuccess}</p>}
+              <button type="submit" disabled={creatingUser} className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-700 px-4 py-2 text-sm font-bold text-white hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-60">
+                <Plus className="h-4 w-4" />{creatingUser ? 'Creando…' : 'Crear usuario'}
+              </button>
+            </form>
+          )}
+          <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div><h2 className="font-bold text-slate-900">Usuarios y perfiles de acceso</h2><p className="mt-1 text-xs text-slate-500">Cada perfil muestra sus permisos registrados en el directorio actual.</p></div>
+              {canManage && <button type="button" onClick={onManageUsers} className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-700 px-3 py-2 text-xs font-bold text-white hover:bg-blue-800"><Users className="h-4 w-4" /> Administrar usuarios</button>}
+            </div>
+            <div className="mt-4 overflow-x-auto">
+              <table className="w-full min-w-[600px] text-left text-sm">
+                <thead className="border-y border-slate-100 text-[11px] uppercase tracking-wide text-slate-400"><tr><th className="py-2.5 pr-4">Usuario</th><th className="py-2.5 pr-4">Perfil</th><th className="py-2.5 pr-4">Nivel</th><th className="py-2.5">Permisos</th></tr></thead>
+                <tbody>{users.map((user) => <tr key={user.id} className="border-b border-slate-50"><td className="py-3 pr-4"><p className="font-semibold text-slate-800">{user.nombre}</p><p className="text-xs text-slate-500">{user.email}</p></td><td className="py-3 pr-4">{user.rolTitulo}</td><td className="py-3 pr-4 text-xs text-slate-500">{user.nivelAcceso}</td><td className="py-3"><span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-700">{user.permisos.length} permisos</span></td></tr>)}</tbody>
+              </table>
+            </div>
+            <p className="mt-4 rounded-lg bg-amber-50 p-3 text-xs leading-5 text-amber-900">Los perfiles asignan los roles disponibles del sistema. La configuración de políticas granulares por acción todavía requiere una fase posterior de RBAC.</p>
           </div>
-          <div className="mt-4 overflow-x-auto">
-            <table className="w-full min-w-[600px] text-left text-sm">
-              <thead className="border-y border-slate-100 text-[11px] uppercase tracking-wide text-slate-400"><tr><th className="py-2.5 pr-4">Usuario</th><th className="py-2.5 pr-4">Perfil</th><th className="py-2.5 pr-4">Nivel</th><th className="py-2.5">Permisos</th></tr></thead>
-              <tbody>{users.map((user) => <tr key={user.id} className="border-b border-slate-50"><td className="py-3 pr-4"><p className="font-semibold text-slate-800">{user.nombre}</p><p className="text-xs text-slate-500">{user.email}</p></td><td className="py-3 pr-4">{user.rolTitulo}</td><td className="py-3 pr-4 text-xs text-slate-500">{user.nivelAcceso}</td><td className="py-3"><span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-700">{user.permisos.length} permisos</span></td></tr>)}</tbody>
-            </table>
-          </div>
-          <p className="mt-4 rounded-lg bg-amber-50 p-3 text-xs leading-5 text-amber-900">Los roles y permisos provienen del directorio actual del sistema. La configuración de políticas granulares por acción todavía requiere una fase posterior de RBAC.</p>
         </div>
       )}
 

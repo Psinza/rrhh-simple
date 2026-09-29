@@ -209,37 +209,95 @@ app.get('/api/users', authMiddleware, async (req, res) => {
 // Admin: create user
 app.post('/api/users', authMiddleware, async (req, res) => {
   if (req.user.rol !== 'admin_sistema') return res.status(403).json({ error: 'Forbidden' });
-  const u = req.body;
-  if (!u.username || !u.password || !u.rol) return res.status(400).json({ error: 'Missing fields' });
+  const u = req.body || {};
+  const username = typeof u.username === 'string' ? u.username.trim().toLowerCase() : '';
+  const email = typeof u.email === 'string' ? u.email.trim().toLowerCase() : '';
+  const nombre = typeof u.nombre === 'string' ? u.nombre.trim() : '';
+  const cargo = typeof u.cargo === 'string' ? u.cargo.trim() : '';
+  const companyRif = typeof u.companyRif === 'string' ? u.companyRif.trim() : '';
+  const allowedRoles = {
+    admin_sistema: {
+      title: 'Administrador del Sistema',
+      badgeColor: 'bg-blue-600 text-white',
+      level: 'Nivel 3 - Administración ERP',
+    },
+    rrhh: {
+      title: 'Gerente de RRHH',
+      badgeColor: 'bg-emerald-600 text-white',
+      level: 'Nivel 2 - Gestión Operativa RRHH',
+    },
+    dueno: {
+      title: 'Dueño de la Empresa',
+      badgeColor: 'bg-amber-600 text-white',
+      level: 'Nivel 1 - Alta Dirección',
+    },
+  };
+  const role = typeof u.rol === 'string' && Object.hasOwn(allowedRoles, u.rol)
+    ? allowedRoles[u.rol]
+    : null;
+  if (
+    !/^[a-z0-9._-]{3,64}$/.test(username)
+    || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+    || email.length > 254
+    || !nombre
+    || nombre.length > 160
+    || cargo.length > 120
+    || companyRif.length > 40
+    || typeof u.password !== 'string'
+    || Buffer.byteLength(u.password, 'utf8') < 12
+    || Buffer.byteLength(u.password, 'utf8') > 72
+    || !role
+    || !companyRif
+  ) {
+    return res.status(400).json({ error: 'Verifique los datos, la contraseña (12–72 bytes) y el perfil seleccionado.' });
+  }
+
   const bcrypt = require('bcrypt');
   const hash = await bcrypt.hash(u.password, 10);
-  const id = u.id || `user-${Date.now()}`;
+  const id = randomUUID();
   try {
-    await runAsUserAsync(
+    const result = await runAsUserAsync(
       req.user.id,
       req.ip,
-      `INSERT INTO users (id, username, email, password_hash, nombre, cargo, rol, rolTitulo, avatar, badgeColor, nivelAcceso, descripcionAcceso, permisos)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      `INSERT INTO users (
+         id, username, email, password_hash, nombre, cargo, rol, rolTitulo,
+         avatar, badgeColor, nivelAcceso, descripcionAcceso, permisos, company_id
+       )
+       SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '[]'::JSONB, company.id
+       FROM companies AS company
+       WHERE company.active
+         AND UPPER(REGEXP_REPLACE(company.rif, '[^A-Za-z0-9]', '', 'g'))
+           = UPPER(REGEXP_REPLACE(?, '[^A-Za-z0-9]', '', 'g'))
+       RETURNING id, username, email, nombre, cargo, rol, rolTitulo AS "rolTitulo",
+                 avatar, badgeColor, nivelAcceso, descripcionAcceso, permisos`,
       [
         id,
-        u.username,
-        u.email || null,
+        username,
+        email,
         hash,
-        u.nombre || '',
-        u.cargo || '',
+        nombre,
+        cargo,
         u.rol,
-        u.rolTitulo || '',
-        u.avatar || '',
-        u.badgeColor || '',
-        u.nivelAcceso || '',
-        u.descripcionAcceso || '',
-        JSON.stringify(u.permisos || []),
+        role.title,
+        nombre.split(/\s+/).map((part) => part[0]).join('').slice(0, 2).toUpperCase(),
+        role.badgeColor,
+        role.level,
+        `Acceso asignado al perfil ${role.title}.`,
+        companyRif,
       ],
     );
-    res.json({ ok: true, id });
+    if (result.rowCount === 0) {
+      return res.status(409).json({
+        error: 'La empresa indicada no está registrada como activa en la base de datos ERP. Verifique su RIF y la configuración de empresa.',
+      });
+    }
+    res.status(201).json({ user: result.rows[0] });
   } catch (e) {
-    console.error(e);
-    res.status(500).json({ error: 'Failed to create user' });
+    if (e.code === '23505') {
+      return res.status(409).json({ error: 'El nombre de usuario o correo ya está registrado.' });
+    }
+    console.error('Failed to create authenticated ERP user:', e);
+    res.status(500).json({ error: 'No se pudo guardar el usuario en la base de datos.' });
   }
 });
 
