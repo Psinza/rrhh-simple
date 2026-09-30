@@ -36,7 +36,12 @@ class LightweightDatabase {
     this.initDatabase();
   }
 
-  public addCurrencyRate(rate: number, source: string = 'manual', date?: string) {
+  public addCurrencyRate(
+    rate: number,
+    source: string = 'manual',
+    date?: string,
+    updateCompanyRate = true,
+  ) {
     try {
       const state = this.loadLocal() || {
         version: '3.2.0',
@@ -60,10 +65,19 @@ class LightweightDatabase {
 
       const record = { date: date || new Date().toISOString(), rate, source };
       state.currencyRates = state.currencyRates || [];
-      state.currencyRates.push(record);
+      const existingRateIndex = state.currencyRates.findIndex((existing) => (
+        existing.date.slice(0, 10) === record.date.slice(0, 10)
+        && existing.source === source
+      ));
+      if (existingRateIndex >= 0) {
+        state.currencyRates[existingRateIndex] = record;
+      } else {
+        state.currencyRates.push(record);
+      }
 
-      // Also update company current tasaBCV_USD for backward compatibility
-      state.company.tasaBCV_USD = rate;
+      if (updateCompanyRate) {
+        state.company.tasaBCV_USD = rate;
+      }
 
       this.saveLocal(state);
       this.syncToCloud(state).catch(() => {});

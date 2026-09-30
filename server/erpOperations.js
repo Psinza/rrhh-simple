@@ -146,6 +146,46 @@ function normalizeEmployee(employee) {
   if (withholding > 100) throw httpError(400, 'La retención ISLR no puede superar 100%.');
   const profitDays = numeric(employee.diasUtilidadesAnuales, 'Los días de utilidades', 30);
   if (profitDays < 30 || profitDays > 120) throw httpError(400, 'Los días de utilidades deben estar entre 30 y 120.');
+  let attendanceEvents = null;
+  if (employee.novedadesLaborales !== undefined) {
+    if (!Array.isArray(employee.novedadesLaborales) || employee.novedadesLaborales.length > 1000) {
+      throw httpError(400, 'Las novedades laborales deben ser una lista de hasta 1000 registros.');
+    }
+    const eventIds = new Set();
+    attendanceEvents = employee.novedadesLaborales.map((event) => {
+      const supportedTypes = ['Ausencia injustificada', 'Reposo médico', 'Vacaciones'];
+      if (!event || typeof event !== 'object' || Array.isArray(event)
+        || !supportedTypes.includes(event.tipo)) {
+        throw httpError(400, 'Cada novedad laboral debe tener un tipo admitido.');
+      }
+      const id = requiredText(event.id, 'El identificador de la novedad', 120);
+      if (eventIds.has(id)) throw httpError(400, 'No se permiten identificadores de novedades duplicados.');
+      eventIds.add(id);
+      const startDate = validDate(event.fechaInicio, 'La fecha inicial de la novedad');
+      const endDate = validDate(event.fechaFin, 'La fecha final de la novedad');
+      if (endDate < startDate) throw httpError(400, 'La fecha final de la novedad no puede ser anterior a la inicial.');
+      const days = numeric(event.dias, 'Los días de la novedad');
+      if (!Number.isInteger(days) || days < 1) {
+        throw httpError(400, 'Los días de la novedad deben ser un número entero positivo.');
+      }
+      if (event.tipo === 'Ausencia injustificada' && (days !== 1 || startDate !== endDate)) {
+        throw httpError(400, 'Cada ausencia injustificada debe corresponder a un único día laborable.');
+      }
+      if (typeof event.descripcion !== 'string' || event.descripcion.length > 2000) {
+        throw httpError(400, 'La descripción de la novedad debe tener hasta 2000 caracteres.');
+      }
+      return {
+        id,
+        tipo: event.tipo,
+        fechaInicio: startDate,
+        fechaFin: endDate,
+        dias,
+        descripcion: event.descripcion.trim(),
+        registradoPor: requiredText(event.registradoPor, 'El responsable de la novedad', 120),
+        fechaRegistro: validDate(event.fechaRegistro, 'La fecha de registro de la novedad'),
+      };
+    });
+  }
 
   return {
     id: requiredText(employee.id, 'El identificador del empleado', 120),
@@ -196,6 +236,7 @@ function normalizeEmployee(employee) {
     travelAllowanceOriginal: optionalNumber(employee.viaticosPendientesOriginal, 'Los viáticos originales'),
     travelAllowanceCurrency: employee.viaticosMoneda ? currencyMap[employee.viaticosMoneda] : null,
     dependents: Math.trunc(numeric(employee.cargasFamiliares, 'Las cargas familiares')),
+    attendanceEvents,
   };
 }
 
@@ -1349,6 +1390,7 @@ function createErpOperationsRouter(authMiddleware, pool) {
             employee.bankName, employee.bankAccount, employee.bankAccountType, employee.paymentMethod,
             employee.vacationDays, employee.travelAllowance, employee.travelAllowanceOriginal,
             employee.travelAllowanceCurrency, employee.dependents,
+            employee.attendanceEvents === null ? null : JSON.stringify(employee.attendanceEvents),
           ];
           const insert = await client.query(
             `INSERT INTO employees (
@@ -1365,7 +1407,7 @@ function createErpOperationsRouter(authMiddleware, pool) {
                seller_payment_description, bank_name, bank_account_number,
                bank_account_type, payment_method, vacation_days_taken,
                travel_allowance_pending, travel_allowance_original,
-               travel_allowance_currency, family_dependents
+               travel_allowance_currency, family_dependents, attendance_events
              ) VALUES (
                ${values.map((_, index) => `$${index + 1}`).join(',')}
              )
@@ -1406,6 +1448,7 @@ function createErpOperationsRouter(authMiddleware, pool) {
                travel_allowance_original = EXCLUDED.travel_allowance_original,
                travel_allowance_currency = EXCLUDED.travel_allowance_currency,
                family_dependents = EXCLUDED.family_dependents,
+               attendance_events = COALESCE(EXCLUDED.attendance_events, employees.attendance_events),
                updated_at = CURRENT_TIMESTAMP
              WHERE employees.company_id = EXCLUDED.company_id`,
             values,

@@ -9,6 +9,7 @@ const { randomUUID } = require('node:crypto');
 const { init, allAsync, runAsUserAsync, db } = require('./db');
 const { createCommercialSalesRouter } = require('./commercialSales');
 const { createErpOperationsRouter } = require('./erpOperations');
+const { fetchBcvUsdRate } = require('./bcvRate');
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -197,6 +198,110 @@ app.get('/api/me', authMiddleware, async (req, res) => {
   const rows = await allAsync('SELECT id, username, email, nombre, cargo, rol, rolTitulo AS "rolTitulo", avatar, badgeColor, nivelAcceso, descripcionAcceso, permisos FROM users WHERE id = ? LIMIT 1', [id]);
   if (!rows || rows.length === 0) return res.status(404).json({ error: 'User not found' });
   res.json({ user: { ...rows[0], permisos: parsePermissions(rows[0].permisos) } });
+});
+
+app.get('/api/currency-rates/bcv/usd', authMiddleware, async (req, res) => {
+  const requestedDate = typeof req.query.date === 'string'
+    ? req.query.date
+    : new Date().toISOString().slice(0, 10);
+  const parsedRequestedDate = new Date(`${requestedDate}T00:00:00.000Z`);
+  if (
+    !/^\d{4}-\d{2}-\d{2}$/.test(requestedDate)
+    || !Number.isFinite(parsedRequestedDate.getTime())
+    || parsedRequestedDate.toISOString().slice(0, 10) !== requestedDate
+  ) {
+    return res.status(400).json({ error: 'La fecha solicitada debe tener el formato YYYY-MM-DD.' });
+  }
+
+  try {
+    const userResult = await runAsUserAsync(
+      req.user.id,
+      req.ip,
+      'SELECT company_id FROM users WHERE id = $1 AND is_active = TRUE',
+      [req.user.id],
+    );
+    const companyId = userResult.rows[0]?.company_id;
+    if (!companyId) {
+      return res.status(409).json({ error: 'El usuario no tiene una empresa asociada para registrar la tasa BCV.' });
+    }
+
+    let publishedRate = null;
+    let sourceError = null;
+    try {
+      publishedRate = await fetchBcvUsdRate();
+    } catch (error) {
+      sourceError = error;
+      console.warn('No se pudo consultar la tasa oficial del BCV:', error);
+    }
+
+    if (publishedRate) {
+      await runAsUserAsync(
+        req.user.id,
+        req.ip,
+        `WITH saved_rate AS (
+           INSERT INTO currency_rates (
+             company_id, rate_date, source, currency_from, currency_to, rate, created_by
+           )
+           VALUES ($1, $2, 'BCV', 'USD', 'VES', $3, $4)
+           ON CONFLICT (company_id, rate_date, currency_from, currency_to, source)
+           DO UPDATE SET rate = EXCLUDED.rate, created_by = EXCLUDED.created_by
+           RETURNING company_id, rate
+         )
+         UPDATE companies AS company
+         SET bcv_usd_rate = saved_rate.rate, updated_at = CURRENT_TIMESTAMP
+         FROM saved_rate
+         WHERE company.id = saved_rate.company_id`,
+        [
+          companyId,
+          publishedRate.effectiveDate,
+          publishedRate.rate,
+          req.user.id,
+        ],
+      );
+    }
+
+    const historicalResult = await runAsUserAsync(
+      req.user.id,
+      req.ip,
+      `SELECT rate, rate_date::TEXT AS effective_date
+       FROM currency_rates
+       WHERE company_id = $1
+         AND source = 'BCV'
+         AND currency_from = 'USD'
+         AND currency_to = 'VES'
+         AND rate_date <= $2
+       ORDER BY rate_date DESC
+       LIMIT 1`,
+      [companyId, requestedDate],
+    );
+    const savedRate = historicalResult.rows[0];
+    if (savedRate) {
+      return res.json({
+        rate: Number(savedRate.rate),
+        effectiveDate: savedRate.effective_date,
+        source: 'BCV',
+        stale: Boolean(sourceError),
+        historical: requestedDate < new Date().toISOString().slice(0, 10),
+        warning: sourceError
+          ? 'No se pudo consultar el BCV; se usa la última tasa oficial guardada vigente para esta fecha.'
+          : savedRate.effective_date < requestedDate
+            ? 'Se usa la última tasa oficial registrada con fecha efectiva no posterior a la fecha solicitada.'
+            : undefined,
+      });
+    }
+
+    if (publishedRate) {
+      return res.status(409).json({
+        error: `No hay una tasa BCV guardada vigente para el período solicitado (${requestedDate}); no se aplicó la tasa de una fecha posterior.`,
+      });
+    }
+    return res.status(503).json({
+      error: 'No se pudo consultar el BCV y no existe una tasa oficial guardada vigente para esta fecha.',
+    });
+  } catch (error) {
+    console.error('No se pudo obtener o guardar la tasa BCV:', error);
+    return res.status(500).json({ error: 'No se pudo guardar la tasa oficial BCV en la base de datos.' });
+  }
 });
 
 // Admin: list users

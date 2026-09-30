@@ -71,6 +71,15 @@ export function normalizeSalaryToBs(employee: Partial<Employee>, exchangeRate: n
   return storedSalary;
 }
 
+export function getEffectivePayrollExchangeRate(
+  payrollRate: number | undefined,
+  currentRate: number,
+): number {
+  return payrollRate && Number.isFinite(payrollRate) && payrollRate > 0
+    ? payrollRate
+    : currentRate;
+}
+
 export function getSalaryInEmployeeCurrency(employee: Partial<Employee>, exchangeRate: number): number {
   if (employee.salarioMoneda === 'USD' && Number(employee.salarioMensualBaseOriginal) > 0) {
     return Number(employee.salarioMensualBaseOriginal);
@@ -209,7 +218,8 @@ export function calculatePayrollDeductionsAndContributions(
   viaticos: number = employee.viaticosPendientes || 0,
   prestamosAnticipos: number = 0,
   deduccionesProductos: number = 0,
-  aplicarRetencionesGubernamentales: boolean = true
+  aplicarRetencionesGubernamentales: boolean = true,
+  deduccionAusencias: number = 0
 ): Omit<PayrollItem, 'id' | 'employeeId' | 'employee' | 'fechaGeneracion' | 'firmadoDigitalmente' | 'hashCriptografico'> {
 
   const retencionesGubernamentalesActivas = aplicarRetencionesGubernamentales && employee.cestaticketAplica !== false;
@@ -250,7 +260,7 @@ export function calculatePayrollDeductionsAndContributions(
 
   const otrasDeducciones = 0;
   const totalDeducciones =
-    retencionIVSS + retencionParoForzoso + retencionFAOV + retencionISLR + prestamosAnticipos + deduccionesProductos + otrasDeducciones;
+    retencionIVSS + retencionParoForzoso + retencionFAOV + retencionISLR + prestamosAnticipos + deduccionesProductos + otrasDeducciones + deduccionAusencias;
 
   const netoCobrarBs = totalAsignaciones - totalDeducciones;
   const netoCobrarUSD = tasaBCV > 0 ? netoCobrarBs / tasaBCV : 0;
@@ -285,6 +295,7 @@ export function calculatePayrollDeductionsAndContributions(
     retencionFAOV,
     retencionISLR,
     prestamosAnticipos,
+    deduccionAusencias,
     otrasDeducciones,
     totalDeducciones,
     netoCobrarBs,

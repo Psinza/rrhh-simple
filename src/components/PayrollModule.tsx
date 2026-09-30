@@ -17,33 +17,56 @@ import {
 } from '../utils/venezuelaLaborCalculations';
 import { buildBankPayrollFile, defaultSourceIdentifier, downloadBankPayrollFile } from '../utils/bankPayrollFile';
 import { downloadBankPayrollWorkbook, downloadPayrollSummaryCsv } from '../utils/payrollSpreadsheet';
+import {
+  getUnjustifiedAbsenceDeduction,
+  getUnjustifiedAbsencesOutsidePeriod,
+} from '../utils/employeeAttendance';
+import { PayrollHalf } from '../utils/payrollPeriods';
 
 interface PayrollModuleProps {
   company: CompanySettings;
   payroll: PayrollPeriod;
+  payrollPeriods: PayrollPeriod[];
   employees?: Employee[];
   currentUser?: { rol?: string; nombre?: string };
-  onUpdatePayroll: (payroll: PayrollPeriod) => void;
+  onUpdatePayroll: (payroll: PayrollPeriod, exchangeRate?: number, historicalRate?: boolean) => void;
+  onSelectPayroll: (payroll: PayrollPeriod) => void;
+  onCreatePayrollPeriod: (year: number, month: number, half: PayrollHalf) => void;
+  bcvRateSync: {
+    status: 'idle' | 'loading' | 'current' | 'stale' | 'error';
+    rate?: number;
+    effectiveDate?: string;
+    historical?: boolean;
+    message?: string;
+  };
+  onRefreshBcvRate: (effectiveDate: string) => Promise<{ rate: number; historical: boolean }>;
+  getLoanDeductionsForRate: (exchangeRate: number) => {
+    details: Record<string, NonNullable<PayrollItem['prestamosAnticiposDetalle']>>;
+    installments: Record<string, number>;
+  };
   onOpenSlip?: (item: PayrollItem) => void;
   onOpenPayslip?: (item: PayrollItem) => void;
   onApprovePayroll?: () => void;
-  commissionByEmployee?: Record<string, number>;
-  loanInstallmentByEmployee?: Record<string, number>;
-  loanDeductionsByEmployee?: Record<string, NonNullable<PayrollItem['prestamosAnticiposDetalle']>>;
+  onConfirmBankFile: () => void;
   productDeductionByEmployee?: Record<string, number>;
 }
 
 export function PayrollModule({
   company,
   payroll,
+  payrollPeriods,
   employees,
   currentUser,
   onUpdatePayroll,
+  onSelectPayroll,
+  onCreatePayrollPeriod,
+  bcvRateSync,
+  onRefreshBcvRate,
+  getLoanDeductionsForRate,
   onOpenSlip,
   onOpenPayslip,
   onApprovePayroll,
-  loanInstallmentByEmployee,
-  loanDeductionsByEmployee,
+  onConfirmBankFile,
   productDeductionByEmployee,
 }: PayrollModuleProps) {
   const [activeFrequency, setActiveFrequency] = useState<'semanal' | 'quincenal' | 'mensual'>(
@@ -54,14 +77,33 @@ export function PayrollModule({
   const [showApprovedNotice, setShowApprovedNotice] = useState(false);
   const defaultIdentifier = defaultSourceIdentifier(company);
   const [showBankExport, setShowBankExport] = useState(false);
+  const [bankTextGenerated, setBankTextGenerated] = useState(false);
   const [sourceAccount, setSourceAccount] = useState('');
   const [sourceNationality, setSourceNationality] = useState(defaultIdentifier.nationality);
   const [sourceIdentifier, setSourceIdentifier] = useState(defaultIdentifier.identifier);
   const [bankExportError, setBankExportError] = useState('');
+  const [isRecalculating, setIsRecalculating] = useState(false);
+  const [recalculationError, setRecalculationError] = useState('');
+  const [targetMonth, setTargetMonth] = useState(payroll.fechaPago.slice(0, 7));
+  const [targetHalf, setTargetHalf] = useState<PayrollHalf>('second');
 
   const activeEmployees = (employees && employees.length > 0 ? employees : payroll.items.map((item) => item.employee))
     .filter((emp) => emp.status === 'activo');
+  const outOfPeriodAbsences = getUnjustifiedAbsencesOutsidePeriod(
+    activeEmployees,
+    payroll.fechaInicio,
+    payroll.fechaFin,
+  );
   const hayEmpleadosConCestaticket = activeEmployees.some((emp) => emp.cestaticketAplica !== false);
+  const calculatedFrequency = payroll.items[0]?.employee?.frecuenciaPago
+    ?? (payroll.tipo === 'Semanal' ? 'semanal' : payroll.tipo === 'Mensual' ? 'mensual' : 'quincenal');
+  const frequencyNeedsRecalculation = payroll.items.length > 0
+    && payroll.items.some((item) => item.employee.frecuenciaPago !== activeFrequency);
+
+  useEffect(() => {
+    setActiveFrequency(calculatedFrequency);
+    setTargetMonth(payroll.fechaPago.slice(0, 7));
+  }, [calculatedFrequency, payroll.id]);
 
   useEffect(() => {
     if (!hayEmpleadosConCestaticket) {
@@ -74,7 +116,7 @@ export function PayrollModule({
       const result = buildBankPayrollFile(payroll, { sourceAccount, sourceNationality, sourceIdentifier });
       downloadBankPayrollFile(result.content, payroll.nombre);
       setBankExportError('');
-      setShowBankExport(false);
+      setBankTextGenerated(true);
       alert(`Archivo bancario generado: ${result.transferredItems.length} transferencias. Se omitieron ${result.skippedItems.length} empleados con neto cero.`);
     } catch (error) {
       setBankExportError(error instanceof Error ? error.message : 'No se pudo generar el archivo bancario.');
@@ -91,68 +133,98 @@ export function PayrollModule({
     }
   };
 
-  const handleRecalculate = () => {
-    const activeEmployees = (employees && employees.length > 0 ? employees : payroll.items.map((item) => item.employee))
-      .filter((emp) => emp.status === 'activo');
+  const handleRecalculate = async () => {
+    if (payroll.archivoBancarioConfirmado) {
+      setRecalculationError('No se puede recalcular: el archivo TXT bancario ya fue confirmado.');
+      return;
+    }
 
-    const sourceItems = activeEmployees.length > 0 ? activeEmployees : payroll.items;
-    const recalculatedItems = sourceItems.map((source) => {
-      const employee = 'employee' in source ? source.employee : source;
-      const calc = calculatePayrollDeductionsAndContributions(
-        employee,
-        company,
-        activeFrequency,
-        'horasExtrasDiurnas' in source ? source.horasExtrasDiurnas : 0,
-        'horasExtrasNocturnas' in source ? source.horasExtrasNocturnas : 0,
-        'bonoProductividad' in source ? source.bonoProductividad : 0,
-        'viaticos' in source ? source.viaticos : 0,
-        loanInstallmentByEmployee
-          ? loanInstallmentByEmployee[employee.id] || 0
-          : 'prestamosAnticipos' in source ? source.prestamosAnticipos : 0,
-        productDeductionByEmployee
-          ? productDeductionByEmployee[employee.id] || 0
-          : 'deduccionesProductos' in source ? source.deduccionesProductos : 0,
-        aplicarRetencionesGubernamentales
+    setIsRecalculating(true);
+    setRecalculationError('');
+    try {
+      const { rate, historical } = await onRefreshBcvRate(payroll.fechaPago);
+      const payrollCompany = { ...company, tasaBCV_USD: rate };
+      const loanDeductions = getLoanDeductionsForRate(rate);
+      const activeEmployees = (
+        employees && employees.length > 0
+          ? employees
+          : payroll.items.map((item) => item.employee)
+      ).filter((emp) => emp.status === 'activo');
+
+      const sourceItems = activeEmployees.length > 0 ? activeEmployees : payroll.items;
+      const recalculatedItems = sourceItems.map((source) => {
+        const employee = 'employee' in source ? source.employee : source;
+        const absenceDeduction = getUnjustifiedAbsenceDeduction(
+          employee,
+          payroll.fechaInicio,
+          payroll.fechaFin,
+          activeFrequency,
+          rate,
+        );
+        const calc = calculatePayrollDeductionsAndContributions(
+          employee,
+          payrollCompany,
+          activeFrequency,
+          'horasExtrasDiurnas' in source ? source.horasExtrasDiurnas : 0,
+          'horasExtrasNocturnas' in source ? source.horasExtrasNocturnas : 0,
+          'bonoProductividad' in source ? source.bonoProductividad : 0,
+          'viaticos' in source ? source.viaticos : 0,
+          loanDeductions.installments[employee.id] || 0,
+          productDeductionByEmployee
+            ? productDeductionByEmployee[employee.id] || 0
+            : 'deduccionesProductos' in source ? source.deduccionesProductos : 0,
+          aplicarRetencionesGubernamentales,
+          absenceDeduction.totalBs,
+        );
+
+        const baseItem = 'employee' in source ? source : {
+          id: `slip-${employee.id}-${payroll.id}`,
+          employeeId: employee.id,
+          employee,
+          fechaGeneracion: payroll.fechaPago,
+          firmadoDigitalmente: false,
+          hashCriptografico: `payroll-${employee.id}-${Date.now()}`,
+        };
+
+        return {
+          ...baseItem,
+          ...calc,
+          ausenciasDeducidasDetalle: absenceDeduction.details,
+          prestamosAnticiposDetalle: loanDeductions.details[employee.id] || [],
+          employee: {
+            ...employee,
+            frecuenciaPago: activeFrequency,
+          },
+        };
+      });
+
+      onUpdatePayroll({
+        ...payroll,
+        tasaBCV_USD: rate,
+        estatus: payroll.estatus === 'Aprobada' ? 'Calculada' : payroll.estatus,
+        items: recalculatedItems,
+        tipo: activeFrequency === 'semanal' ? 'Semanal' : activeFrequency === 'quincenal' ? '1ra Quincena' : 'Mensual',
+        totalNominaBs: recalculatedItems.reduce((sum, i) => sum + i.totalAsignaciones, 0),
+        totalCestaticketBs: recalculatedItems.reduce((sum, i) => sum + i.cestaticketPeriodo, 0),
+        totalAportesPatronalesBs: recalculatedItems.reduce((sum, i) => sum + i.totalAportesPatronales, 0),
+        totalCostoEmpresaBs: recalculatedItems.reduce((sum, i) => sum + i.totalAsignaciones + i.totalAportesPatronales, 0),
+      }, rate, historical);
+    } catch (error) {
+      setRecalculationError(
+        error instanceof Error ? error.message : 'No se pudo validar la tasa oficial del BCV.',
       );
-
-      const baseItem = 'employee' in source ? source : {
-        id: `slip-${employee.id}-${payroll.id}`,
-        employeeId: employee.id,
-        employee,
-        fechaGeneracion: payroll.fechaPago,
-        firmadoDigitalmente: false,
-        hashCriptografico: `payroll-${employee.id}-${Date.now()}`,
-      };
-
-      return {
-        ...baseItem,
-        ...calc,
-        prestamosAnticiposDetalle: loanDeductionsByEmployee
-          ? loanDeductionsByEmployee[employee.id] || []
-          : baseItem.prestamosAnticiposDetalle,
-        employee: {
-          ...employee,
-          frecuenciaPago: activeFrequency,
-        },
-      };
-    });
-
-    onUpdatePayroll({
-      ...payroll,
-      items: recalculatedItems,
-      tipo: activeFrequency === 'semanal' ? 'Semanal' : activeFrequency === 'quincenal' ? '1ra Quincena' : 'Mensual',
-      totalNominaBs: recalculatedItems.reduce((sum, i) => sum + i.totalAsignaciones, 0),
-      totalCestaticketBs: recalculatedItems.reduce((sum, i) => sum + i.cestaticketPeriodo, 0),
-      totalAportesPatronalesBs: recalculatedItems.reduce((sum, i) => sum + i.totalAportesPatronales, 0),
-      totalCostoEmpresaBs: recalculatedItems.reduce((sum, i) => sum + i.totalAsignaciones + i.totalAportesPatronales, 0),
-    });
+    } finally {
+      setIsRecalculating(false);
+    }
   };
 
   const handleApprovePayroll = () => {
+    const exchangeRate = payroll.tasaBCV_USD ?? bcvRateSync.rate ?? company.tasaBCV_USD;
     onUpdatePayroll({
       ...payroll,
       estatus: 'Aprobada',
-    });
+      tasaBCV_USD: exchangeRate,
+    }, exchangeRate, Boolean(bcvRateSync.historical));
     setShowApprovedNotice(true);
     setTimeout(() => setShowApprovedNotice(false), 5000);
   };
@@ -175,6 +247,56 @@ export function PayrollModule({
 
   return (
     <div className="space-y-6">
+      <section className="flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 bg-white p-4">
+        <label className="flex min-w-56 flex-col gap-1 text-xs font-semibold text-slate-700">
+          Período activo
+          <select
+            value={payroll.id}
+            onChange={(event) => {
+              const selectedPayroll = payrollPeriods.find((period) => period.id === event.target.value);
+              if (selectedPayroll) onSelectPayroll(selectedPayroll);
+            }}
+            className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 font-normal"
+          >
+            {payrollPeriods.map((period) => (
+              <option key={period.id} value={period.id}>
+                {period.nombre} · {period.estatus}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="flex flex-col gap-1 text-xs font-semibold text-slate-700">
+          Mes del nuevo período
+          <input
+            type="month"
+            value={targetMonth}
+            onChange={(event) => setTargetMonth(event.target.value)}
+            className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 font-normal"
+          />
+        </label>
+        <label className="flex flex-col gap-1 text-xs font-semibold text-slate-700">
+          Quincena
+          <select
+            value={targetHalf}
+            onChange={(event) => setTargetHalf(event.target.value as PayrollHalf)}
+            className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 font-normal"
+          >
+            <option value="first">1ra quincena (1–15)</option>
+            <option value="second">2da quincena (16–fin de mes)</option>
+          </select>
+        </label>
+        <button
+          type="button"
+          disabled={!/^\d{4}-\d{2}$/.test(targetMonth)}
+          onClick={() => {
+            const [year, month] = targetMonth.split('-').map(Number);
+            onCreatePayrollPeriod(year, month, targetHalf);
+          }}
+          className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-800 hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          Crear o abrir período
+        </button>
+      </section>
       <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
@@ -188,6 +310,32 @@ export function PayrollModule({
           <p className="text-xs text-slate-500 mt-1">
             Período: <strong className="text-slate-800">{payroll.nombre}</strong> • Frecuencia: {payroll.tipo} • Retenciones y aportes calculados automáticamente.
           </p>
+          {outOfPeriodAbsences.length > 0 && (
+            <p role="status" className="mt-2 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+              {outOfPeriodAbsences.length} ausencia(s) injustificada(s) registrada(s) fuera de este período no se descuentan en esta nómina:
+              {' '}
+              {outOfPeriodAbsences.slice(0, 3).map((absence) => `${absence.employeeName} (${absence.date})`).join(', ')}
+              {outOfPeriodAbsences.length > 3 ? ` y ${outOfPeriodAbsences.length - 3} más` : ''}.
+              Recalcule una nómina cuyo rango incluya esas fechas.
+            </p>
+          )}
+          {bcvRateSync.status !== 'idle' && (
+            <p
+              role={bcvRateSync.status === 'error' ? 'alert' : 'status'}
+              className={`mt-2 text-xs ${
+                bcvRateSync.status === 'error' || bcvRateSync.status === 'stale'
+                  ? 'text-amber-700'
+                  : 'text-emerald-700'
+              }`}
+            >
+              {bcvRateSync.status === 'loading'
+                ? 'Consultando la tasa oficial USD del BCV…'
+                : bcvRateSync.status === 'error'
+                  ? bcvRateSync.message
+                  : `Tasa oficial BCV: Bs. ${bcvRateSync.rate?.toFixed(8)} por USD • Vigente desde ${bcvRateSync.effectiveDate}${bcvRateSync.historical ? ' • tasa histórica del período' : ''}${bcvRateSync.status === 'stale' ? ` • ${bcvRateSync.message || 'se usa la última tasa oficial guardada'}` : ''}`}
+            </p>
+          )}
+          {recalculationError && <p className="mt-2 text-xs text-red-700" role="alert">{recalculationError}</p>}
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
@@ -212,6 +360,11 @@ export function PayrollModule({
                 <option value="quincenal">Quincenal - Administrativos</option>
                 <option value="mensual">Mensual</option>
               </select>
+              {frequencyNeedsRecalculation && (
+                <span className="mt-1 block text-xs text-amber-700">
+                  Este tipo de pago se aplicará al recibo al recalcular la nómina.
+                </span>
+              )}
             </label>
             <span className="ml-2 text-[10px] font-medium text-slate-500">{frequencySummary}</span>
           </div>
@@ -228,12 +381,14 @@ export function PayrollModule({
             </label>
           )}
 
-          {(currentUser?.rol === 'rrhh' || currentUser?.rol === 'admin_sistema') && (
+          {(currentUser?.rol === 'rrhh' || currentUser?.rol === 'admin_sistema' || currentUser?.rol === 'dueno') && (
             <button
               onClick={handleRecalculate}
-              className="px-3 py-2 text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 rounded transition-colors border border-slate-200"
+              disabled={isRecalculating || bcvRateSync.status === 'loading' || payroll.archivoBancarioConfirmado}
+              className="px-3 py-2 text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 rounded transition-colors border border-slate-200 disabled:cursor-not-allowed disabled:opacity-60"
+              title={payroll.archivoBancarioConfirmado ? 'El archivo TXT bancario ya fue confirmado.' : undefined}
             >
-              Recalcular Nómina
+              {isRecalculating ? 'Validando tasa BCV…' : payroll.archivoBancarioConfirmado ? 'TXT bancario confirmado' : 'Recalcular Nómina'}
             </button>
           )}
 
@@ -244,7 +399,8 @@ export function PayrollModule({
                   if (onApprovePayroll) onApprovePayroll();
                   else handleApprovePayroll();
                 }}
-                className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white rounded shadow-sm transition-all"
+                disabled={bcvRateSync.status === 'loading'}
+                className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white rounded shadow-sm transition-all disabled:cursor-not-allowed disabled:opacity-60"
               >
                 <CheckCircle className="w-4 h-4" />
                 Aprobar y Sellar Nómina
@@ -354,6 +510,27 @@ export function PayrollModule({
               <h2 className="font-bold text-slate-900">Archivo de pago bancario</h2>
               <p className="text-xs text-slate-500 mt-1">Formato fijo ND/NC de 46 caracteres. Se usará el neto a pagar en Bs.</p>
             </div>
+            {payroll.archivoBancarioConfirmado ? (
+              <p className="text-xs text-emerald-800 bg-emerald-50 border border-emerald-200 rounded p-2">
+                El archivo TXT fue confirmado{payroll.archivoBancarioConfirmadoEn ? ` el ${new Date(payroll.archivoBancarioConfirmadoEn).toLocaleString('es-VE')}` : ''}. El recálculo de esta nómina está bloqueado.
+              </p>
+            ) : bankTextGenerated ? (
+              <div className="space-y-2">
+                <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded p-2">
+                  TXT descargado. Revíselo y confirme que está listo para enviar al banco para bloquear el recálculo.
+                </p>
+                <button
+                  onClick={() => {
+                    onConfirmBankFile();
+                    setBankTextGenerated(false);
+                    setShowBankExport(false);
+                  }}
+                  className="w-full px-3 py-2 text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 rounded"
+                >
+                  Confirmar TXT y bloquear recálculo
+                </button>
+              </div>
+            ) : null}
             <label className="block text-xs font-semibold text-slate-700">Cuenta origen (20 dígitos)
               <input value={sourceAccount} onChange={(event) => setSourceAccount(event.target.value.replace(/\D/g, '').slice(0, 20))} inputMode="numeric" className="mt-1 w-full p-2 border border-slate-200 rounded font-mono" placeholder="01910000000000000000" />
             </label>
@@ -369,8 +546,10 @@ export function PayrollModule({
             </div>
             {bankExportError && <p className="text-xs text-rose-700 bg-rose-50 border border-rose-200 rounded p-2">{bankExportError}</p>}
             <div className="flex justify-end gap-2">
-              <button onClick={() => { setShowBankExport(false); setBankExportError(''); }} className="px-3 py-2 text-xs font-semibold text-slate-700 bg-slate-100 rounded">Cancelar</button>
-              <button onClick={handleBankExport} className="px-3 py-2 text-xs font-bold text-white bg-emerald-600 rounded">Generar TXT</button>
+              <button onClick={() => { setShowBankExport(false); setBankExportError(''); setBankTextGenerated(false); }} className="px-3 py-2 text-xs font-semibold text-slate-700 bg-slate-100 rounded">Cerrar</button>
+              {!payroll.archivoBancarioConfirmado && (
+                <button onClick={handleBankExport} className="px-3 py-2 text-xs font-bold text-white bg-emerald-600 rounded">Generar TXT</button>
+              )}
               <button onClick={handleBankWorkbookExport} className="px-3 py-2 text-xs font-bold text-white bg-blue-600 rounded">Generar Excel del banco</button>
             </div>
           </div>

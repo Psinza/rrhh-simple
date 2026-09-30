@@ -18,7 +18,7 @@ import {
   Upload,
   Trash2,
 } from 'lucide-react';
-import { Employee, CompanySettings, WorkHistoryEvent, SocialBenefitsAdvance, EmployeeDocument, EmployeeDocumentType, MoneyCurrency, SalesRecord, ProductAssignment, ProductPurchase, EmployeeLoan, EmployeePaymentMethod } from '../types';
+import { Employee, CompanySettings, WorkHistoryEvent, EmployeeAttendanceEvent, SocialBenefitsAdvance, EmployeeDocument, EmployeeDocumentType, MoneyCurrency, SalesRecord, ProductAssignment, ProductPurchase, EmployeeLoan, EmployeePaymentMethod } from '../types';
 import {
   calculateTenure,
   calculateIntegralSalary,
@@ -27,6 +27,7 @@ import {
   formatUSD,
   formatMoneyWithEmployeeCurrency,
 } from '../utils/venezuelaLaborCalculations';
+import { getLoanOutstandingBs } from '../utils/employeeLoanDeductions';
 
 interface EmployeeDetailModalProps {
   employee: Employee;
@@ -63,6 +64,12 @@ export function EmployeeDetailModal({
   const [eventTitulo, setEventTitulo] = useState('');
   const [eventDescripcion, setEventDescripcion] = useState('');
   const [eventNuevoSalario, setEventNuevoSalario] = useState('');
+  const [showAddAttendance, setShowAddAttendance] = useState(false);
+  const [attendanceType, setAttendanceType] = useState<EmployeeAttendanceEvent['tipo']>('Ausencia injustificada');
+  const [attendanceStartDate, setAttendanceStartDate] = useState('');
+  const [attendanceEndDate, setAttendanceEndDate] = useState('');
+  const [attendanceDays, setAttendanceDays] = useState('1');
+  const [attendanceDescription, setAttendanceDescription] = useState('');
 
   // New Advance Request State
   const [showAddAdvance, setShowAddAdvance] = useState(false);
@@ -216,6 +223,49 @@ export function EmployeeDetailModal({
     setEventTitulo('');
     setEventDescripcion('');
     setEventNuevoSalario('');
+  };
+
+  const handleAddAttendanceEvent = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!(currentUser?.rol === 'rrhh' || currentUser?.rol === 'admin_sistema')) {
+      alert('Acceso denegado: solo RRHH o Administrador pueden registrar novedades de asistencia.');
+      return;
+    }
+    const endDate = attendanceType === 'Ausencia injustificada' ? attendanceStartDate : attendanceEndDate;
+    const days = attendanceType === 'Ausencia injustificada' ? 1 : Number(attendanceDays);
+    if (!attendanceStartDate || !endDate || endDate < attendanceStartDate || !Number.isInteger(days) || days < 1) {
+      alert('Indique fechas válidas y una cantidad de días laborables mayor que cero.');
+      return;
+    }
+    if (
+      attendanceType === 'Ausencia injustificada'
+      && (employee.novedadesLaborales || []).some((event) => (
+        event.tipo === attendanceType && event.fechaInicio === attendanceStartDate
+      ))
+    ) {
+      alert('Ya existe una ausencia injustificada registrada para esa fecha.');
+      return;
+    }
+
+    const event: EmployeeAttendanceEvent = {
+      id: `attendance-${Date.now()}`,
+      tipo: attendanceType,
+      fechaInicio: attendanceStartDate,
+      fechaFin: endDate,
+      dias: days,
+      descripcion: attendanceDescription.trim(),
+      registradoPor: currentUser.nombre || 'RRHH Sistema',
+      fechaRegistro: new Date().toISOString().split('T')[0],
+    };
+    onUpdateEmployee({
+      ...employee,
+      novedadesLaborales: [event, ...(employee.novedadesLaborales || [])],
+    });
+    setShowAddAttendance(false);
+    setAttendanceStartDate('');
+    setAttendanceEndDate('');
+    setAttendanceDays('1');
+    setAttendanceDescription('');
   };
 
   const handleAddAdvance = (e: React.FormEvent) => {
@@ -702,6 +752,87 @@ export function EmployeeDetailModal({
         {/* Tab 2: Historial Laboral Completo */}
         {activeTab === 'history' && (
           <div className="space-y-4">
+            <section className="rounded-2xl border border-amber-200 bg-amber-50 p-4 space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <h4 className="font-bold text-sm text-amber-950">Asistencia, reposos y vacaciones</h4>
+                  <p className="text-xs text-amber-800">
+                    Solo las ausencias injustificadas se descuentan al recalcular la nómina; se registra una por cada fecha laborable.
+                  </p>
+                </div>
+                {(currentUser?.rol === 'rrhh' || currentUser?.rol === 'admin_sistema') && (
+                  <button
+                    type="button"
+                    onClick={() => setShowAddAttendance(!showAddAttendance)}
+                    className="shrink-0 rounded-lg bg-amber-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-800"
+                  >
+                    <Plus className="mr-1 inline h-3.5 w-3.5" /> Registrar novedad
+                  </button>
+                )}
+              </div>
+
+              {showAddAttendance && (
+                <form onSubmit={handleAddAttendanceEvent} className="grid grid-cols-1 gap-3 rounded-xl border border-amber-200 bg-white p-3 text-xs sm:grid-cols-2">
+                  <label className="space-y-1">
+                    <span className="block font-medium text-slate-700">Tipo de novedad</span>
+                    <select
+                      value={attendanceType}
+                      onChange={(event) => setAttendanceType(event.target.value as EmployeeAttendanceEvent['tipo'])}
+                      className="w-full rounded-lg border border-slate-300 p-2"
+                    >
+                      <option>Ausencia injustificada</option>
+                      <option>Reposo médico</option>
+                      <option>Vacaciones</option>
+                    </select>
+                  </label>
+                  <label className="space-y-1">
+                    <span className="block font-medium text-slate-700">Fecha de inicio</span>
+                    <input type="date" required value={attendanceStartDate} onChange={(event) => setAttendanceStartDate(event.target.value)} className="w-full rounded-lg border border-slate-300 p-2" />
+                  </label>
+                  {attendanceType !== 'Ausencia injustificada' && (
+                    <>
+                      <label className="space-y-1">
+                        <span className="block font-medium text-slate-700">Fecha de fin</span>
+                        <input type="date" required min={attendanceStartDate || undefined} value={attendanceEndDate} onChange={(event) => setAttendanceEndDate(event.target.value)} className="w-full rounded-lg border border-slate-300 p-2" />
+                      </label>
+                      <label className="space-y-1">
+                        <span className="block font-medium text-slate-700">Días laborables registrados</span>
+                        <input type="number" min="1" step="1" required value={attendanceDays} onChange={(event) => setAttendanceDays(event.target.value)} className="w-full rounded-lg border border-slate-300 p-2" />
+                      </label>
+                    </>
+                  )}
+                  <label className="space-y-1 sm:col-span-2">
+                    <span className="block font-medium text-slate-700">Observación (opcional)</span>
+                    <input value={attendanceDescription} onChange={(event) => setAttendanceDescription(event.target.value)} className="w-full rounded-lg border border-slate-300 p-2" placeholder="Motivo, soporte o referencia" />
+                  </label>
+                  <div className="flex justify-end gap-2 sm:col-span-2">
+                    <button type="button" onClick={() => setShowAddAttendance(false)} className="rounded-lg px-3 py-1.5 text-slate-600 hover:bg-slate-100">Cancelar</button>
+                    <button type="submit" className="rounded-lg bg-amber-700 px-3 py-1.5 font-bold text-white hover:bg-amber-800">Guardar novedad</button>
+                  </div>
+                </form>
+              )}
+
+              {(employee.novedadesLaborales || []).length > 0 ? (
+                <ul className="divide-y divide-amber-100 rounded-xl border border-amber-100 bg-white px-3">
+                  {[...(employee.novedadesLaborales || [])]
+                    .sort((left, right) => right.fechaInicio.localeCompare(left.fechaInicio))
+                    .map((event) => (
+                      <li key={event.id} className="flex flex-col gap-1 py-2 text-xs sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                          <strong className="text-slate-800">{event.tipo}</strong>
+                          <span className="ml-2 text-slate-500">
+                            {event.fechaInicio}{event.fechaFin !== event.fechaInicio ? ` al ${event.fechaFin}` : ''} · {event.dias} día(s)
+                          </span>
+                          {event.descripcion && <p className="text-slate-500">{event.descripcion}</p>}
+                        </div>
+                        <span className="text-[10px] text-slate-400">Registrado por {event.registradoPor} · {event.fechaRegistro}</span>
+                      </li>
+                    ))}
+                </ul>
+              ) : (
+                <p className="rounded-xl border border-dashed border-amber-200 bg-white/70 p-3 text-xs text-slate-500">No hay novedades de asistencia registradas.</p>
+              )}
+            </section>
             <div className="flex items-center justify-between">
               <div>
                 <h4 className="font-bold text-slate-900 text-sm">
@@ -890,13 +1021,13 @@ export function EmployeeDetailModal({
                 ['Compras', purchases.filter((item) => item.employeeId === employee.id).reduce((sum, item) => sum + item.amountBs, 0)],
                 ['Asignaciones', assignments.filter((item) => item.employeeId === employee.id).reduce((sum, item) => sum + item.amountBs, 0)],
                 ['Préstamos otorgados', loans.filter((item) => item.employeeId === employee.id).reduce((sum, item) => sum + item.principalBs, 0)],
-                ['Saldo de préstamos', loans.filter((item) => item.employeeId === employee.id && item.status === 'Activo').reduce((sum, item) => sum + item.outstandingBs, 0)],
+                ['Saldo de préstamos', loans.filter((item) => item.employeeId === employee.id && item.status === 'Activo').reduce((sum, item) => sum + getLoanOutstandingBs(item, company.tasaBCV_USD), 0)],
               ].map(([label, value]) => <div key={String(label)} className="p-3 rounded-xl bg-slate-50 border border-slate-200"><span className="text-slate-500">{label}</span><div className="text-lg font-bold text-slate-900">{formatBs(Number(value))}</div><span className="text-[10px] text-slate-400">{formatUSD(Number(value) / company.tasaBCV_USD)} equivalente</span></div>)}
             </div>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               <div className="p-4 rounded-xl border border-slate-200"><h4 className="font-bold mb-2">Ventas y comisiones</h4>{sales.filter((item) => item.vendedorId === employee.id).map((item) => <div key={item.id} className="py-2 border-b last:border-0"><div className="flex justify-between"><span>{item.fecha} • {item.cliente}</span><strong>{formatBs(item.montoBs)}</strong></div><div className="text-slate-500">Comisión: {formatBs(item.comisionBs)} • {item.estatus}</div></div>)}{sales.filter((item) => item.vendedorId === employee.id).length === 0 && <p className="text-slate-400">Sin registros.</p>}</div>
               <div className="p-4 rounded-xl border border-slate-200"><h4 className="font-bold mb-2">Compras y asignaciones</h4>{[...purchases.filter((item) => item.employeeId === employee.id).map((item) => ({ id: item.id, text: `Compra: ${item.product} • ${item.purchaseDate}`, amount: item.amountBs })), ...assignments.filter((item) => item.employeeId === employee.id).map((item) => ({ id: item.id, text: `Asignación: ${item.product} • ${item.month}`, amount: item.amountBs }))].map((item) => <div key={item.id} className="py-2 border-b last:border-0 flex justify-between"><span>{item.text}</span><strong>{formatBs(item.amount)}</strong></div>)}{purchases.filter((item) => item.employeeId === employee.id).length + assignments.filter((item) => item.employeeId === employee.id).length === 0 && <p className="text-slate-400">Sin registros.</p>}</div>
-              <div className="p-4 rounded-xl border border-slate-200 lg:col-span-2"><h4 className="font-bold mb-2">Préstamos</h4>{loans.filter((item) => item.employeeId === employee.id).map((item) => <div key={item.id} className="py-2 border-b last:border-0 flex justify-between"><span>{item.createdAt} • {item.description} • {item.status}</span><strong>{formatBs(item.outstandingBs)} pendiente</strong></div>)}{loans.filter((item) => item.employeeId === employee.id).length === 0 && <p className="text-slate-400">Sin registros.</p>}</div>
+              <div className="p-4 rounded-xl border border-slate-200 lg:col-span-2"><h4 className="font-bold mb-2">Préstamos</h4>{loans.filter((item) => item.employeeId === employee.id).map((item) => <div key={item.id} className="py-2 border-b last:border-0 flex justify-between"><span>{item.createdAt} • {item.description} • {item.status}</span><strong>{formatBs(getLoanOutstandingBs(item, company.tasaBCV_USD))} pendiente</strong></div>)}{loans.filter((item) => item.employeeId === employee.id).length === 0 && <p className="text-slate-400">Sin registros.</p>}</div>
             </div>
           </div>
         )}

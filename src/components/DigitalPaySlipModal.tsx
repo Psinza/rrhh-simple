@@ -10,12 +10,13 @@ import {
   Download,
 } from 'lucide-react';
 import { PayrollItem, CompanySettings } from '../types';
-import { formatBs, formatMoneyWithEmployeeCurrency, formatUSD, normalizeSalaryToBs } from '../utils/venezuelaLaborCalculations';
+import { formatBs, formatMoneyWithEmployeeCurrency, formatUSD, getEffectivePayrollExchangeRate, normalizeSalaryToBs } from '../utils/venezuelaLaborCalculations';
 
 interface DigitalPaySlipModalProps {
   item: PayrollItem;
   company: CompanySettings;
   periodName: string;
+  exchangeRate: number;
   onClose: () => void;
 }
 
@@ -23,12 +24,14 @@ export function DigitalPaySlipModal({
   item,
   company,
   periodName,
+  exchangeRate,
   onClose,
 }: DigitalPaySlipModalProps) {
   const [isSigned, setIsSigned] = useState(item.firmadoDigitalmente);
   const [signatureDate, setSignatureDate] = useState(item.firmaFecha || new Date().toLocaleString('es-VE'));
   const salaryDisplayCurrency = item.employee.salarioMoneda || 'BS';
-  const normalizedSalaryBaseBs = normalizeSalaryToBs(item.employee, company.tasaBCV_USD);
+  const payrollExchangeRate = getEffectivePayrollExchangeRate(exchangeRate, company.tasaBCV_USD);
+  const normalizedSalaryBaseBs = normalizeSalaryToBs(item.employee, payrollExchangeRate);
   const slipCurrencyLabel = salaryDisplayCurrency === 'USD' ? 'USD' : 'Bs.';
   const slipReferenceCurrencyLabel = 'USD';
   const paymentMethodLabels: Record<string, string> = {
@@ -146,7 +149,7 @@ export function DigitalPaySlipModal({
             <div>
               <span className="text-slate-500 block">Salario Mensual Base:</span>
               <strong className="text-slate-900">
-                {formatMoneyWithEmployeeCurrency(normalizedSalaryBaseBs, salaryDisplayCurrency, company.tasaBCV_USD)}
+                {formatMoneyWithEmployeeCurrency(normalizedSalaryBaseBs, salaryDisplayCurrency, payrollExchangeRate)}
                 <span className="ml-1 text-[10px] align-middle font-bold text-slate-500">({slipCurrencyLabel})</span>
               </strong>
             </div>
@@ -222,6 +225,16 @@ export function DigitalPaySlipModal({
                     <td className="py-1.5 px-3 text-right text-amber-800 font-medium">{formatBs(item.retencionISLR)}</td>
                   </tr>
                 )}
+                {(item.ausenciasDeducidasDetalle || []).map((absence) => (
+                  <tr key={absence.attendanceEventId}>
+                    <td className="py-1.5 px-3 font-mono text-slate-500 text-[11px]">117</td>
+                    <td className="py-1.5 px-3 text-slate-700">
+                      Ausencia injustificada ({absence.days} día{absence.days === 1 ? '' : 's'}, {absence.date})
+                    </td>
+                    <td className="py-1.5 px-3 text-right text-slate-400">-</td>
+                    <td className="py-1.5 px-3 text-right text-amber-800 font-medium">{formatBs(absence.amountBs)}</td>
+                  </tr>
+                ))}
                 {item.deduccionesProductos > 0 && (
                   <tr>
                     <td className="py-1.5 px-3 font-mono text-slate-500 text-[11px]">115</td>
@@ -278,7 +291,7 @@ export function DigitalPaySlipModal({
               <span className="text-[11px] text-emerald-700 font-semibold">
                 Equivalente Ref. BCV: {formatUSD(item.netoCobrarUSD)}
                 <span className="ml-1 text-[10px] align-middle font-bold text-emerald-700">({slipReferenceCurrencyLabel})</span>
-                <span className="ml-1">(Tasa: Bs. {company.tasaBCV_USD.toFixed(2)})</span>
+                <span className="ml-1">(Tasa: Bs. {payrollExchangeRate.toFixed(2)})</span>
               </span>
             </div>
           </div>

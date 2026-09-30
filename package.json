@@ -25,6 +25,7 @@
     "lint": "tsc --noEmit",
     "db:schema:build": "node server/build-schema.js",
     "test:accounting": "node --import tsx --test tests/accountingLedger.test.ts",
+    "test:attendance": "node --import tsx --test tests/employeeAttendance.test.ts",
     "test:fiscal": "node --import tsx --test tests/fiscalEngine.test.ts",
     "test:commercial": "node --test tests/commercialSalesMath.test.cjs"
   },

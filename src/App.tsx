@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   Users,
   FileSpreadsheet,
@@ -53,6 +53,13 @@ import {
 import { predefinedUsers } from './data/authUsers';
 import { getApiBase } from './services/api';
 import { lightweightDb, DatabaseState } from './services/lightweightDb';
+import { getEffectivePayrollExchangeRate } from './utils/venezuelaLaborCalculations';
+import {
+  calculateLoanPayrollDeduction,
+  isLoanPrincipalProductDeduction,
+  synchronizeLoanDeductionHistory,
+} from './utils/employeeLoanDeductions';
+import { createPayrollPeriod, PayrollHalf } from './utils/payrollPeriods';
 
 // Subcomponents
 import { LoginScreen } from './components/LoginScreen';
@@ -95,6 +102,14 @@ function isCreatedUserProfile(value: unknown): value is Omit<AppUser, 'password'
     && user.permisos.every((permission) => typeof permission === 'string');
 }
 
+type BcvRateSyncStatus = {
+  status: 'idle' | 'loading' | 'current' | 'stale' | 'error';
+  rate?: number;
+  effectiveDate?: string;
+  historical?: boolean;
+  message?: string;
+};
+
 export default function App() {
   // Authentication & Session
   const [currentUser, setCurrentUser] = useState<AppUser | null>(null);
@@ -109,9 +124,11 @@ export default function App() {
   // Main State
   const [employees, setEmployees] = useState<Employee[]>(initialEmployees);
   const [company, setCompany] = useState<CompanySettings>(initialCompanySettings);
+  const [bcvRateSync, setBcvRateSync] = useState<BcvRateSyncStatus>({ status: 'idle' });
   const [payroll, setPayroll] = useState<PayrollPeriod>(() =>
     buildInitialPayrollPeriod(initialCompanySettings, initialEmployees)
   );
+  const [payrollHistory, setPayrollHistory] = useState<PayrollPeriod[]>([]);
   const [users, setUsers] = useState<AppUser[]>(() => {
     try {
       const stored = localStorage.getItem('ven_nomina_users');
@@ -145,7 +162,71 @@ export default function App() {
   );
   const [lastBackupTime, setLastBackupTime] = useState('10:45 AM');
 
+  const refreshBcvRate = useCallback(async (effectiveDate: string) => {
+    setBcvRateSync({ status: 'loading' });
+    try {
+      const response = await fetch(
+        `${getApiBase()}/api/currency-rates/bcv/usd?date=${encodeURIComponent(effectiveDate)}`,
+        { credentials: 'include' },
+      );
+      let body: {
+        rate?: number;
+        effectiveDate?: string;
+        source?: string;
+        stale?: boolean;
+        historical?: boolean;
+        warning?: string;
+        error?: string;
+      };
+      try {
+        body = await response.json();
+      } catch {
+        throw new Error(`El servidor no devolvió una respuesta válida (HTTP ${response.status}).`);
+      }
+      if (!response.ok) {
+        throw new Error(body.error || `No se pudo consultar la tasa BCV (HTTP ${response.status}).`);
+      }
+      if (
+        typeof body.rate !== 'number'
+        || !Number.isFinite(body.rate)
+        || body.rate <= 0
+        || typeof body.effectiveDate !== 'string'
+        || body.source !== 'BCV'
+      ) {
+        throw new Error('El servidor devolvió datos incompletos o inválidos para la tasa BCV.');
+      }
+
+      const rate = body.rate;
+      lightweightDb.addCurrencyRate(rate, 'BCV', body.effectiveDate, !body.historical);
+      if (!body.historical) {
+        setCompany((previous) => ({ ...previous, tasaBCV_USD: rate }));
+      }
+      setBcvRateSync({
+        status: body.stale ? 'stale' : 'current',
+        rate,
+        effectiveDate: body.effectiveDate,
+        historical: body.historical,
+        message: body.warning,
+      });
+      return { rate, historical: Boolean(body.historical) };
+    } catch (error) {
+      const message = error instanceof Error
+        ? error.message
+        : 'No se pudo validar la tasa oficial del BCV.';
+      setBcvRateSync({ status: 'error', message });
+      throw error instanceof Error ? error : new Error(message);
+    }
+  }, []);
+
   useEffect(() => {
+    if (activeTab !== 'payroll' || !currentUser) return;
+    void refreshBcvRate(payroll.fechaPago).catch((error) => {
+      console.error('No se pudo sincronizar automáticamente la tasa BCV:', error);
+    });
+  }, [activeTab, currentUser?.id, payroll.fechaPago, refreshBcvRate]);
+
+  useEffect(() => {
+    if (payroll.estatus === 'Aprobada' || payroll.estatus === 'Pagada') return;
     const activeEmployees = employees.filter((emp) => emp.status === 'activo');
     const shouldSyncPayroll =
       activeEmployees.length > 0 &&
@@ -154,7 +235,32 @@ export default function App() {
         activeEmployees.some((emp) => !payroll.items.some((item) => item.employeeId === emp.id)));
 
     if (shouldSyncPayroll) {
-      setPayroll(buildInitialPayrollPeriod(company, activeEmployees));
+      const defaultPayroll = buildInitialPayrollPeriod(company, activeEmployees);
+      setPayroll((current) => {
+        const previousItemsByEmployee = new Map<string, PayrollItem>(
+          current.items.map((item) => [item.employeeId, item]),
+        );
+        const items = defaultPayroll.items.map((item) => {
+          const previous = previousItemsByEmployee.get(item.employeeId);
+          return previous
+            ? { ...previous, employee: { ...item.employee, frecuenciaPago: previous.employee.frecuenciaPago } }
+            : {
+              ...item,
+              id: `slip-${item.employeeId}-${current.id}`,
+              fechaGeneracion: current.fechaPago,
+            };
+        });
+
+        return {
+          ...current,
+          items,
+          tasaBCV_USD: current.tasaBCV_USD || company.tasaBCV_USD,
+          totalNominaBs: items.reduce((sum, item) => sum + item.totalAsignaciones, 0),
+          totalCestaticketBs: items.reduce((sum, item) => sum + item.cestaticketPeriodo, 0),
+          totalAportesPatronalesBs: items.reduce((sum, item) => sum + item.totalAportesPatronales, 0),
+          totalCostoEmpresaBs: items.reduce((sum, item) => sum + item.totalAsignaciones + item.totalAportesPatronales, 0),
+        };
+      });
     }
   }, [employees, company, payroll.items]);
 
@@ -173,6 +279,10 @@ export default function App() {
     lightweightDb.initDatabase().then((dbState) => {
       if (dbState) {
         if (dbState.company) setCompany(dbState.company);
+        if (dbState.payrolls?.[0]) {
+          setPayroll(dbState.payrolls[0]);
+          setPayrollHistory(dbState.payrolls.slice(1));
+        }
         if (dbState.employees && dbState.employees.length > 0) setEmployees(dbState.employees);
         if (dbState.users && dbState.users.length > 0) {
           const dbUserIds = new Set(dbState.users.map((user) => user.id));
@@ -219,7 +329,7 @@ export default function App() {
       company,
       employees,
       users,
-      payrolls: [payroll],
+      payrolls: [payroll, ...payrollHistory.filter((period) => period.id !== payroll.id)],
       sales,
       productAssignments,
       productPurchases,
@@ -238,7 +348,7 @@ export default function App() {
     } catch (e) {
       // Ignore quota error
     }
-  }, [company, employees, users, payroll, auditLogs, sales, productAssignments, productPurchases, employeeLoans, branches, accountingAccounts, accountingPeriods, journalEntries]);
+  }, [company, employees, users, payroll, payrollHistory, auditLogs, sales, productAssignments, productPurchases, employeeLoans, branches, accountingAccounts, accountingPeriods, journalEntries]);
 
   const handleDataRestored = (restored: Partial<DatabaseState>) => {
     if (restored.company) setCompany(restored.company);
@@ -258,7 +368,10 @@ export default function App() {
         if (updatedMe) setCurrentUser(updatedMe);
       }
     }
-    if (restored.payrolls?.[0]) setPayroll(restored.payrolls[0]);
+    if (restored.payrolls?.[0]) {
+      setPayroll(restored.payrolls[0]);
+      setPayrollHistory(restored.payrolls.slice(1));
+    }
     if (restored.auditLogs) setAuditLogs(restored.auditLogs);
     setLastBackupTime(new Date().toLocaleTimeString('es-VE', { hour: '2-digit', minute: '2-digit' }));
     addAuditLog('Restauración de Base de Datos', 'Seguridad', 'Base de datos restaurada correctamente');
@@ -273,7 +386,7 @@ export default function App() {
       company,
       employees,
       users,
-      payrolls: [payroll],
+      payrolls: [payroll, ...payrollHistory.filter((period) => period.id !== payroll.id)],
       sales,
       productAssignments,
       productPurchases,
@@ -445,20 +558,57 @@ export default function App() {
     }
   };
 
-  const handleApprovePayrollByOwner = () => {
-    setPayroll((prev) => ({
-      ...prev,
-      estatus: 'Aprobada',
-    }));
+  const handleApprovePayrollByOwner = async () => {
+    try {
+      const { rate, historical } = await refreshBcvRate(payroll.fechaPago);
+      const appliedRate = getEffectivePayrollExchangeRate(payroll.tasaBCV_USD, rate);
+      const approvedPayroll = { ...payroll, estatus: 'Aprobada' as const, tasaBCV_USD: appliedRate };
+      setPayroll(approvedPayroll);
+      if (!historical) {
+        setCompany((previous) => ({ ...previous, tasaBCV_USD: rate }));
+      }
+      setEmployeeLoans((previous) => synchronizeLoanDeductionHistory(previous, approvedPayroll, appliedRate));
+      addAuditLog(
+        'Aprobación Ejecutiva de Nómina',
+        'Nómina',
+        `Nómina ${payroll.nombre} aprobada formalmente por el Director General (${currentUser?.nombre}) para dispersión bancaria.`
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'No se pudo validar la tasa oficial del BCV.';
+      window.alert(`No se aprobó la nómina: ${message}`);
+    }
+  };
+
+  const handleSelectPayroll = (selectedPayroll: PayrollPeriod) => {
+    if (selectedPayroll.id === payroll.id) return;
+    setPayrollHistory((previous) => [
+      payroll,
+      ...previous.filter((period) => period.id !== payroll.id && period.id !== selectedPayroll.id),
+    ]);
+    setPayroll(selectedPayroll);
+  };
+
+  const handleCreatePayrollPeriod = (year: number, month: number, half: PayrollHalf) => {
+    const id = `period-${year}-${String(month).padStart(2, '0')}-q${half === 'first' ? 1 : 2}`;
+    const existingPayroll = [payroll, ...payrollHistory].find((period) => period.id === id);
+    if (existingPayroll) {
+      handleSelectPayroll(existingPayroll);
+      return;
+    }
+
+    const activeEmployees = employees.filter((employee) => employee.status === 'activo');
+    const newPayroll = createPayrollPeriod(company, activeEmployees, year, month, half);
+    handleSelectPayroll(newPayroll);
     addAuditLog(
-      'Aprobación Ejecutiva de Nómina',
+      'Creación de período de nómina',
       'Nómina',
-      `Nómina ${payroll.nombre} aprobada formalmente por el Director General (${currentUser?.nombre}) para dispersión bancaria.`
+      `Se creó el borrador ${newPayroll.nombre}; no se modificó ningún período anterior.`,
     );
   };
 
   // Handlers for employees
   const handleSaveEmployee = (newEmp: Employee) => {
+    setSelectedDetailEmployee((selected) => (selected?.id === newEmp.id ? newEmp : selected));
     setEmployees((prev) => {
       const exists = prev.some((e) => e.id === newEmp.id);
       if (exists) {
@@ -517,9 +667,46 @@ export default function App() {
     );
   };
 
-  const handleUpdatePayroll = (updatedPayroll: PayrollPeriod) => {
-    setPayroll(updatedPayroll);
+  const handleUpdatePayroll = (
+    updatedPayroll: PayrollPeriod,
+    exchangeRate = company.tasaBCV_USD,
+    historicalRate = false,
+  ) => {
+    const approvalInvalidated = payroll.estatus === 'Aprobada' && updatedPayroll.estatus === 'Calculada';
+    const payrollWithRate = {
+      ...updatedPayroll,
+      tasaBCV_USD: getEffectivePayrollExchangeRate(updatedPayroll.tasaBCV_USD, exchangeRate),
+    };
+    setPayroll(payrollWithRate);
+    setPayrollHistory((previous) => previous.map((period) => (
+      period.id === payrollWithRate.id ? payrollWithRate : period
+    )));
+    if (!historicalRate) {
+      setCompany((previous) => ({ ...previous, tasaBCV_USD: exchangeRate }));
+    }
+    setEmployeeLoans((previous) => synchronizeLoanDeductionHistory(previous, payrollWithRate, exchangeRate));
+    if (approvalInvalidated) {
+      addAuditLog(
+        'Aprobación de nómina invalidada',
+        'Nómina',
+        `La nómina ${updatedPayroll.nombre} fue recalculada antes de confirmar el TXT bancario; requiere una nueva aprobación.`,
+      );
+    }
     addAuditLog('Cálculo de Nómina', 'Nómina', `Recálculo de la nómina: ${updatedPayroll.nombre}`);
+  };
+
+  const handleConfirmPayrollBankFile = () => {
+    if (payroll.archivoBancarioConfirmado) return;
+    setPayroll({
+      ...payroll,
+      archivoBancarioConfirmado: true,
+      archivoBancarioConfirmadoEn: new Date().toISOString(),
+    });
+    addAuditLog(
+      'Confirmación de archivo bancario',
+      'Nómina',
+      `Archivo TXT bancario de la nómina ${payroll.nombre} confirmado por ${currentUser?.nombre || 'Usuario'}.`,
+    );
   };
 
   const handleAddSale = (record: SalesRecord) => {
@@ -545,34 +732,47 @@ export default function App() {
   const handleDeletePurchase = (id: string) => { if (window.confirm('¿Eliminar esta compra? El descuento dejará de aplicarse en nómina.')) setProductPurchases((previous) => previous.filter((item) => item.id !== id)); };
   const handleDeleteLoan = (id: string) => { if (window.confirm('¿Eliminar este préstamo? La cuota dejará de aplicarse en nómina.')) setEmployeeLoans((previous) => previous.filter((item) => item.id !== id)); };
 
-  const commissionByEmployee = sales.reduce<Record<string, number>>((totals, sale) => {
-    totals[sale.vendedorId] = (totals[sale.vendedorId] || 0) + sale.comisionBs;
-    return totals;
-  }, {});
-  const loanInstallmentByEmployee = employeeLoans.reduce<Record<string, number>>((totals, loan) => {
-    if (loan.status === 'Activo') totals[loan.employeeId] = (totals[loan.employeeId] || 0) + loan.installmentBs;
-    return totals;
-  }, {});
-  const loanDeductionsByEmployee = employeeLoans.reduce<Record<string, NonNullable<PayrollItem['prestamosAnticiposDetalle']>>>((totals, loan) => {
-    if (loan.status === 'Activo') {
-      const currency = loan.installmentCurrency || 'BS';
-      const amountOriginal = loan.installmentOriginal ?? loan.installmentBs;
-      (totals[loan.employeeId] ||= []).push({
-        loanId: loan.id,
-        description: loan.description,
-        amountOriginal,
-        currency,
-        amountBs: loan.installmentBs,
-      });
+  const getLoanDeductionsForRate = (exchangeRate: number) => {
+    const details = employeeLoans.reduce<Record<string, NonNullable<PayrollItem['prestamosAnticiposDetalle']>>>((totals, loan) => {
+      const currentPayrollDeduction = loan.deductionHistory?.find((entry) => entry.payrollPeriodId === payroll.id);
+      if (loan.status === 'Activo' || currentPayrollDeduction) {
+        const { amountBs, amountOriginal, currency } = calculateLoanPayrollDeduction(
+          loan,
+          payroll.id,
+          exchangeRate,
+        );
+        if (amountBs <= 0) return totals;
+        (totals[loan.employeeId] ||= []).push({
+          loanId: loan.id,
+          description: loan.description,
+          amountOriginal,
+          currency,
+          amountBs,
+        });
+      }
+      return totals;
+    }, {});
+    const installments: Record<string, number> = {};
+    for (const employeeId of Object.keys(details)) {
+      installments[employeeId] = details[employeeId]
+        .reduce((total, deduction) => total + deduction.amountBs, 0);
+    }
+    return { details, installments };
+  };
+  const productDeductionByEmployee = productAssignments.reduce<Record<string, number>>((totals, assignment) => {
+    if (
+      assignment.status === 'Asignado'
+      && !isLoanPrincipalProductDeduction(assignment.employeeId, assignment.product, assignment.amountBs, employeeLoans)
+    ) {
+      totals[assignment.employeeId] = (totals[assignment.employeeId] || 0) + assignment.amountBs;
     }
     return totals;
   }, {});
-  const productDeductionByEmployee = productAssignments.reduce<Record<string, number>>((totals, assignment) => {
-    if (assignment.status === 'Asignado') totals[assignment.employeeId] = (totals[assignment.employeeId] || 0) + assignment.amountBs;
-    return totals;
-  }, {});
   productPurchases.forEach((purchase) => {
-    if (purchase.employeeId) {
+    if (
+      purchase.employeeId
+      && !isLoanPrincipalProductDeduction(purchase.employeeId, purchase.product, purchase.amountBs, employeeLoans)
+    ) {
       productDeductionByEmployee[purchase.employeeId] = (productDeductionByEmployee[purchase.employeeId] || 0) + purchase.amountBs;
     }
   });
@@ -1017,7 +1217,8 @@ export default function App() {
                 {payroll.estatus !== 'Aprobada' ? (
                   <button
                     onClick={handleApprovePayrollByOwner}
-                    className="flex items-center gap-2 px-4 py-2 rounded-lg bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold shadow-md transition-all active:scale-95"
+                    disabled={bcvRateSync.status === 'loading'}
+                    className="flex items-center gap-2 px-4 py-2 rounded-lg bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold shadow-md transition-all active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     <CheckCircle2 className="w-4 h-4" />
                     <span>Aprobar Nómina Quincenal</span>
@@ -1146,17 +1347,21 @@ export default function App() {
           {activeTab === 'payroll' && (
             <PayrollModule
               payroll={payroll}
+              payrollPeriods={[payroll, ...payrollHistory.filter((period) => period.id !== payroll.id)]}
               company={company}
               employees={employees}
-                          currentUser={currentUser}
-                          onOpenSlip={(item) => setSelectedSlip(item)}
-                          onUpdatePayroll={handleUpdatePayroll}
-                          onApprovePayroll={handleApprovePayrollByOwner}
-                          commissionByEmployee={commissionByEmployee}
-                          loanInstallmentByEmployee={loanInstallmentByEmployee}
-                          loanDeductionsByEmployee={loanDeductionsByEmployee}
-                          productDeductionByEmployee={productDeductionByEmployee}
-                        />
+              bcvRateSync={bcvRateSync}
+              onRefreshBcvRate={refreshBcvRate}
+              getLoanDeductionsForRate={getLoanDeductionsForRate}
+              currentUser={currentUser}
+              onOpenSlip={(item) => setSelectedSlip(item)}
+              onUpdatePayroll={handleUpdatePayroll}
+              onSelectPayroll={handleSelectPayroll}
+              onCreatePayrollPeriod={handleCreatePayrollPeriod}
+              onApprovePayroll={handleApprovePayrollByOwner}
+              onConfirmBankFile={handleConfirmPayrollBankFile}
+              productDeductionByEmployee={productDeductionByEmployee}
+            />
           )}
 
           {activeTab === 'sales' && (
@@ -1241,6 +1446,7 @@ export default function App() {
           item={selectedSlip}
           company={company}
           periodName={payroll.nombre}
+          exchangeRate={getEffectivePayrollExchangeRate(payroll.tasaBCV_USD, company.tasaBCV_USD)}
           onClose={() => setSelectedSlip(null)}
         />
       )}

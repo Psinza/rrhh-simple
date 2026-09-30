@@ -2,6 +2,7 @@ import { FormEvent, useMemo, useState } from 'react';
 import { Boxes, HandCoins, PackagePlus, Pencil, Plus, Trash2 } from 'lucide-react';
 import { Employee, EmployeeLoan, MoneyCurrency, ProductAssignment, ProductPurchase } from '../types';
 import { convertAmountToBaseCurrency, formatBs, formatUSD } from '../utils/venezuelaLaborCalculations';
+import { getLoanOutstandingBs } from '../utils/employeeLoanDeductions';
 
 interface ProductBenefitsModuleProps {
   employees: Employee[];
@@ -53,8 +54,8 @@ export function ProductBenefitsModule({
   const totals = useMemo(() => ({
     assignments: assignments.reduce((sum, item) => sum + item.amountBs, 0),
     purchases: purchases.reduce((sum, item) => sum + item.amountBs, 0),
-    loans: loans.filter((item) => item.status === 'Activo').reduce((sum, item) => sum + item.outstandingBs, 0),
-  }), [assignments, purchases, loans]);
+    loans: loans.filter((item) => item.status === 'Activo').reduce((sum, item) => sum + getLoanOutstandingBs(item, exchangeRate), 0),
+  }), [assignments, purchases, loans, exchangeRate]);
 
   const reset = () => {
     setProduct('');
@@ -179,7 +180,33 @@ export function ProductBenefitsModule({
             {purchases.length > 0 && <div className="overflow-x-auto"><table className="w-full text-xs"><thead><tr className="text-left text-slate-500"><th className="py-1 pr-3">Trabajador</th><th className="py-1 pr-3">Producto</th><th className="py-1 pr-3">Proveedor</th><th className="py-1 text-right">Descuento</th><th className="py-1 text-center">Acciones</th></tr></thead><tbody className="divide-y">{purchases.map((purchase) => <tr key={purchase.id}><td className="py-1 pr-3 font-semibold">{purchase.employeeName || 'Sin trabajador'}</td><td className="py-1 pr-3">{purchase.product}</td><td className="py-1 pr-3">{purchase.supplier}</td><td className="py-1 text-right">{formatBs(purchase.amountBs)}</td><td className="py-1 text-center"><button title="Editar" onClick={() => startEdit(purchase)} className="p-1 text-blue-600"><Pencil className="w-3.5 h-3.5" /></button><button title="Eliminar" onClick={() => onDeletePurchase(purchase.id)} className="p-1 text-red-600"><Trash2 className="w-3.5 h-3.5" /></button></td></tr>)}</tbody></table></div>}
           </div>
         )}
-        {tab === 'loans' && <>{loans.length} préstamos registrados.{loans.length > 0 && <div className="overflow-x-auto mt-3"><table className="w-full"><thead><tr className="text-left text-slate-500"><th className="py-1 pr-3">Trabajador</th><th className="py-1 pr-3">Concepto</th><th className="py-1 text-right">Saldo</th><th className="py-1 text-center">Acciones</th></tr></thead><tbody className="divide-y">{loans.map((item) => <tr key={item.id}><td className="py-2 pr-3 font-semibold">{item.employeeName}</td><td className="py-2 pr-3">{item.description}</td><td className="py-2 text-right">{formatBs(item.outstandingBs)}</td><td className="py-2 text-center"><button title="Editar" onClick={() => startEdit(item)} className="p-1 text-blue-600"><Pencil className="w-3.5 h-3.5" /></button><button title="Eliminar" onClick={() => onDeleteLoan(item.id)} className="p-1 text-red-600"><Trash2 className="w-3.5 h-3.5" /></button></td></tr>)}</tbody></table></div>}</>}
+        {tab === 'loans' && (
+          <div className="space-y-4">
+            <div>{loans.length} préstamos registrados.</div>
+            {loans.length > 0 && <div className="overflow-x-auto"><table className="w-full"><thead><tr className="text-left text-slate-500"><th className="py-1 pr-3">Trabajador</th><th className="py-1 pr-3">Concepto</th><th className="py-1 text-right">Saldo</th><th className="py-1 text-center">Acciones</th></tr></thead><tbody className="divide-y">{loans.map((item) => <tr key={item.id}><td className="py-2 pr-3 font-semibold">{item.employeeName}</td><td className="py-2 pr-3">{item.description}</td><td className="py-2 text-right">{formatBs(getLoanOutstandingBs(item, exchangeRate))}</td><td className="py-2 text-center"><button title="Editar" onClick={() => startEdit(item)} className="p-1 text-blue-600"><Pencil className="w-3.5 h-3.5" /></button><button title="Eliminar" onClick={() => onDeleteLoan(item.id)} className="p-1 text-red-600"><Trash2 className="w-3.5 h-3.5" /></button></td></tr>)}</tbody></table></div>}
+            <section className="space-y-2">
+              <h3 className="font-bold text-slate-800">Historial de deducciones por nómina</h3>
+              {loans.some((loan) => loan.deductionHistory?.length) ? (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs">
+                    <thead><tr className="text-left text-slate-500"><th className="py-1 pr-3">Trabajador</th><th className="py-1 pr-3">Préstamo</th><th className="py-1 pr-3">Nómina</th><th className="py-1 pr-3">Fecha de pago</th><th className="py-1 pr-3 text-right">Cuota</th><th className="py-1 pr-3 text-right">Descontado (Bs.)</th><th className="py-1">Estado</th></tr></thead>
+                    <tbody className="divide-y">{loans.flatMap((loan) => (loan.deductionHistory || []).map((entry) => (
+                      <tr key={`${loan.id}-${entry.payrollPeriodId}`}>
+                        <td className="py-2 pr-3 font-semibold">{loan.employeeName}</td>
+                        <td className="py-2 pr-3">{loan.description}</td>
+                        <td className="py-2 pr-3">{entry.payrollPeriodName}</td>
+                        <td className="py-2 pr-3">{entry.paymentDate}</td>
+                        <td className="py-2 pr-3 text-right">{entry.currency === 'USD' ? `${formatUSD(entry.amountOriginal)} USD` : formatBs(entry.amountOriginal)}</td>
+                        <td className="py-2 pr-3 text-right">{formatBs(entry.amountBs)}</td>
+                        <td className="py-2">{entry.payrollStatus}</td>
+                      </tr>
+                    )))}</tbody>
+                  </table>
+                </div>
+              ) : <p className="text-slate-400">Todavía no hay deducciones de préstamos registradas en una nómina.</p>}
+            </section>
+          </div>
+        )}
       </div>
     </div>
   );

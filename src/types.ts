@@ -27,6 +27,17 @@ export interface EmployeeDocument {
   sizeBytes: number;
 }
 
+export interface EmployeeAttendanceEvent {
+  id: string;
+  tipo: 'Ausencia injustificada' | 'Reposo médico' | 'Vacaciones';
+  fechaInicio: string;
+  fechaFin: string;
+  dias: number;
+  descripcion: string;
+  registradoPor: string;
+  fechaRegistro: string;
+}
+
 export interface WorkHistoryEvent {
   id: string;
   fecha: string;
@@ -110,6 +121,7 @@ export interface Employee {
 
   // Historial e Informes
   historialLaboral: WorkHistoryEvent[];
+  novedadesLaborales?: EmployeeAttendanceEvent[];
   anticiposPrestaciones: SocialBenefitsAdvance[];
   vacacionesDisfrutadas: number; // Días ya tomados
   documentos?: EmployeeDocument[];
@@ -246,6 +258,13 @@ export interface PayrollItem {
     currency: MoneyCurrency;
     amountBs: number;
   }[];
+  deduccionAusencias?: number;
+  ausenciasDeducidasDetalle?: {
+    attendanceEventId: string;
+    date: string;
+    days: number;
+    amountBs: number;
+  }[];
   otrasDeducciones: number;
   totalDeducciones: number;
 
@@ -276,12 +295,15 @@ export interface PayrollPeriod {
   fechaInicio: string;
   fechaFin: string;
   fechaPago: string;
+  tasaBCV_USD?: number;
   estatus: 'Borrador' | 'Calculada' | 'Aprobada' | 'Pagada';
   items: PayrollItem[];
   totalNominaBs: number;
   totalCestaticketBs: number;
   totalAportesPatronalesBs: number;
   totalCostoEmpresaBs: number;
+  archivoBancarioConfirmado?: boolean;
+  archivoBancarioConfirmadoEn?: string;
 }
 
 export interface SalesRecord {
@@ -339,8 +361,20 @@ export interface EmployeeLoan {
   installmentCurrency?: MoneyCurrency;
   installmentOriginal?: number;
   outstandingBs: number;
+  deductionHistory?: EmployeeLoanDeduction[];
   status: 'Activo' | 'Cancelado';
   createdAt: string;
+}
+
+export interface EmployeeLoanDeduction {
+  payrollPeriodId: string;
+  payrollPeriodName: string;
+  paymentDate: string;
+  payrollStatus: PayrollPeriod['estatus'];
+  amountOriginal: number;
+  currency: MoneyCurrency;
+  amountBs: number;
+  exchangeRate?: number;
 }
 
 export interface SocialBenefitsReport {

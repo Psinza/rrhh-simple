@@ -4257,4 +4257,22 @@ $$;
 INSERT INTO schema_migrations (version) VALUES ('010') ON CONFLICT (version) DO NOTHING;
 -- END 010_erp_operations_and_employee_assets.sql
 
+
+-- BEGIN 011_currency_rate_precision.sql
+ALTER TABLE currency_rates
+  ALTER COLUMN rate TYPE NUMERIC(16, 8);
+
+ALTER TABLE companies
+  ALTER COLUMN bcv_usd_rate TYPE NUMERIC(16, 8);
+INSERT INTO schema_migrations (version) VALUES ('011') ON CONFLICT (version) DO NOTHING;
+-- END 011_currency_rate_precision.sql
+
+
+-- BEGIN 012_employee_attendance_events.sql
+ALTER TABLE employees
+  ADD COLUMN IF NOT EXISTS attendance_events JSONB
+  CHECK (attendance_events IS NULL OR jsonb_typeof(attendance_events) = 'array');
+INSERT INTO schema_migrations (version) VALUES ('012') ON CONFLICT (version) DO NOTHING;
+-- END 012_employee_attendance_events.sql
+
 COMMIT;
