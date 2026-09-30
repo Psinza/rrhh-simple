@@ -8,6 +8,9 @@ import {
   Wallet,
   Landmark,
   Download,
+  ClipboardCheck,
+  AlertTriangle,
+  X,
 } from 'lucide-react';
 import { CompanySettings, Employee, PayrollItem, PayrollPeriod } from '../types';
 import {
@@ -22,6 +25,7 @@ import {
   getUnjustifiedAbsencesOutsidePeriod,
 } from '../utils/employeeAttendance';
 import { PayrollHalf } from '../utils/payrollPeriods';
+import { getPayrollApprovalBlockReason } from '../utils/payrollOperationGuards';
 
 interface PayrollModuleProps {
   company: CompanySettings;
@@ -46,7 +50,7 @@ interface PayrollModuleProps {
   };
   onOpenSlip?: (item: PayrollItem) => void;
   onOpenPayslip?: (item: PayrollItem) => void;
-  onApprovePayroll?: () => void;
+  onApprovePayroll: () => Promise<void>;
   onConfirmBankFile: () => void;
   productDeductionByEmployee?: Record<string, number>;
 }
@@ -86,6 +90,8 @@ export function PayrollModule({
   const [recalculationError, setRecalculationError] = useState('');
   const [targetMonth, setTargetMonth] = useState(payroll.fechaPago.slice(0, 7));
   const [targetHalf, setTargetHalf] = useState<PayrollHalf>('second');
+  const [pendingOperation, setPendingOperation] = useState<'recalculate' | 'approve' | null>(null);
+  const [operationError, setOperationError] = useState('');
 
   const activeEmployees = (employees && employees.length > 0 ? employees : payroll.items.map((item) => item.employee))
     .filter((emp) => emp.status === 'activo');
@@ -99,6 +105,33 @@ export function PayrollModule({
     ?? (payroll.tipo === 'Semanal' ? 'semanal' : payroll.tipo === 'Mensual' ? 'mensual' : 'quincenal');
   const frequencyNeedsRecalculation = payroll.items.length > 0
     && payroll.items.some((item) => item.employee.frecuenciaPago !== activeFrequency);
+  const approvalBlockReason = getPayrollApprovalBlockReason(payroll);
+  const previewRate = payroll.tasaBCV_USD ?? bcvRateSync.rate ?? company.tasaBCV_USD;
+  const absencePreview = activeEmployees.flatMap((employee) => (
+    getUnjustifiedAbsenceDeduction(
+      employee,
+      payroll.fechaInicio,
+      payroll.fechaFin,
+      activeFrequency,
+      previewRate,
+    ).details.map((absence) => ({
+      ...absence,
+      employeeName: `${employee.primerNombre} ${employee.primerApellido}`,
+    }))
+  ));
+  const loanPreview = getLoanDeductionsForRate(previewRate);
+  const loanPreviewDetails = Object.entries(loanPreview.details).flatMap(([employeeId, details]) => (
+    details.map((loan) => {
+      const employee = activeEmployees.find((candidate) => candidate.id === employeeId);
+      return {
+        ...loan,
+        employeeName: employee ? `${employee.primerNombre} ${employee.primerApellido}` : 'Colaborador',
+      };
+    })
+  ));
+  const previewDeductions = absencePreview.reduce((sum, absence) => sum + absence.amountBs, 0)
+    + loanPreviewDetails.reduce((sum, loan) => sum + loan.amountBs, 0)
+    + Object.values(productDeductionByEmployee || {}).reduce((sum, amount) => sum + amount, 0);
 
   useEffect(() => {
     setActiveFrequency(calculatedFrequency);
@@ -133,10 +166,14 @@ export function PayrollModule({
     }
   };
 
-  const handleRecalculate = async () => {
+  const handleRecalculate = async (): Promise<boolean> => {
     if (payroll.archivoBancarioConfirmado) {
       setRecalculationError('No se puede recalcular: el archivo TXT bancario ya fue confirmado.');
-      return;
+      return false;
+    }
+    if (payroll.estatus === 'Pagada') {
+      setRecalculationError('No se puede recalcular una nómina marcada como pagada.');
+      return false;
     }
 
     setIsRecalculating(true);
@@ -201,7 +238,7 @@ export function PayrollModule({
       onUpdatePayroll({
         ...payroll,
         tasaBCV_USD: rate,
-        estatus: payroll.estatus === 'Aprobada' ? 'Calculada' : payroll.estatus,
+        estatus: 'Calculada',
         items: recalculatedItems,
         tipo: activeFrequency === 'semanal' ? 'Semanal' : activeFrequency === 'quincenal' ? '1ra Quincena' : 'Mensual',
         totalNominaBs: recalculatedItems.reduce((sum, i) => sum + i.totalAsignaciones, 0),
@@ -209,24 +246,33 @@ export function PayrollModule({
         totalAportesPatronalesBs: recalculatedItems.reduce((sum, i) => sum + i.totalAportesPatronales, 0),
         totalCostoEmpresaBs: recalculatedItems.reduce((sum, i) => sum + i.totalAsignaciones + i.totalAportesPatronales, 0),
       }, rate, historical);
+      return true;
     } catch (error) {
       setRecalculationError(
         error instanceof Error ? error.message : 'No se pudo validar la tasa oficial del BCV.',
       );
+      return false;
     } finally {
       setIsRecalculating(false);
     }
   };
 
-  const handleApprovePayroll = () => {
-    const exchangeRate = payroll.tasaBCV_USD ?? bcvRateSync.rate ?? company.tasaBCV_USD;
-    onUpdatePayroll({
-      ...payroll,
-      estatus: 'Aprobada',
-      tasaBCV_USD: exchangeRate,
-    }, exchangeRate, Boolean(bcvRateSync.historical));
-    setShowApprovedNotice(true);
-    setTimeout(() => setShowApprovedNotice(false), 5000);
+  const confirmPendingOperation = async () => {
+    setOperationError('');
+    if (pendingOperation === 'recalculate') {
+      if (await handleRecalculate()) setPendingOperation(null);
+      return;
+    }
+    if (pendingOperation === 'approve') {
+      try {
+        await onApprovePayroll();
+        setPendingOperation(null);
+        setShowApprovedNotice(true);
+        setTimeout(() => setShowApprovedNotice(false), 5000);
+      } catch (error) {
+        setOperationError(error instanceof Error ? error.message : 'No se pudo aprobar la nómina.');
+      }
+    }
   };
 
   const filteredItems = payroll.items.filter((item) => {
@@ -383,24 +429,22 @@ export function PayrollModule({
 
           {(currentUser?.rol === 'rrhh' || currentUser?.rol === 'admin_sistema' || currentUser?.rol === 'dueno') && (
             <button
-              onClick={handleRecalculate}
-              disabled={isRecalculating || bcvRateSync.status === 'loading' || payroll.archivoBancarioConfirmado}
+              onClick={() => setPendingOperation('recalculate')}
+              disabled={isRecalculating || bcvRateSync.status === 'loading' || payroll.archivoBancarioConfirmado || payroll.estatus === 'Pagada'}
               className="px-3 py-2 text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 rounded transition-colors border border-slate-200 disabled:cursor-not-allowed disabled:opacity-60"
-              title={payroll.archivoBancarioConfirmado ? 'El archivo TXT bancario ya fue confirmado.' : undefined}
+              title={payroll.archivoBancarioConfirmado ? 'El archivo TXT bancario ya fue confirmado.' : payroll.estatus === 'Pagada' ? 'No se puede modificar una nómina pagada.' : undefined}
             >
-              {isRecalculating ? 'Validando tasa BCV…' : payroll.archivoBancarioConfirmado ? 'TXT bancario confirmado' : 'Recalcular Nómina'}
+              {isRecalculating ? 'Validando tasa BCV…' : payroll.archivoBancarioConfirmado ? 'TXT bancario confirmado' : payroll.estatus === 'Pagada' ? 'Nómina pagada' : 'Recalcular Nómina'}
             </button>
           )}
 
-          {payroll.estatus !== 'Aprobada' ? (
+          {payroll.estatus !== 'Aprobada' && payroll.estatus !== 'Pagada' ? (
             (currentUser?.rol === 'dueno' || currentUser?.rol === 'admin_sistema') ? (
               <button
-                onClick={() => {
-                  if (onApprovePayroll) onApprovePayroll();
-                  else handleApprovePayroll();
-                }}
-                disabled={bcvRateSync.status === 'loading'}
+                onClick={() => setPendingOperation('approve')}
+                disabled={bcvRateSync.status === 'loading' || approvalBlockReason !== null || payroll.archivoBancarioConfirmado}
                 className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white rounded shadow-sm transition-all disabled:cursor-not-allowed disabled:opacity-60"
+                title={approvalBlockReason ?? undefined}
               >
                 <CheckCircle className="w-4 h-4" />
                 Aprobar y Sellar Nómina
@@ -417,11 +461,57 @@ export function PayrollModule({
             )
           ) : (
             <span className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold bg-emerald-100 text-emerald-800 rounded border border-emerald-200">
-              <ShieldCheck className="w-4 h-4" /> Nómina Aprobada y Sellada
+              <ShieldCheck className="w-4 h-4" /> {payroll.estatus === 'Pagada' ? 'Nómina pagada' : 'Nómina Aprobada y Sellada'}
             </span>
           )}
         </div>
       </div>
+
+      <section aria-label="Control operativo de nómina" className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="flex items-start gap-2">
+          <ClipboardCheck className="mt-0.5 h-4 w-4 shrink-0 text-blue-700" />
+          <div className="min-w-0 flex-1">
+            <h2 className="text-sm font-bold text-slate-900">Control operativo de nómina</h2>
+            <p className="mt-1 text-xs text-slate-600">
+              Período liquidado: {payroll.fechaInicio} al {payroll.fechaFin} · {payroll.items.length || activeEmployees.length} colaborador(es) · Estado: {payroll.estatus}.
+              {' '}Tasa guardada del cálculo: Bs. {payroll.tasaBCV_USD?.toFixed(8) ?? 'pendiente'} por USD.
+            </p>
+            <p className="mt-1 text-xs text-slate-600">
+              Revisión previa: {absencePreview.length} ausencia(s) y {loanPreviewDetails.length} cuota(s) de préstamo · Deducciones estimadas: {formatBs(previewDeductions)}.
+              {' '}Las ausencias se descuentan únicamente si su fecha cae dentro del rango indicado.
+            </p>
+            {approvalBlockReason && (
+              <p role="status" className="mt-2 flex items-start gap-1.5 rounded border border-amber-200 bg-amber-50 px-2.5 py-2 text-xs text-amber-800">
+                <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                <span>{approvalBlockReason}</span>
+              </p>
+            )}
+            {(absencePreview.length > 0 || loanPreviewDetails.length > 0 || previewDeductions > 0) && (
+              <details className="mt-2 text-xs text-slate-700">
+                <summary className="cursor-pointer font-semibold">Ver detalle de deducciones estimadas</summary>
+                <ul className="mt-2 space-y-1 pl-4">
+                  {absencePreview.map((absence) => (
+                    <li key={absence.attendanceEventId}>
+                      {absence.employeeName}: ausencia del {absence.date}, {absence.days} día(s), {formatBs(absence.amountBs)}.
+                    </li>
+                  ))}
+                  {loanPreviewDetails.map((loan) => (
+                    <li key={loan.loanId}>
+                      {loan.employeeName} · {loan.description}: cuota {formatBs(loan.amountBs)}.
+                    </li>
+                  ))}
+                  {activeEmployees.filter((employee) => (productDeductionByEmployee?.[employee.id] || 0) > 0).map((employee) => (
+                    <li key={`product-${employee.id}`}>
+                      {employee.primerNombre} {employee.primerApellido}: compras/asignaciones {formatBs(productDeductionByEmployee?.[employee.id] || 0)}.
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            )}
+            {operationError && <p role="alert" className="mt-2 text-xs font-medium text-rose-700">{operationError}</p>}
+          </div>
+        </div>
+      </section>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
@@ -500,6 +590,63 @@ export function PayrollModule({
       {showApprovedNotice && (
         <div className="rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-800 px-4 py-3 text-xs font-medium">
           Nómina aprobada y sellada correctamente.
+        </div>
+      )}
+
+      {pendingOperation && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="presentation">
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="payroll-operation-title"
+            className="w-full max-w-lg space-y-4 rounded-xl border border-slate-200 bg-white p-5 shadow-xl"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h2 id="payroll-operation-title" className="font-bold text-slate-900">
+                  {pendingOperation === 'recalculate' ? 'Confirmar recálculo' : 'Confirmar aprobación'}
+                </h2>
+                <p className="mt-1 text-xs text-slate-600">
+                  {pendingOperation === 'recalculate'
+                    ? `Se consultará la tasa BCV para ${payroll.fechaPago}, se actualizarán recibos, ausencias y cuotas, y se invalidará cualquier aprobación anterior.`
+                    : `Se volverá a validar la tasa BCV del período ${payroll.nombre}. La aprobación quedará registrada en la auditoría; el TXT todavía no estará confirmado.`}
+                </p>
+              </div>
+              <button
+                type="button"
+                aria-label="Cerrar confirmación"
+                onClick={() => { setPendingOperation(null); setOperationError(''); }}
+                className="rounded p-1 text-slate-500 hover:bg-slate-100"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="rounded-lg bg-slate-50 p-3 text-xs text-slate-700">
+              <p><strong>Rango:</strong> {payroll.fechaInicio} al {payroll.fechaFin}</p>
+              <p><strong>Colaboradores:</strong> {payroll.items.length || activeEmployees.length}</p>
+              <p><strong>Tasa almacenada:</strong> Bs. {payroll.tasaBCV_USD?.toFixed(8) ?? 'pendiente'} por USD</p>
+              <p><strong>Deducciones revisadas:</strong> {formatBs(previewDeductions)} ({absencePreview.length} ausencia(s), {loanPreviewDetails.length} cuota(s) de préstamo)</p>
+            </div>
+            {operationError && <p role="alert" className="text-xs text-rose-700">{operationError}</p>}
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => { setPendingOperation(null); setOperationError(''); }}
+                disabled={isRecalculating}
+                className="rounded bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-700 disabled:opacity-60"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={confirmPendingOperation}
+                disabled={isRecalculating || (pendingOperation === 'approve' && approvalBlockReason !== null)}
+                className="rounded bg-blue-700 px-3 py-2 text-xs font-bold text-white hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isRecalculating ? 'Procesando…' : pendingOperation === 'recalculate' ? 'Validar BCV y recalcular' : 'Validar BCV y aprobar'}
+              </button>
+            </div>
+          </section>
         </div>
       )}
 

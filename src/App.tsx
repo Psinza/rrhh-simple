@@ -60,6 +60,7 @@ import {
   synchronizeLoanDeductionHistory,
 } from './utils/employeeLoanDeductions';
 import { createPayrollPeriod, PayrollHalf } from './utils/payrollPeriods';
+import { getPayrollApprovalBlockReason } from './utils/payrollOperationGuards';
 
 // Subcomponents
 import { LoginScreen } from './components/LoginScreen';
@@ -559,24 +560,34 @@ export default function App() {
   };
 
   const handleApprovePayrollByOwner = async () => {
-    try {
-      const { rate, historical } = await refreshBcvRate(payroll.fechaPago);
-      const appliedRate = getEffectivePayrollExchangeRate(payroll.tasaBCV_USD, rate);
-      const approvedPayroll = { ...payroll, estatus: 'Aprobada' as const, tasaBCV_USD: appliedRate };
-      setPayroll(approvedPayroll);
-      if (!historical) {
-        setCompany((previous) => ({ ...previous, tasaBCV_USD: rate }));
-      }
-      setEmployeeLoans((previous) => synchronizeLoanDeductionHistory(previous, approvedPayroll, appliedRate));
-      addAuditLog(
-        'Aprobación Ejecutiva de Nómina',
-        'Nómina',
-        `Nómina ${payroll.nombre} aprobada formalmente por el Director General (${currentUser?.nombre}) para dispersión bancaria.`
-      );
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'No se pudo validar la tasa oficial del BCV.';
-      window.alert(`No se aprobó la nómina: ${message}`);
+    if (currentUser?.rol !== 'dueno' && currentUser?.rol !== 'admin_sistema') {
+      throw new Error('Solo el dueño o administrador del sistema puede aprobar la nómina.');
     }
+    const blockReason = getPayrollApprovalBlockReason(payroll);
+    if (blockReason) throw new Error(blockReason);
+
+    const { rate, historical } = await refreshBcvRate(payroll.fechaPago);
+    const savedRate = payroll.tasaBCV_USD;
+    if (!savedRate || Math.abs(rate - savedRate) > 0.00000001) {
+      throw new Error(
+        `La tasa BCV consultada (Bs. ${rate.toFixed(8)}) difiere de la usada en los recibos (Bs. ${savedRate?.toFixed(8) ?? 'sin tasa'}). Recalcule y revise los recibos antes de aprobar.`,
+      );
+    }
+
+    const approvedPayroll: PayrollPeriod = { ...payroll, estatus: 'Aprobada', tasaBCV_USD: savedRate };
+    setPayroll(approvedPayroll);
+    setPayrollHistory((previous) => previous.map((period) => (
+      period.id === approvedPayroll.id ? approvedPayroll : period
+    )));
+    if (!historical) {
+      setCompany((previous) => ({ ...previous, tasaBCV_USD: rate }));
+    }
+    setEmployeeLoans((previous) => synchronizeLoanDeductionHistory(previous, approvedPayroll, savedRate));
+    addAuditLog(
+      'Aprobación Ejecutiva de Nómina',
+      'Nómina',
+      `Nómina ${payroll.nombre} aprobada formalmente por ${currentUser.nombre} para dispersión bancaria con tasa BCV de Bs. ${savedRate.toFixed(8)}.`,
+    );
   };
 
   const handleSelectPayroll = (selectedPayroll: PayrollPeriod) => {
@@ -1216,12 +1227,11 @@ export default function App() {
               <div className="flex items-center gap-2 self-end md:self-center shrink-0">
                 {payroll.estatus !== 'Aprobada' ? (
                   <button
-                    onClick={handleApprovePayrollByOwner}
-                    disabled={bcvRateSync.status === 'loading'}
+                    onClick={() => setActiveTab('payroll')}
                     className="flex items-center gap-2 px-4 py-2 rounded-lg bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold shadow-md transition-all active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     <CheckCircle2 className="w-4 h-4" />
-                    <span>Aprobar Nómina Quincenal</span>
+                    <span>Revisar y aprobar nómina</span>
                   </button>
                 ) : (
                   <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-xs font-bold">

@@ -17,6 +17,7 @@ import {
   Download,
   Upload,
   Trash2,
+  Pencil,
 } from 'lucide-react';
 import { Employee, CompanySettings, WorkHistoryEvent, EmployeeAttendanceEvent, SocialBenefitsAdvance, EmployeeDocument, EmployeeDocumentType, MoneyCurrency, SalesRecord, ProductAssignment, ProductPurchase, EmployeeLoan, EmployeePaymentMethod } from '../types';
 import {
@@ -65,6 +66,7 @@ export function EmployeeDetailModal({
   const [eventDescripcion, setEventDescripcion] = useState('');
   const [eventNuevoSalario, setEventNuevoSalario] = useState('');
   const [showAddAttendance, setShowAddAttendance] = useState(false);
+  const [editingAttendanceId, setEditingAttendanceId] = useState<string | null>(null);
   const [attendanceType, setAttendanceType] = useState<EmployeeAttendanceEvent['tipo']>('Ausencia injustificada');
   const [attendanceStartDate, setAttendanceStartDate] = useState('');
   const [attendanceEndDate, setAttendanceEndDate] = useState('');
@@ -228,7 +230,7 @@ export function EmployeeDetailModal({
   const handleAddAttendanceEvent = (e: React.FormEvent) => {
     e.preventDefault();
     if (!(currentUser?.rol === 'rrhh' || currentUser?.rol === 'admin_sistema')) {
-      alert('Acceso denegado: solo RRHH o Administrador pueden registrar novedades de asistencia.');
+      alert('Acceso denegado: solo RRHH o Administrador pueden gestionar novedades de asistencia.');
       return;
     }
     const endDate = attendanceType === 'Ausencia injustificada' ? attendanceStartDate : attendanceEndDate;
@@ -240,27 +242,72 @@ export function EmployeeDetailModal({
     if (
       attendanceType === 'Ausencia injustificada'
       && (employee.novedadesLaborales || []).some((event) => (
-        event.tipo === attendanceType && event.fechaInicio === attendanceStartDate
+        event.id !== editingAttendanceId
+        && event.tipo === attendanceType
+        && event.fechaInicio === attendanceStartDate
       ))
     ) {
       alert('Ya existe una ausencia injustificada registrada para esa fecha.');
       return;
     }
 
+    const existingEvent = (employee.novedadesLaborales || [])
+      .find((event) => event.id === editingAttendanceId);
     const event: EmployeeAttendanceEvent = {
-      id: `attendance-${Date.now()}`,
+      id: existingEvent?.id || `attendance-${Date.now()}`,
       tipo: attendanceType,
       fechaInicio: attendanceStartDate,
       fechaFin: endDate,
       dias: days,
       descripcion: attendanceDescription.trim(),
-      registradoPor: currentUser.nombre || 'RRHH Sistema',
-      fechaRegistro: new Date().toISOString().split('T')[0],
+      registradoPor: existingEvent?.registradoPor || currentUser.nombre || 'RRHH Sistema',
+      fechaRegistro: existingEvent?.fechaRegistro || new Date().toISOString().split('T')[0],
     };
     onUpdateEmployee({
       ...employee,
-      novedadesLaborales: [event, ...(employee.novedadesLaborales || [])],
+      novedadesLaborales: existingEvent
+        ? (employee.novedadesLaborales || []).map((current) => current.id === event.id ? event : current)
+        : [event, ...(employee.novedadesLaborales || [])],
     });
+    setEditingAttendanceId(null);
+    setShowAddAttendance(false);
+    setAttendanceStartDate('');
+    setAttendanceEndDate('');
+    setAttendanceDays('1');
+    setAttendanceDescription('');
+  };
+
+  const handleEditAttendanceEvent = (event: EmployeeAttendanceEvent) => {
+    setEditingAttendanceId(event.id);
+    setAttendanceType(event.tipo);
+    setAttendanceStartDate(event.fechaInicio);
+    setAttendanceEndDate(event.fechaFin);
+    setAttendanceDays(String(event.dias));
+    setAttendanceDescription(event.descripcion);
+    setShowAddAttendance(true);
+  };
+
+  const handleDeleteAttendanceEvent = (eventId: string) => {
+    if (!(currentUser?.rol === 'rrhh' || currentUser?.rol === 'admin_sistema')) {
+      alert('Acceso denegado: solo RRHH o Administrador pueden gestionar novedades de asistencia.');
+      return;
+    }
+    if (!window.confirm('¿Eliminar esta novedad de asistencia? Esta acción también afectará los próximos recálculos de nómina.')) {
+      return;
+    }
+
+    onUpdateEmployee({
+      ...employee,
+      novedadesLaborales: (employee.novedadesLaborales || []).filter((event) => event.id !== eventId),
+    });
+    if (editingAttendanceId === eventId) {
+      setEditingAttendanceId(null);
+      setShowAddAttendance(false);
+    }
+  };
+
+  const cancelAttendanceEdit = () => {
+    setEditingAttendanceId(null);
     setShowAddAttendance(false);
     setAttendanceStartDate('');
     setAttendanceEndDate('');
@@ -763,10 +810,17 @@ export function EmployeeDetailModal({
                 {(currentUser?.rol === 'rrhh' || currentUser?.rol === 'admin_sistema') && (
                   <button
                     type="button"
-                    onClick={() => setShowAddAttendance(!showAddAttendance)}
+                    onClick={() => {
+                      if (showAddAttendance) {
+                        cancelAttendanceEdit();
+                      } else {
+                        setEditingAttendanceId(null);
+                        setShowAddAttendance(true);
+                      }
+                    }}
                     className="shrink-0 rounded-lg bg-amber-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-800"
                   >
-                    <Plus className="mr-1 inline h-3.5 w-3.5" /> Registrar novedad
+                    <Plus className="mr-1 inline h-3.5 w-3.5" /> {showAddAttendance ? 'Cancelar' : 'Registrar novedad'}
                   </button>
                 )}
               </div>
@@ -806,8 +860,10 @@ export function EmployeeDetailModal({
                     <input value={attendanceDescription} onChange={(event) => setAttendanceDescription(event.target.value)} className="w-full rounded-lg border border-slate-300 p-2" placeholder="Motivo, soporte o referencia" />
                   </label>
                   <div className="flex justify-end gap-2 sm:col-span-2">
-                    <button type="button" onClick={() => setShowAddAttendance(false)} className="rounded-lg px-3 py-1.5 text-slate-600 hover:bg-slate-100">Cancelar</button>
-                    <button type="submit" className="rounded-lg bg-amber-700 px-3 py-1.5 font-bold text-white hover:bg-amber-800">Guardar novedad</button>
+                    <button type="button" onClick={cancelAttendanceEdit} className="rounded-lg px-3 py-1.5 text-slate-600 hover:bg-slate-100">Cancelar</button>
+                    <button type="submit" className="rounded-lg bg-amber-700 px-3 py-1.5 font-bold text-white hover:bg-amber-800">
+                      {editingAttendanceId ? 'Guardar cambios' : 'Guardar novedad'}
+                    </button>
                   </div>
                 </form>
               )}
@@ -825,7 +881,31 @@ export function EmployeeDetailModal({
                           </span>
                           {event.descripcion && <p className="text-slate-500">{event.descripcion}</p>}
                         </div>
-                        <span className="text-[10px] text-slate-400">Registrado por {event.registradoPor} · {event.fechaRegistro}</span>
+                        <div className="flex items-center justify-between gap-3 sm:justify-end">
+                          <span className="text-[10px] text-slate-400">Registrado por {event.registradoPor} · {event.fechaRegistro}</span>
+                          {(currentUser?.rol === 'rrhh' || currentUser?.rol === 'admin_sistema') && (
+                            <div className="flex shrink-0 items-center gap-1">
+                              <button
+                                type="button"
+                                onClick={() => handleEditAttendanceEvent(event)}
+                                className="rounded p-1.5 text-blue-700 hover:bg-blue-50"
+                                title="Editar novedad"
+                                aria-label={`Editar ${event.tipo} del ${event.fechaInicio}`}
+                              >
+                                <Pencil className="h-3.5 w-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteAttendanceEvent(event.id)}
+                                className="rounded p-1.5 text-rose-700 hover:bg-rose-50"
+                                title="Eliminar novedad"
+                                aria-label={`Eliminar ${event.tipo} del ${event.fechaInicio}`}
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                          )}
+                        </div>
                       </li>
                     ))}
                 </ul>
