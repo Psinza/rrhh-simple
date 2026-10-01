@@ -12,16 +12,19 @@ import {
   AlertCircle,
   FileCode2,
 } from 'lucide-react';
-import { AuditLog, CompanySettings, Employee, PayrollPeriod } from '../types';
+import {
+  AuditLog,
+  CompanySettings,
+} from '../types';
+import { DatabaseState } from '../services/lightweightDb';
 import { downloadFile } from '../utils/venezuelaLaborCalculations';
 
 interface SecurityAndCloudModalProps {
   auditLogs: AuditLog[];
   company: CompanySettings;
-  employees: Employee[];
-  payroll: PayrollPeriod;
+  backupState: DatabaseState;
   onClose: () => void;
-  onRestoreBackup: (importedData: any) => void;
+  onRestoreBackup: (importedData: Partial<DatabaseState>) => void;
   lastBackupTime: string;
   setLastBackupTime: (time: string) => void;
 }
@@ -29,8 +32,7 @@ interface SecurityAndCloudModalProps {
 export function SecurityAndCloudModal({
   auditLogs,
   company,
-  employees,
-  payroll,
+  backupState,
   onClose,
   onRestoreBackup,
   lastBackupTime,
@@ -47,14 +49,12 @@ export function SecurityAndCloudModal({
 
   const handleExportBackup = () => {
     const backupData = {
-      version: '2.5',
-      fechaExportacion: new Date().toISOString(),
-      cifrado: 'AES-256-GCM',
-      company,
-      employees,
-      payroll,
-      totalRegistros: employees.length,
-      checksum: `SHA256-BACKUP-${Date.now()}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`,
+      ...backupState,
+      backupMetadata: {
+        formatVersion: 1,
+        exportedAt: new Date().toISOString(),
+        encrypted: false,
+      },
     };
 
     const jsonStr = JSON.stringify(backupData, null, 2);
@@ -62,7 +62,7 @@ export function SecurityAndCloudModal({
 
     const nowStr = new Date().toLocaleTimeString('es-VE', { hour: '2-digit', minute: '2-digit' });
     setLastBackupTime(nowStr);
-    showNotice('Copia de seguridad cifrada generada y descargada exitosamente.');
+    showNotice('Respaldo JSON completo descargado. Este archivo no está cifrado; guárdalo en un lugar protegido.');
   };
 
   const handleFileRestore = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -72,9 +72,11 @@ export function SecurityAndCloudModal({
     const reader = new FileReader();
     reader.onload = (event) => {
       try {
-        const parsed = JSON.parse(event.target?.result as string);
-        if (parsed.employees && parsed.company) {
-          onRestoreBackup(parsed);
+        const parsed = JSON.parse(event.target?.result as string) as Partial<DatabaseState> & { payroll?: unknown };
+        if (parsed.company && Array.isArray(parsed.employees)) {
+          const payrolls = parsed.payrolls
+            || (parsed.payroll && typeof parsed.payroll === 'object' ? [parsed.payroll as DatabaseState['payrolls'][number]] : undefined);
+          onRestoreBackup({ ...parsed, payrolls });
           setRestoreSuccess(true);
           showNotice('Datos restaurados con éxito desde el archivo de respaldo.');
           setTimeout(() => setRestoreSuccess(false), 3000);
@@ -99,10 +101,10 @@ export function SecurityAndCloudModal({
             </div>
             <div>
               <h2 className="text-lg font-bold text-slate-900">
-                Centro de Ciberseguridad, Cifrado & Nube
+                Seguridad local y auditoría
               </h2>
               <p className="text-xs text-slate-500">
-                Estándares de grado bancario, protección de datos sensibles y copias de seguridad continuas.
+                Herramientas locales de respaldo y consulta de eventos. Esta fase no proporciona cifrado de datos ni respaldo automático.
               </p>
             </div>
           </div>
@@ -135,7 +137,7 @@ export function SecurityAndCloudModal({
             }`}
           >
             <Lock className="w-4 h-4 text-emerald-600" />
-            Cifrado & Ciberseguridad
+            Estado de seguridad
           </button>
           <button
             onClick={() => setActiveTab('backups')}
@@ -146,7 +148,7 @@ export function SecurityAndCloudModal({
             }`}
           >
             <Database className="w-4 h-4 text-emerald-600" />
-            Respaldos Cloud (Backups)
+            Respaldos locales
           </button>
           <button
             onClick={() => setActiveTab('audit')}
@@ -161,17 +163,17 @@ export function SecurityAndCloudModal({
           </button>
         </div>
 
-        {/* Tab 1: Cifrado y Ciberseguridad */}
+        {/* Tab 1: Estado de seguridad */}
         {activeTab === 'security' && (
           <div className="space-y-4 text-xs">
             <div className="p-4 bg-emerald-50 rounded-2xl border border-emerald-200 flex items-start gap-3">
               <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
               <div>
                 <h3 className="font-bold text-emerald-950 text-sm">
-                  Cifrado de Extremo a Extremo (AES-256-GCM) Activo
+                  Cifrado de datos locales no disponible
                 </h3>
                 <p className="text-emerald-800 mt-1 leading-relaxed">
-                  Todos los expedientes personales, números de cuenta bancaria y datos salariales se encuentran protegidos mediante algoritmos criptográficos simétricos avanzados. La clave maestra se almacena de forma segura en contenedores aislados de la nube.
+                  Los datos se guardan en el almacenamiento local del navegador y esta aplicación no los cifra. Protege el acceso al equipo y a la cuenta del sistema operativo.
                 </p>
               </div>
             </div>
@@ -179,12 +181,10 @@ export function SecurityAndCloudModal({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-1">
                 <span className="font-bold text-slate-800 flex items-center gap-1.5">
-                  <Key className="w-4 h-4 text-sky-600" /> Clave de Cifrado en Reposo
+                  <Key className="w-4 h-4 text-sky-600" /> Estado de cifrado
                 </span>
-                <p className="font-mono text-slate-600 text-[11px] truncate">
-                  SHA256: 8f4e2b10a9c84d7e91f034bc81d2a45e...
-                </p>
-                <p className="text-[10px] text-emerald-600 font-semibold">Integridad 100% Verificada</p>
+                <p className="text-slate-600 text-[11px]">No se aplica cifrado en reposo ni a los archivos de respaldo JSON.</p>
+                <p className="text-[10px] text-amber-700 font-semibold">El archivo de respaldo contiene datos legibles.</p>
               </div>
 
               <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-1">
@@ -192,14 +192,14 @@ export function SecurityAndCloudModal({
                   <ShieldCheck className="w-4 h-4 text-emerald-600" /> Protección de Datos Personales
                 </span>
                 <p className="text-slate-600 text-[11px]">
-                  Conforme con los estándares de confidencialidad y secreto profesional de la LOTTT y normas internacionales.
+                  Esta pantalla no constituye una certificación de cumplimiento legal o de seguridad.
                 </p>
               </div>
             </div>
           </div>
         )}
 
-        {/* Tab 2: Respaldos Cloud */}
+        {/* Tab 2: Respaldos locales */}
         {activeTab === 'backups' && (
           <div className="space-y-4 text-xs">
             <div className="p-4 bg-blue-50 rounded-xl border border-blue-200">
@@ -207,7 +207,7 @@ export function SecurityAndCloudModal({
                 Recuperación ante Desastres y Copias de Seguridad
               </h3>
               <p className="text-blue-800 mt-1">
-                Genere o restaure instantáneamente copias de seguridad de toda la base de datos de colaboradores, nóminas, historial de aumentos y parámetros de la empresa.
+                Exporte o restaure los datos disponibles en este navegador. No hay almacenamiento en la nube ni respaldo automático en esta fase.
               </p>
             </div>
 
@@ -219,7 +219,7 @@ export function SecurityAndCloudModal({
                     <HardDriveDownload className="w-4 h-4 text-blue-600" /> Exportar Copia de Seguridad
                   </h4>
                   <p className="text-slate-500 mt-1 text-[11px]">
-                    Descarga un archivo JSON cifrado con todos los registros actuales de nómina y colaboradores.
+                    Descarga un archivo JSON con los datos locales disponibles, incluida la contabilidad. El archivo no está cifrado.
                   </p>
                   <p className="text-[10px] text-slate-400 mt-1">
                     Último respaldo: {lastBackupTime}
@@ -229,7 +229,7 @@ export function SecurityAndCloudModal({
                   onClick={handleExportBackup}
                   className="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded shadow-sm transition-all text-xs"
                 >
-                  Descargar Respaldo Cifrado
+                  Descargar respaldo JSON
                 </button>
               </div>
 
@@ -285,7 +285,7 @@ export function SecurityAndCloudModal({
                   <p className="text-slate-600 mt-1 text-[11px]">{log.detalles}</p>
                   <div className="mt-1 flex items-center justify-between text-[10px] text-slate-400">
                     <span>Usuario: <strong className="text-slate-600">{log.usuario}</strong> ({log.rol})</span>
-                    <span>IP: {log.ip} • Cifrado: Sí</span>
+                    <span>IP: {log.ip || 'No disponible'} • Cifrado: {log.cifrado ? 'Sí' : 'No'}</span>
                   </div>
                 </div>
               ))}

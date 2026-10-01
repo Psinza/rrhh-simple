@@ -18,6 +18,24 @@ import { AppUser, CompanySettings } from '../types';
 import { predefinedUsers } from '../data/authUsers';
 import { getApiBase } from '../services/api';
 
+function isAuthenticatedUser(value: unknown): value is Omit<AppUser, 'password'> {
+  if (!value || typeof value !== 'object') return false;
+  const user = value as Record<string, unknown>;
+  return typeof user.id === 'string'
+    && typeof user.username === 'string'
+    && typeof user.email === 'string'
+    && typeof user.nombre === 'string'
+    && typeof user.cargo === 'string'
+    && (user.rol === 'admin_sistema' || user.rol === 'rrhh' || user.rol === 'dueno')
+    && typeof user.rolTitulo === 'string'
+    && typeof user.avatar === 'string'
+    && typeof user.badgeColor === 'string'
+    && typeof user.nivelAcceso === 'string'
+    && typeof user.descripcionAcceso === 'string'
+    && Array.isArray(user.permisos)
+    && user.permisos.every((permission) => typeof permission === 'string');
+}
+
 interface LoginScreenProps {
   onLogin: (user: AppUser) => void;
   defaultRole?: string;
@@ -33,6 +51,7 @@ export function LoginScreen({ onLogin, users, company }: LoginScreenProps) {
   const [showPassword, setShowPassword] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [rememberMe, setRememberMe] = useState(true);
+  const [isAuthenticating, setIsAuthenticating] = useState(false);
 
   // When clicking one of the 3 role selector cards
   const handleSelectRole = (role: 'admin_sistema' | 'rrhh' | 'dueno') => {
@@ -43,43 +62,71 @@ export function LoginScreen({ onLogin, users, company }: LoginScreenProps) {
   const handleManualLogin = async (e: FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
+    setIsAuthenticating(true);
 
-    // ── Validación local primaria (siempre disponible, sin backend) ──
     const trimId = identifier.trim().toLowerCase();
-    const localUser = activeUsers.find(
-      (u) =>
-        (u.username?.toLowerCase() === trimId || u.email?.toLowerCase() === trimId) &&
-        u.password === password
-    );
-
-    if (!localUser) {
-      setErrorMsg('Usuario o contraseña incorrectos.');
-      return;
-    }
-
-    // Verificar que el rol seleccionado coincida con el perfil del usuario
-    if (localUser.rol !== selectedRole) {
-      setErrorMsg(
-        `Las credenciales corresponden al perfil "${localUser.rolTitulo}". ` +
-        `Por favor seleccione ese perfil en las tarjetas de arriba.`
+    const authenticateOffline = () => {
+      const localUser = activeUsers.find(
+        (user) =>
+          (user.username?.toLowerCase() === trimId || user.email?.toLowerCase() === trimId)
+          && user.password === password,
       );
-      return;
-    }
+      if (!localUser) {
+        setErrorMsg('No se pudo conectar con el servidor y estas credenciales no están disponibles para acceso sin conexión.');
+        return;
+      }
+      if (localUser.rol !== selectedRole) {
+        setErrorMsg(`Las credenciales corresponden al perfil "${localUser.rolTitulo}". Seleccione ese perfil.`);
+        return;
+      }
+      onLogin(localUser);
+    };
 
-    // Login local exitoso — notificar a App.tsx inmediatamente
-    onLogin(localUser);
-
-    // ── Intentar también el backend de forma secundaria y no bloqueante ──
     try {
-      const API_BASE = getApiBase();
-      fetch(`${API_BASE}/api/login`, {
+      const response = await fetch(`${getApiBase()}/api/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ identifier, password, selectedRole }),
-      }).catch(() => {/* ignorar si el backend no está disponible */});
+        body: JSON.stringify({ identifier: trimId, password, selectedRole }),
+      });
+
+      const contentType = response.headers.get('content-type') || '';
+      if (
+        response.status === 404
+        || response.status >= 500
+        || (response.ok && !contentType.includes('application/json'))
+      ) {
+        authenticateOffline();
+        return;
+      }
+
+      let payload: unknown;
+      try {
+        payload = await response.json();
+      } catch {
+        setErrorMsg(`El servidor devolvió una respuesta inválida (HTTP ${response.status}).`);
+        return;
+      }
+
+      if (!response.ok) {
+        const serverError = payload && typeof payload === 'object' && 'error' in payload
+          && typeof payload.error === 'string'
+          ? payload.error
+          : `No se pudo iniciar sesión (HTTP ${response.status}).`;
+        setErrorMsg(serverError);
+        return;
+      }
+
+      if (!payload || typeof payload !== 'object' || !('user' in payload) || !isAuthenticatedUser(payload.user)) {
+        setErrorMsg('El servidor no devolvió un perfil de usuario válido.');
+        return;
+      }
+
+      onLogin({ ...payload.user, password: '' });
     } catch {
-      // Ignorar — el login local ya fue exitoso
+      authenticateOffline();
+    } finally {
+      setIsAuthenticating(false);
     }
   };
 
@@ -380,10 +427,11 @@ export function LoginScreen({ onLogin, users, company }: LoginScreenProps) {
                 <button
                   type="submit"
                   data-testid="login-submit"
-                  className="w-full mt-2 py-3 px-4 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg shadow-blue-600/20 active:scale-[0.99] transition-all"
+                  disabled={isAuthenticating}
+                  className="w-full mt-2 py-3 px-4 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg shadow-blue-600/20 active:scale-[0.99] transition-all disabled:cursor-wait disabled:opacity-70"
                 >
-                  <span>Iniciar Sesión como {currentUserConfig.rolTitulo}</span>
-                  <ArrowRight className="w-4 h-4" />
+                  <span>{isAuthenticating ? 'Verificando credenciales…' : `Iniciar Sesión como ${currentUserConfig.rolTitulo}`}</span>
+                  {!isAuthenticating && <ArrowRight className="w-4 h-4" />}
                 </button>
 
                 {/* Hint de credenciales */}

@@ -160,6 +160,7 @@ export function buildInitialPayrollPeriod(company: CompanySettings, employees: E
     fechaInicio: '2026-08-16',
     fechaFin: '2026-08-31',
     fechaPago: '2026-08-30',
+    tasaBCV_USD: company.tasaBCV_USD,
     estatus: 'Aprobada',
     items,
     totalNominaBs,

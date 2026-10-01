@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   Users,
   FileSpreadsheet,
@@ -22,6 +22,7 @@ import {
   CloudUpload,
   Database,
   Building2,
+  Landmark,
 } from 'lucide-react';
 import {
   Employee,
@@ -32,10 +33,16 @@ import {
   AuditLog,
   AppUser,
   AppUserRole,
+  CreateAppUserInput,
   SalesRecord,
   ProductAssignment,
   ProductPurchase,
   EmployeeLoan,
+  EmployeeSalaryAdvance,
+  AccountingAccount,
+  AccountingPeriod,
+  CompanyBranch,
+  JournalEntry,
 } from './types';
 import {
   initialEmployees,
@@ -47,6 +54,15 @@ import {
 import { predefinedUsers } from './data/authUsers';
 import { getApiBase } from './services/api';
 import { lightweightDb, DatabaseState } from './services/lightweightDb';
+import { getEffectivePayrollExchangeRate } from './utils/venezuelaLaborCalculations';
+import {
+  calculateLoanPayrollDeduction,
+  isLoanPrincipalProductDeduction,
+  synchronizeLoanDeductionHistory,
+} from './utils/employeeLoanDeductions';
+import { calculateSalaryAdvancePayrollDeduction, getSalaryAdvanceOutstandingBs, synchronizeSalaryAdvanceDeductionHistory } from './utils/employeeSalaryAdvances';
+import { createPayrollPeriod, PayrollHalf } from './utils/payrollPeriods';
+import { getPayrollApprovalBlockReason } from './utils/payrollOperationGuards';
 import { buildPayrollAdjustmentMaps } from './utils/payrollAdjustments';
 
 // Subcomponents
@@ -67,6 +83,36 @@ import { DatabaseManagerModal } from './components/DatabaseManagerModal';
 import { RenderDeployModal } from './components/RenderDeployModal';
 import { SalesModule } from './components/SalesModule';
 import { ProductBenefitsModule } from './components/ProductBenefitsModule';
+import { AccountingCoreModule } from './components/AccountingCoreModule';
+import { CommercialSalesModule } from './components/CommercialSalesModule';
+import { ErpOperationsModule } from './components/ErpOperationsModule';
+import { createAccountingPeriods, initialAccountingAccounts } from './data/accountingInitialData';
+
+function isCreatedUserProfile(value: unknown): value is Omit<AppUser, 'password'> {
+  if (!value || typeof value !== 'object') return false;
+  const user = value as Record<string, unknown>;
+  return typeof user.id === 'string'
+    && typeof user.username === 'string'
+    && typeof user.email === 'string'
+    && typeof user.nombre === 'string'
+    && typeof user.cargo === 'string'
+    && (user.rol === 'admin_sistema' || user.rol === 'rrhh' || user.rol === 'dueno')
+    && typeof user.rolTitulo === 'string'
+    && typeof user.avatar === 'string'
+    && typeof user.badgeColor === 'string'
+    && typeof user.nivelAcceso === 'string'
+    && typeof user.descripcionAcceso === 'string'
+    && Array.isArray(user.permisos)
+    && user.permisos.every((permission) => typeof permission === 'string');
+}
+
+type BcvRateSyncStatus = {
+  status: 'idle' | 'loading' | 'current' | 'stale' | 'error';
+  rate?: number;
+  effectiveDate?: string;
+  historical?: boolean;
+  message?: string;
+};
 
 export default function App() {
   // Authentication & Session
@@ -75,16 +121,18 @@ export default function App() {
 
   // Navigation
   const [activeTab, setActiveTab] = useState<
-    'dashboard' | 'employees' | 'payroll' | 'benefits' | 'government_files' | 'company_identity' | 'sales' | 'products_loans'
+    'dashboard' | 'employees' | 'payroll' | 'benefits' | 'government_files' | 'company_identity' | 'sales' | 'commercial_sales' | 'products_loans' | 'accounting' | 'erp_operations'
   >('dashboard');
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
   // Main State
   const [employees, setEmployees] = useState<Employee[]>(initialEmployees);
   const [company, setCompany] = useState<CompanySettings>(initialCompanySettings);
+  const [bcvRateSync, setBcvRateSync] = useState<BcvRateSyncStatus>({ status: 'idle' });
   const [payroll, setPayroll] = useState<PayrollPeriod>(() =>
     buildInitialPayrollPeriod(initialCompanySettings, initialEmployees)
   );
+  const [payrollHistory, setPayrollHistory] = useState<PayrollPeriod[]>([]);
   const [users, setUsers] = useState<AppUser[]>(() => {
     try {
       const stored = localStorage.getItem('ven_nomina_users');
@@ -106,9 +154,86 @@ export default function App() {
   const [productAssignments, setProductAssignments] = useState<ProductAssignment[]>([]);
   const [productPurchases, setProductPurchases] = useState<ProductPurchase[]>([]);
   const [employeeLoans, setEmployeeLoans] = useState<EmployeeLoan[]>([]);
+  const [employeeSalaryAdvances, setEmployeeSalaryAdvances] = useState<EmployeeSalaryAdvance[]>(
+    () => lightweightDb.loadLocal()?.employeeSalaryAdvances || [],
+  );
+  const [branches, setBranches] = useState<CompanyBranch[]>(() => lightweightDb.loadLocal()?.branches || []);
+  const [accountingAccounts, setAccountingAccounts] = useState<AccountingAccount[]>(
+    () => lightweightDb.loadLocal()?.accountingAccounts || initialAccountingAccounts
+  );
+  const [accountingPeriods, setAccountingPeriods] = useState<AccountingPeriod[]>(
+    () => lightweightDb.loadLocal()?.accountingPeriods || createAccountingPeriods(new Date().getFullYear())
+  );
+  const [journalEntries, setJournalEntries] = useState<JournalEntry[]>(
+    () => lightweightDb.loadLocal()?.journalEntries || []
+  );
   const [lastBackupTime, setLastBackupTime] = useState('10:45 AM');
 
+  const refreshBcvRate = useCallback(async (effectiveDate: string) => {
+    setBcvRateSync({ status: 'loading' });
+    try {
+      const response = await fetch(
+        `${getApiBase()}/api/currency-rates/bcv/usd?date=${encodeURIComponent(effectiveDate)}`,
+        { credentials: 'include' },
+      );
+      let body: {
+        rate?: number;
+        effectiveDate?: string;
+        source?: string;
+        stale?: boolean;
+        historical?: boolean;
+        warning?: string;
+        error?: string;
+      };
+      try {
+        body = await response.json();
+      } catch {
+        throw new Error(`El servidor no devolvió una respuesta válida (HTTP ${response.status}).`);
+      }
+      if (!response.ok) {
+        throw new Error(body.error || `No se pudo consultar la tasa BCV (HTTP ${response.status}).`);
+      }
+      if (
+        typeof body.rate !== 'number'
+        || !Number.isFinite(body.rate)
+        || body.rate <= 0
+        || typeof body.effectiveDate !== 'string'
+        || body.source !== 'BCV'
+      ) {
+        throw new Error('El servidor devolvió datos incompletos o inválidos para la tasa BCV.');
+      }
+
+      const rate = body.rate;
+      lightweightDb.addCurrencyRate(rate, 'BCV', body.effectiveDate, !body.historical);
+      if (!body.historical) {
+        setCompany((previous) => ({ ...previous, tasaBCV_USD: rate }));
+      }
+      setBcvRateSync({
+        status: body.stale ? 'stale' : 'current',
+        rate,
+        effectiveDate: body.effectiveDate,
+        historical: body.historical,
+        message: body.warning,
+      });
+      return { rate, historical: Boolean(body.historical) };
+    } catch (error) {
+      const message = error instanceof Error
+        ? error.message
+        : 'No se pudo validar la tasa oficial del BCV.';
+      setBcvRateSync({ status: 'error', message });
+      throw error instanceof Error ? error : new Error(message);
+    }
+  }, []);
+
   useEffect(() => {
+    if (activeTab !== 'payroll' || !currentUser) return;
+    void refreshBcvRate(payroll.fechaPago).catch((error) => {
+      console.error('No se pudo sincronizar automáticamente la tasa BCV:', error);
+    });
+  }, [activeTab, currentUser?.id, payroll.fechaPago, refreshBcvRate]);
+
+  useEffect(() => {
+    if (payroll.estatus === 'Aprobada' || payroll.estatus === 'Pagada') return;
     const activeEmployees = employees.filter((emp) => emp.status === 'activo');
     const shouldSyncPayroll =
       activeEmployees.length > 0 &&
@@ -117,7 +242,32 @@ export default function App() {
         activeEmployees.some((emp) => !payroll.items.some((item) => item.employeeId === emp.id)));
 
     if (shouldSyncPayroll) {
-      setPayroll(buildInitialPayrollPeriod(company, activeEmployees));
+      const defaultPayroll = buildInitialPayrollPeriod(company, activeEmployees);
+      setPayroll((current) => {
+        const previousItemsByEmployee = new Map<string, PayrollItem>(
+          current.items.map((item) => [item.employeeId, item]),
+        );
+        const items = defaultPayroll.items.map((item) => {
+          const previous = previousItemsByEmployee.get(item.employeeId);
+          return previous
+            ? { ...previous, employee: { ...item.employee, frecuenciaPago: previous.employee.frecuenciaPago } }
+            : {
+              ...item,
+              id: `slip-${item.employeeId}-${current.id}`,
+              fechaGeneracion: current.fechaPago,
+            };
+        });
+
+        return {
+          ...current,
+          items,
+          tasaBCV_USD: current.tasaBCV_USD || company.tasaBCV_USD,
+          totalNominaBs: items.reduce((sum, item) => sum + item.totalAsignaciones, 0),
+          totalCestaticketBs: items.reduce((sum, item) => sum + item.cestaticketPeriodo, 0),
+          totalAportesPatronalesBs: items.reduce((sum, item) => sum + item.totalAportesPatronales, 0),
+          totalCostoEmpresaBs: items.reduce((sum, item) => sum + item.totalAsignaciones + item.totalAportesPatronales, 0),
+        };
+      });
     }
   }, [employees, company, payroll.items]);
 
@@ -136,6 +286,10 @@ export default function App() {
     lightweightDb.initDatabase().then((dbState) => {
       if (dbState) {
         if (dbState.company) setCompany(dbState.company);
+        if (dbState.payrolls?.[0]) {
+          setPayroll(dbState.payrolls[0]);
+          setPayrollHistory(dbState.payrolls.slice(1));
+        }
         if (dbState.employees && dbState.employees.length > 0) setEmployees(dbState.employees);
         if (dbState.users && dbState.users.length > 0) {
           const dbUserIds = new Set(dbState.users.map((user) => user.id));
@@ -150,6 +304,11 @@ export default function App() {
         if (dbState.productAssignments) setProductAssignments(dbState.productAssignments);
         if (dbState.productPurchases) setProductPurchases(dbState.productPurchases);
         if (dbState.employeeLoans) setEmployeeLoans(dbState.employeeLoans);
+        if (dbState.employeeSalaryAdvances) setEmployeeSalaryAdvances(dbState.employeeSalaryAdvances);
+        setBranches(dbState.branches || []);
+        setAccountingAccounts(dbState.accountingAccounts || initialAccountingAccounts);
+        setAccountingPeriods(dbState.accountingPeriods || createAccountingPeriods(new Date().getFullYear()));
+        setJournalEntries(dbState.journalEntries || []);
       }
     });
 
@@ -178,14 +337,19 @@ export default function App() {
       company,
       employees,
       users,
-      payrolls: [payroll],
+      payrolls: [payroll, ...payrollHistory.filter((period) => period.id !== payroll.id)],
       sales,
       productAssignments,
       productPurchases,
       employeeLoans,
+      employeeSalaryAdvances,
       socialBenefits: [],
       auditLogs,
       currencyRates: lightweightDb.loadLocal()?.currencyRates || [],
+      branches,
+      accountingAccounts,
+      accountingPeriods,
+      journalEntries,
     });
     try {
       localStorage.setItem('ven_nomina_users', JSON.stringify(users));
@@ -193,14 +357,19 @@ export default function App() {
     } catch (e) {
       // Ignore quota error
     }
-  }, [company, employees, users, payroll, auditLogs, sales, productAssignments, productPurchases, employeeLoans]);
+  }, [company, employees, users, payroll, payrollHistory, auditLogs, sales, productAssignments, productPurchases, employeeLoans, employeeSalaryAdvances, branches, accountingAccounts, accountingPeriods, journalEntries]);
 
-  const handleDataRestored = (restored: DatabaseState) => {
+  const handleDataRestored = (restored: Partial<DatabaseState>) => {
     if (restored.company) setCompany(restored.company);
     if (restored.employees) setEmployees(restored.employees);
     if (restored.productAssignments) setProductAssignments(restored.productAssignments);
     if (restored.productPurchases) setProductPurchases(restored.productPurchases);
     if (restored.employeeLoans) setEmployeeLoans(restored.employeeLoans);
+    if (restored.employeeSalaryAdvances) setEmployeeSalaryAdvances(restored.employeeSalaryAdvances);
+    if (restored.branches) setBranches(restored.branches);
+    if (restored.accountingAccounts) setAccountingAccounts(restored.accountingAccounts);
+    if (restored.accountingPeriods) setAccountingPeriods(restored.accountingPeriods);
+    if (restored.journalEntries) setJournalEntries(restored.journalEntries);
     if (restored.sales) setSales(restored.sales);
     if (restored.users) {
       setUsers(restored.users);
@@ -209,14 +378,44 @@ export default function App() {
         if (updatedMe) setCurrentUser(updatedMe);
       }
     }
+    if (restored.payrolls?.[0]) {
+      setPayroll(restored.payrolls[0]);
+      setPayrollHistory(restored.payrolls.slice(1));
+    }
+    if (restored.auditLogs) setAuditLogs(restored.auditLogs);
     setLastBackupTime(new Date().toLocaleTimeString('es-VE', { hour: '2-digit', minute: '2-digit' }));
     addAuditLog('Restauración de Base de Datos', 'Seguridad', 'Base de datos restaurada correctamente');
+  };
+
+  const buildCurrentDatabaseState = (): DatabaseState => {
+    const storedState = lightweightDb.loadLocal();
+    return {
+      ...storedState,
+      version: '3.2.0',
+      timestamp: new Date().toISOString(),
+      company,
+      employees,
+      users,
+      payrolls: [payroll, ...payrollHistory.filter((period) => period.id !== payroll.id)],
+      sales,
+      productAssignments,
+      productPurchases,
+      employeeLoans,
+      employeeSalaryAdvances,
+      socialBenefits: storedState?.socialBenefits || [],
+      auditLogs,
+      currencyRates: storedState?.currencyRates || [],
+      branches,
+      accountingAccounts,
+      accountingPeriods,
+      journalEntries,
+    };
   };
 
   const unreadCount = notifications.filter((n) => !n.leida).length;
 
   const getCompleteUserProfile = (user: AppUser): AppUser => {
-    const predefinedProfile = predefinedUsers.find((u) => u.id === user.id || u.rol === user.rol);
+    const predefinedProfile = predefinedUsers.find((u) => u.id === user.id);
     return {
       ...(predefinedProfile || user),
       ...user,
@@ -225,7 +424,7 @@ export default function App() {
       telefono: user.telefono || predefinedProfile?.telefono,
       nivelAcceso: user.nivelAcceso || predefinedProfile?.nivelAcceso || '',
       descripcionAcceso: user.descripcionAcceso || predefinedProfile?.descripcionAcceso || '',
-      password: user.password || predefinedProfile?.password || '',
+      password: user.password || '',
     };
   };
 
@@ -238,15 +437,15 @@ export default function App() {
   // Helper to record audit logs
   const addAuditLog = (
     accion: string,
-    modulo: 'Nómina' | 'Expedientes' | 'Prestaciones' | 'Archivos Gubernamentales' | 'Seguridad' | 'Configuración',
+    modulo: 'Nómina' | 'Expedientes' | 'Prestaciones' | 'Archivos Gubernamentales' | 'Seguridad' | 'Configuración' | 'Contabilidad' | 'Empresas',
     detalles: string
   ) => {
     const roleLabel =
       currentUser?.rol === 'admin_sistema'
-        ? 'Administrador RRHH'
+        ? 'Administrador ERP'
         : currentUser?.rol === 'rrhh'
         ? 'Especialista de Nómina'
-        : 'Auditor Legal';
+        : 'Propietario';
 
     const newLog: AuditLog = {
       id: `log-${Date.now()}`,
@@ -293,6 +492,49 @@ export default function App() {
     })();
   };
 
+  const handleCreateUser = async (input: CreateAppUserInput): Promise<AppUser> => {
+    let response: Response;
+    try {
+      response = await fetch(`${getApiBase()}/api/users`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...input, companyRif: company.rif }),
+      });
+    } catch {
+      throw new Error('No se pudo conectar con el servidor. Verifique la conexión e inténtelo de nuevo.');
+    }
+
+    let payload: unknown;
+    try {
+      payload = await response.json();
+    } catch {
+      throw new Error(`El servidor respondió sin JSON válido (HTTP ${response.status}).`);
+    }
+    if (!response.ok) {
+      if (payload && typeof payload === 'object' && 'error' in payload && typeof payload.error === 'string') {
+        throw new Error(payload.error);
+      }
+      throw new Error(`No se pudo crear el usuario (HTTP ${response.status}).`);
+    }
+    if (!payload || typeof payload !== 'object' || !('user' in payload) || !isCreatedUserProfile(payload.user)) {
+      throw new Error('El servidor no devolvió los datos válidos del usuario creado.');
+    }
+
+    const createdUser: AppUser = { ...payload.user, password: '' };
+    setUsers((currentUsers) => (
+      currentUsers.some((existing) => existing.id === createdUser.id)
+        ? currentUsers.map((existing) => existing.id === createdUser.id ? createdUser : existing)
+        : [...currentUsers, createdUser]
+    ));
+    addAuditLog(
+      'Creación de usuario',
+      'Seguridad',
+      `Se creó ${createdUser.username} con el perfil ${createdUser.rolTitulo}.`,
+    );
+    return createdUser;
+  };
+
   const handleLogout = async () => {
     if (currentUser) {
       addAuditLog(
@@ -327,11 +569,31 @@ export default function App() {
     }
   };
 
-  const handleApprovePayrollByOwner = () => {
-    setPayroll((prev) => ({
-      ...prev,
-      estatus: 'Aprobada',
-    }));
+  const handleApprovePayrollByOwner = async () => {
+    if (currentUser?.rol !== 'dueno' && currentUser?.rol !== 'admin_sistema') {
+      throw new Error('Solo el dueño o administrador del sistema puede aprobar la nómina.');
+    }
+    const blockReason = getPayrollApprovalBlockReason(payroll);
+    if (blockReason) throw new Error(blockReason);
+
+    const { rate, historical } = await refreshBcvRate(payroll.fechaPago);
+    const savedRate = payroll.tasaBCV_USD;
+    if (!savedRate || Math.abs(rate - savedRate) > 0.00000001) {
+      throw new Error(
+        `La tasa BCV consultada (Bs. ${rate.toFixed(8)}) difiere de la usada en los recibos (Bs. ${savedRate?.toFixed(8) ?? 'sin tasa'}). Recalcule y revise los recibos antes de aprobar.`,
+      );
+    }
+
+    const approvedPayroll: PayrollPeriod = { ...payroll, estatus: 'Aprobada', tasaBCV_USD: savedRate };
+    setPayroll(approvedPayroll);
+    setPayrollHistory((previous) => previous.map((period) => (
+      period.id === approvedPayroll.id ? approvedPayroll : period
+    )));
+    if (!historical) {
+      setCompany((previous) => ({ ...previous, tasaBCV_USD: rate }));
+    }
+    setEmployeeLoans((previous) => synchronizeLoanDeductionHistory(previous, approvedPayroll, savedRate));
+    setEmployeeSalaryAdvances((previous) => synchronizeSalaryAdvanceDeductionHistory(previous, approvedPayroll, savedRate));
     const paidSaleIds = new Set(payroll.items.flatMap((item) => item.commissionSaleIds || []));
     if (paidSaleIds.size > 0) {
       setSales((previous) => previous.map((sale) =>
@@ -343,12 +605,40 @@ export default function App() {
     addAuditLog(
       'Aprobación Ejecutiva de Nómina',
       'Nómina',
-      `Nómina ${payroll.nombre} aprobada formalmente por el Director General (${currentUser?.nombre}) para dispersión bancaria.`
+      `Nómina ${payroll.nombre} aprobada formalmente por ${currentUser.nombre} para dispersión bancaria con tasa BCV de Bs. ${savedRate.toFixed(8)}.`,
+    );
+  };
+
+  const handleSelectPayroll = (selectedPayroll: PayrollPeriod) => {
+    if (selectedPayroll.id === payroll.id) return;
+    setPayrollHistory((previous) => [
+      payroll,
+      ...previous.filter((period) => period.id !== payroll.id && period.id !== selectedPayroll.id),
+    ]);
+    setPayroll(selectedPayroll);
+  };
+
+  const handleCreatePayrollPeriod = (year: number, month: number, half: PayrollHalf) => {
+    const id = `period-${year}-${String(month).padStart(2, '0')}-q${half === 'first' ? 1 : 2}`;
+    const existingPayroll = [payroll, ...payrollHistory].find((period) => period.id === id);
+    if (existingPayroll) {
+      handleSelectPayroll(existingPayroll);
+      return;
+    }
+
+    const activeEmployees = employees.filter((employee) => employee.status === 'activo');
+    const newPayroll = createPayrollPeriod(company, activeEmployees, year, month, half);
+    handleSelectPayroll(newPayroll);
+    addAuditLog(
+      'Creación de período de nómina',
+      'Nómina',
+      `Se creó el borrador ${newPayroll.nombre}; no se modificó ningún período anterior.`,
     );
   };
 
   // Handlers for employees
   const handleSaveEmployee = (newEmp: Employee) => {
+    setSelectedDetailEmployee((selected) => (selected?.id === newEmp.id ? newEmp : selected));
     setEmployees((prev) => {
       const exists = prev.some((e) => e.id === newEmp.id);
       if (exists) {
@@ -366,6 +656,27 @@ export default function App() {
         );
         return [newEmp, ...prev];
       }
+    });
+    void fetch(`${getApiBase()}/api/erp/workforce/employees/sync`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ employees: [newEmp] }),
+    }).then(async (response) => {
+      if (!response.ok) {
+        const responseText = await response.text();
+        let message = responseText || `Error HTTP ${response.status}`;
+        try {
+          const body = JSON.parse(responseText) as { error?: string };
+          message = body.error || message;
+        } catch {
+          // Keep the backend response for non-JSON errors.
+        }
+        throw new Error(message);
+      }
+    }).catch((syncError: unknown) => {
+      const message = syncError instanceof Error ? syncError.message : 'Error desconocido';
+      window.alert(`El empleado se guardó localmente, pero no se sincronizó con el ERP: ${message}. Abra ERP y RR. HH. para reintentar la sincronización.`);
     });
   };
 
@@ -386,9 +697,47 @@ export default function App() {
     );
   };
 
-  const handleUpdatePayroll = (updatedPayroll: PayrollPeriod) => {
-    setPayroll(updatedPayroll);
+  const handleUpdatePayroll = (
+    updatedPayroll: PayrollPeriod,
+    exchangeRate = company.tasaBCV_USD,
+    historicalRate = false,
+  ) => {
+    const approvalInvalidated = payroll.estatus === 'Aprobada' && updatedPayroll.estatus === 'Calculada';
+    const payrollWithRate = {
+      ...updatedPayroll,
+      tasaBCV_USD: getEffectivePayrollExchangeRate(updatedPayroll.tasaBCV_USD, exchangeRate),
+    };
+    setPayroll(payrollWithRate);
+    setPayrollHistory((previous) => previous.map((period) => (
+      period.id === payrollWithRate.id ? payrollWithRate : period
+    )));
+    if (!historicalRate) {
+      setCompany((previous) => ({ ...previous, tasaBCV_USD: exchangeRate }));
+    }
+    setEmployeeLoans((previous) => synchronizeLoanDeductionHistory(previous, payrollWithRate, exchangeRate));
+    setEmployeeSalaryAdvances((previous) => synchronizeSalaryAdvanceDeductionHistory(previous, payrollWithRate, exchangeRate));
+    if (approvalInvalidated) {
+      addAuditLog(
+        'Aprobación de nómina invalidada',
+        'Nómina',
+        `La nómina ${updatedPayroll.nombre} fue recalculada antes de confirmar el TXT bancario; requiere una nueva aprobación.`,
+      );
+    }
     addAuditLog('Cálculo de Nómina', 'Nómina', `Recálculo de la nómina: ${updatedPayroll.nombre}`);
+  };
+
+  const handleConfirmPayrollBankFile = () => {
+    if (payroll.archivoBancarioConfirmado) return;
+    setPayroll({
+      ...payroll,
+      archivoBancarioConfirmado: true,
+      archivoBancarioConfirmadoEn: new Date().toISOString(),
+    });
+    addAuditLog(
+      'Confirmación de archivo bancario',
+      'Nómina',
+      `Archivo TXT bancario de la nómina ${payroll.nombre} confirmado por ${currentUser?.nombre || 'Usuario'}.`,
+    );
   };
 
   const handleAddSale = (record: SalesRecord) => {
@@ -407,14 +756,90 @@ export default function App() {
   const handleAddAssignment = (item: ProductAssignment) => setProductAssignments((previous) => [item, ...previous]);
   const handleAddPurchase = (item: ProductPurchase) => setProductPurchases((previous) => [item, ...previous]);
   const handleAddLoan = (item: EmployeeLoan) => setEmployeeLoans((previous) => [item, ...previous]);
+  const handleAddSalaryAdvance = (item: EmployeeSalaryAdvance) => setEmployeeSalaryAdvances((previous) => [item, ...previous]);
   const handleUpdateAssignment = (item: ProductAssignment) => setProductAssignments((previous) => previous.map((current) => current.id === item.id ? item : current));
   const handleUpdatePurchase = (item: ProductPurchase) => setProductPurchases((previous) => previous.map((current) => current.id === item.id ? item : current));
   const handleUpdateLoan = (item: EmployeeLoan) => setEmployeeLoans((previous) => previous.map((current) => current.id === item.id ? item : current));
+  const handleUpdateSalaryAdvance = (item: EmployeeSalaryAdvance) => setEmployeeSalaryAdvances((previous) => previous.map((current) => current.id === item.id ? item : current));
   const handleDeleteAssignment = (id: string) => { if (window.confirm('¿Eliminar esta asignación?')) setProductAssignments((previous) => previous.filter((item) => item.id !== id)); };
   const handleDeletePurchase = (id: string) => { if (window.confirm('¿Eliminar esta compra? El descuento dejará de aplicarse en nómina.')) setProductPurchases((previous) => previous.filter((item) => item.id !== id)); };
   const handleDeleteLoan = (id: string) => { if (window.confirm('¿Eliminar este préstamo? La cuota dejará de aplicarse en nómina.')) setEmployeeLoans((previous) => previous.filter((item) => item.id !== id)); };
+  const handleDeleteSalaryAdvance = (id: string) => {
+    if (employeeSalaryAdvances.find((item) => item.id === id)?.deductionHistory?.length) {
+      window.alert('No se puede eliminar un adelanto que ya tiene deducciones en nómina.');
+      return;
+    }
+    if (window.confirm('¿Eliminar este adelanto? Dejará de descontarse en nómina.')) {
+      setEmployeeSalaryAdvances((previous) => previous.filter((item) => item.id !== id));
+    }
+  };
 
-  const payrollAdjustments = buildPayrollAdjustmentMaps(payroll, sales, productAssignments, productPurchases, employeeLoans);
+  const getLoanDeductionsForRate = (exchangeRate: number) => {
+    const details = employeeLoans.reduce<Record<string, NonNullable<PayrollItem['prestamosAnticiposDetalle']>>>((totals, loan) => {
+      const currentPayrollDeduction = loan.deductionHistory?.find((entry) => entry.payrollPeriodId === payroll.id);
+      if (loan.status === 'Activo' || currentPayrollDeduction) {
+        const { amountBs, amountOriginal, currency } = calculateLoanPayrollDeduction(
+          loan,
+          payroll.id,
+          exchangeRate,
+        );
+        if (amountBs <= 0) return totals;
+        (totals[loan.employeeId] ||= []).push({
+          loanId: loan.id,
+          description: loan.description,
+          amountOriginal,
+          currency,
+          amountBs,
+        });
+      }
+      return totals;
+    }, {});
+    const installments: Record<string, number> = {};
+    for (const employeeId of Object.keys(details)) {
+      installments[employeeId] = details[employeeId]
+        .reduce((total, deduction) => total + deduction.amountBs, 0);
+    }
+    return { details, installments };
+  };
+  const getSalaryAdvanceDeductionsForRate = (exchangeRate: number) => {
+    const details = employeeSalaryAdvances.reduce<Record<string, NonNullable<PayrollItem['adelantosSueldoDetalle']>>>((totals, advance) => {
+      const currentPayrollDeduction = (advance.deductionHistory || []).find((entry) => entry.payrollPeriodId === payroll.id);
+      if (advance.createdAt.slice(0, 10) > payroll.fechaFin.slice(0, 10) && !currentPayrollDeduction) return totals;
+      const { amountBs, amountOriginal, currency } = calculateSalaryAdvancePayrollDeduction(
+        advance,
+        payroll.id,
+        exchangeRate,
+        getSalaryAdvanceOutstandingBs(advance, exchangeRate, payroll.id),
+      );
+      if (amountBs <= 0) return totals;
+      (totals[advance.employeeId] ||= []).push({
+        advanceId: advance.id,
+        description: advance.description,
+        amountOriginal,
+        currency,
+        amountBs,
+      });
+      return totals;
+    }, {});
+    const installments: Record<string, number> = {};
+    for (const employeeId of Object.keys(details)) {
+      const advances = details[employeeId];
+      installments[employeeId] = advances.reduce((total, advance) => total + advance.amountBs, 0);
+    }
+    return { details, installments };
+  };
+  const payrollAdjustments = buildPayrollAdjustmentMaps(
+    payroll,
+    sales,
+    productAssignments.filter((assignment) => (
+      !isLoanPrincipalProductDeduction(assignment.employeeId, assignment.product, assignment.amountBs, employeeLoans)
+    )),
+    productPurchases.filter((purchase) => (
+      !purchase.employeeId
+      || !isLoanPrincipalProductDeduction(purchase.employeeId, purchase.product, purchase.amountBs, employeeLoans)
+    )),
+    employeeLoans,
+  );
 
   const handleSaveCompany = (updatedCompany: CompanySettings) => {
     if (updatedCompany.tasaBCV_USD !== company.tasaBCV_USD && company.tasaBCV_USD > 0) {
@@ -431,13 +856,6 @@ export default function App() {
     addAuditLog('Ajuste de Parámetros', 'Configuración', `Actualización de parámetros fiscales y tasas BCV`);
   };
 
-  const handleRestoreBackup = (backupData: any) => {
-    if (backupData.company) setCompany(backupData.company);
-    if (backupData.employees) setEmployees(backupData.employees);
-    if (backupData.payroll) setPayroll(backupData.payroll);
-    addAuditLog('Restauración de Respaldo', 'Seguridad', `Restauración completa de la base de datos desde respaldo JSON`);
-  };
-
   const handleMarkAllNotificationsAsRead = () => {
     setNotifications((prev) => prev.map((n) => ({ ...n, leida: true })));
   };
@@ -447,18 +865,21 @@ export default function App() {
     { id: 'employees', label: 'Gestión de Personal', icon: Users },
     { id: 'payroll', label: 'Cálculo de Nómina', icon: FileSpreadsheet },
     { id: 'sales', label: 'Ventas y Comisiones', icon: Briefcase },
+    { id: 'commercial_sales', label: 'Facturas y documentos', icon: FileSpreadsheet },
     { id: 'products_loans', label: 'Productos y Préstamos', icon: Coins },
     { id: 'government_files', label: 'Parafiscales (IVSS/FAOV)', icon: FileCheck },
     { id: 'benefits', label: 'Prestaciones Sociales', icon: Coins },
     { id: 'company_identity', label: 'Identidad & Usuarios', icon: Building2 },
+    { id: 'accounting', label: 'ERP & Contabilidad', icon: Landmark },
+    { id: 'erp_operations', label: 'Compras, bancos y bienes', icon: Landmark },
     { id: 'audit_reports', label: 'Reportes y Auditoría', icon: ShieldCheck },
   ];
 
   // Role-based navigation permissions
   const roleAllowedTabs: Record<string, string[]> = {
-    admin_sistema: ['dashboard', 'employees', 'payroll', 'sales', 'products_loans', 'government_files', 'benefits', 'company_identity', 'audit_reports'],
-    rrhh: ['dashboard', 'employees', 'payroll', 'sales', 'products_loans', 'government_files', 'benefits'],
-    dueno: ['dashboard', 'employees', 'payroll', 'sales', 'products_loans', 'government_files', 'benefits', 'company_identity'],
+    admin_sistema: ['dashboard', 'employees', 'payroll', 'sales', 'commercial_sales', 'products_loans', 'government_files', 'benefits', 'company_identity', 'accounting', 'erp_operations', 'audit_reports'],
+    rrhh: ['dashboard', 'employees', 'payroll', 'sales', 'products_loans', 'government_files', 'benefits', 'erp_operations'],
+    dueno: ['dashboard', 'employees', 'payroll', 'sales', 'commercial_sales', 'products_loans', 'government_files', 'benefits', 'company_identity', 'accounting', 'erp_operations'],
   };
 
   const getAllowedNavItems = (role?: string) => {
@@ -653,17 +1074,23 @@ export default function App() {
               <Menu className="w-5 h-5" />
             </button>
             <h2 className="font-semibold text-slate-800 text-sm sm:text-base tracking-tight">
-              Módulo de Recursos Humanos (Venezuela)
+              {activeTab === 'accounting'
+                ? 'ERP Empresarial y Contabilidad'
+                : 'Módulo de Recursos Humanos (Venezuela)'}
             </h2>
-            <span className="hidden sm:inline-block bg-blue-100 text-blue-700 px-2 py-0.5 rounded text-[10px] font-bold uppercase">
-              Normativa LOTTT 2024
-            </span>
+            {activeTab !== 'accounting' && (
+              <span className="hidden sm:inline-block bg-blue-100 text-blue-700 px-2 py-0.5 rounded text-[10px] font-bold uppercase">
+                Normativa LOTTT 2024
+              </span>
+            )}
           </div>
 
           <div className="flex items-center gap-3 sm:gap-4">
-            <div className="relative px-3 py-1 bg-slate-100 rounded-full text-xs text-slate-500 border border-slate-200 hidden md:block">
-              Próximo Cierre: {payroll.fechaFin}
-            </div>
+            {activeTab !== 'accounting' && (
+              <div className="relative px-3 py-1 bg-slate-100 rounded-full text-xs text-slate-500 border border-slate-200 hidden md:block">
+                Próximo Cierre: {payroll.fechaFin}
+              </div>
+            )}
 
             <div className="hidden xl:flex items-center gap-1.5 px-3 py-1 bg-slate-100 rounded-full text-xs text-slate-600 border border-slate-200 font-mono">
               <span className="text-slate-400 font-sans">Tasa BCV:</span>
@@ -801,6 +1228,30 @@ export default function App() {
 
         {/* Content Workspace */}
         <div className="p-4 sm:p-6 lg:p-8 flex-1 overflow-y-auto">
+          {activeTab === 'accounting' ? (
+            <AccountingCoreModule
+              company={company}
+              branches={branches}
+              users={users}
+              accounts={accountingAccounts}
+              periods={accountingPeriods}
+              entries={journalEntries}
+              canManage={currentUser.rol === 'admin_sistema'}
+              currentUserName={currentUser.nombre}
+              onBranchesChange={setBranches}
+              onAccountsChange={setAccountingAccounts}
+              onPeriodsChange={setAccountingPeriods}
+              onEntriesChange={setJournalEntries}
+              onManageUsers={() => setActiveTab('company_identity')}
+              onCreateUser={handleCreateUser}
+              onAudit={(action, module, details) => addAuditLog(action, module, details)}
+            />
+          ) : activeTab === 'commercial_sales' ? (
+            <CommercialSalesModule />
+          ) : activeTab === 'erp_operations' ? (
+            <ErpOperationsModule currentUser={currentUser} employees={employees} />
+          ) : (
+            <>
           {/* Role Specific Executive Banner: Dueño de la Empresa */}
           {currentUser.rol === 'dueno' && (
             <div className="mb-6 p-4 sm:p-5 rounded-xl bg-gradient-to-r from-amber-950 via-slate-900 to-slate-900 text-white border border-amber-500/40 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
@@ -829,11 +1280,11 @@ export default function App() {
               <div className="flex items-center gap-2 self-end md:self-center shrink-0">
                 {payroll.estatus !== 'Aprobada' ? (
                   <button
-                    onClick={handleApprovePayrollByOwner}
-                    className="flex items-center gap-2 px-4 py-2 rounded-lg bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold shadow-md transition-all active:scale-95"
+                    onClick={() => setActiveTab('payroll')}
+                    className="flex items-center gap-2 px-4 py-2 rounded-lg bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold shadow-md transition-all active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     <CheckCircle2 className="w-4 h-4" />
-                    <span>Aprobar Nómina Quincenal</span>
+                    <span>Revisar y aprobar nómina</span>
                   </button>
                 ) : (
                   <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-xs font-bold">
@@ -959,18 +1410,25 @@ export default function App() {
           {activeTab === 'payroll' && (
             <PayrollModule
               payroll={payroll}
+              payrollPeriods={[payroll, ...payrollHistory.filter((period) => period.id !== payroll.id)]}
               company={company}
               employees={employees}
-                          currentUser={currentUser}
-                          onOpenSlip={(item) => setSelectedSlip(item)}
-                          onUpdatePayroll={handleUpdatePayroll}
-                          onApprovePayroll={handleApprovePayrollByOwner}
-                          commissionByEmployee={payrollAdjustments.commissionByEmployee}
-                          commissionSaleIdsByEmployee={payrollAdjustments.commissionSaleIdsByEmployee}
-                          loanInstallmentByEmployee={payrollAdjustments.loanInstallmentByEmployee}
-                          productDeductionByEmployee={payrollAdjustments.purchaseDeductionByEmployee}
-                          assignmentMonthlyByEmployee={payrollAdjustments.assignmentMonthlyByEmployee}
-                        />
+              bcvRateSync={bcvRateSync}
+              onRefreshBcvRate={refreshBcvRate}
+              getLoanDeductionsForRate={getLoanDeductionsForRate}
+              getSalaryAdvanceDeductionsForRate={getSalaryAdvanceDeductionsForRate}
+              currentUser={currentUser}
+              onOpenSlip={(item) => setSelectedSlip(item)}
+              onUpdatePayroll={handleUpdatePayroll}
+              onSelectPayroll={handleSelectPayroll}
+              onCreatePayrollPeriod={handleCreatePayrollPeriod}
+              onApprovePayroll={handleApprovePayrollByOwner}
+              onConfirmBankFile={handleConfirmPayrollBankFile}
+              commissionByEmployee={payrollAdjustments.commissionByEmployee}
+              commissionSaleIdsByEmployee={payrollAdjustments.commissionSaleIdsByEmployee}
+              productDeductionByEmployee={payrollAdjustments.purchaseDeductionByEmployee}
+              assignmentMonthlyByEmployee={payrollAdjustments.assignmentMonthlyByEmployee}
+            />
           )}
 
           {activeTab === 'sales' && (
@@ -983,15 +1441,19 @@ export default function App() {
               assignments={productAssignments}
               purchases={productPurchases}
               loans={employeeLoans}
+              salaryAdvances={employeeSalaryAdvances}
               onAddAssignment={handleAddAssignment}
               onAddPurchase={handleAddPurchase}
               onAddLoan={handleAddLoan}
+              onAddSalaryAdvance={handleAddSalaryAdvance}
               onUpdateAssignment={handleUpdateAssignment}
               onUpdatePurchase={handleUpdatePurchase}
               onUpdateLoan={handleUpdateLoan}
+              onUpdateSalaryAdvance={handleUpdateSalaryAdvance}
               onDeleteAssignment={handleDeleteAssignment}
               onDeletePurchase={handleDeletePurchase}
               onDeleteLoan={handleDeleteLoan}
+              onDeleteSalaryAdvance={handleDeleteSalaryAdvance}
               exchangeRate={company.tasaBCV_USD}
             />
           )}
@@ -1015,17 +1477,22 @@ export default function App() {
             <CompanyIdentityAndUsersModule
               company={company}
               users={users}
-                          currentUser={currentUser}
-                          onSaveCompany={handleSaveCompany}
-                          onSaveUsers={(updatedUsers) => {
-                            setUsers(updatedUsers);
-                            if (currentUser) {
-                              const updatedMe = updatedUsers.find((u) => u.id === currentUser.id);
-                              if (updatedMe) setCurrentUser(updatedMe);
-                            }
-                            addAuditLog('Actualización de Directivos', 'Seguridad', 'Perfiles y accesos directivos actualizados');
-                          }}
-                        />
+              currentUser={currentUser}
+              onSaveCompany={handleSaveCompany}
+              onSaveUsers={(updatedUsers) => {
+                setUsers((previousUsers) => [
+                  ...previousUsers.map((user) => updatedUsers.find((updated) => updated.id === user.id) || user),
+                  ...updatedUsers.filter((user) => !previousUsers.some((existing) => existing.id === user.id)),
+                ]);
+                if (currentUser) {
+                  const updatedMe = updatedUsers.find((user) => user.id === currentUser.id);
+                  if (updatedMe) setCurrentUser(updatedMe);
+                }
+                addAuditLog('Actualización de Directivos', 'Seguridad', 'Perfiles y accesos directivos actualizados');
+              }}
+            />
+          )}
+            </>
           )}
         </div>
 
@@ -1050,6 +1517,7 @@ export default function App() {
           item={selectedSlip}
           company={company}
           periodName={payroll.nombre}
+          exchangeRate={getEffectivePayrollExchangeRate(payroll.tasaBCV_USD, company.tasaBCV_USD)}
           onClose={() => setSelectedSlip(null)}
         />
       )}
@@ -1093,10 +1561,9 @@ export default function App() {
         <SecurityAndCloudModal
           auditLogs={auditLogs}
           company={company}
-          employees={employees}
-          payroll={payroll}
+          backupState={buildCurrentDatabaseState()}
           onClose={() => setIsSecurityOpen(false)}
-          onRestoreBackup={handleRestoreBackup}
+          onRestoreBackup={handleDataRestored}
           lastBackupTime={lastBackupTime}
           setLastBackupTime={setLastBackupTime}
         />

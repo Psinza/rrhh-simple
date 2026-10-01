@@ -27,6 +27,17 @@ export interface EmployeeDocument {
   sizeBytes: number;
 }
 
+export interface EmployeeAttendanceEvent {
+  id: string;
+  tipo: 'Ausencia injustificada' | 'Reposo médico' | 'Vacaciones';
+  fechaInicio: string;
+  fechaFin: string;
+  dias: number;
+  descripcion: string;
+  registradoPor: string;
+  fechaRegistro: string;
+}
+
 export interface WorkHistoryEvent {
   id: string;
   fecha: string;
@@ -110,6 +121,7 @@ export interface Employee {
 
   // Historial e Informes
   historialLaboral: WorkHistoryEvent[];
+  novedadesLaborales?: EmployeeAttendanceEvent[];
   anticiposPrestaciones: SocialBenefitsAdvance[];
   vacacionesDisfrutadas: number; // Días ya tomados
   documentos?: EmployeeDocument[];
@@ -144,7 +156,67 @@ export interface CompanySettings {
   tasaBCV_USD: number; // Tasa oficial del Banco Central de Venezuela
   tasaInteresPrestacionesBCV: number; // % anual activa BCV
   lunesDelMesActual: number; // 4 o 5 lunes
-  diasUtilidadesEmpresa: number; // Mínimo legal 30 días
+  diasUtilidadesEmpresa: number;
+}
+
+export type AccountingAccountType =
+  | 'activo'
+  | 'pasivo'
+  | 'patrimonio'
+  | 'ingreso'
+  | 'gasto';
+
+export interface AccountingAccount {
+  id: string;
+  code: string;
+  name: string;
+  type: AccountingAccountType;
+  parentCode?: string;
+  isGroup: boolean;
+  active: boolean;
+}
+
+export interface CompanyBranch {
+  id: string;
+  name: string;
+  address: string;
+  city: string;
+  active: boolean;
+}
+
+export interface AccountingPeriod {
+  id: string;
+  name: string;
+  startDate: string;
+  endDate: string;
+  status: 'open' | 'closed';
+}
+
+export interface JournalLine {
+  id: string;
+  accountId: string;
+  description: string;
+  debit: number;
+  credit: number;
+}
+
+export interface JournalEntry {
+  id: string;
+  number: string;
+  date: string;
+  description: string;
+  periodId: string;
+  status: 'draft' | 'posted' | 'voided';
+  lines: JournalLine[];
+  createdAt: string;
+  createdBy: string;
+  postedAt?: string;
+  postedBy?: string;
+  voidedAt?: string;
+  voidedBy?: string;
+  voidReason?: string;
+  reversalOf?: string; // Mínimo legal 30 días
+  closingYear?: number;
 }
 
 export interface PayrollItem {
@@ -180,6 +252,27 @@ export interface PayrollItem {
   retencionFAOV: number; // 1%
   retencionISLR: number; // AR-I
   prestamosAnticipos: number;
+  prestamosAnticiposDetalle?: {
+    loanId: string;
+    description: string;
+    amountOriginal: number;
+    currency: MoneyCurrency;
+    amountBs: number;
+  }[];
+  adelantosSueldoDetalle?: {
+    advanceId: string;
+    description: string;
+    amountOriginal: number;
+    currency: MoneyCurrency;
+    amountBs: number;
+  }[];
+  deduccionAusencias?: number;
+  ausenciasDeducidasDetalle?: {
+    attendanceEventId: string;
+    date: string;
+    days: number;
+    amountBs: number;
+  }[];
   otrasDeducciones: number;
   totalDeducciones: number;
 
@@ -210,12 +303,15 @@ export interface PayrollPeriod {
   fechaInicio: string;
   fechaFin: string;
   fechaPago: string;
+  tasaBCV_USD?: number;
   estatus: 'Borrador' | 'Calculada' | 'Aprobada' | 'Pagada';
   items: PayrollItem[];
   totalNominaBs: number;
   totalCestaticketBs: number;
   totalAportesPatronalesBs: number;
   totalCostoEmpresaBs: number;
+  archivoBancarioConfirmado?: boolean;
+  archivoBancarioConfirmadoEn?: string;
 }
 
 export interface SalesRecord {
@@ -273,8 +369,32 @@ export interface EmployeeLoan {
   installmentCurrency?: MoneyCurrency;
   installmentOriginal?: number;
   outstandingBs: number;
+  deductionHistory?: EmployeeLoanDeduction[];
   status: 'Activo' | 'Cancelado';
   createdAt: string;
+}
+
+export interface EmployeeLoanDeduction {
+  payrollPeriodId: string;
+  payrollPeriodName: string;
+  paymentDate: string;
+  payrollStatus: PayrollPeriod['estatus'];
+  amountOriginal: number;
+  currency: MoneyCurrency;
+  amountBs: number;
+  exchangeRate?: number;
+}
+
+export interface EmployeeSalaryAdvance {
+  id: string;
+  employeeId: string;
+  employeeName: string;
+  description: string;
+  amountBs: number;
+  currency: MoneyCurrency;
+  amountOriginal: number;
+  createdAt: string;
+  deductionHistory: EmployeeLoanDeduction[];
 }
 
 export interface SocialBenefitsReport {
@@ -323,9 +443,9 @@ export interface AuditLog {
   id: string;
   timestamp: string;
   usuario: string;
-  rol: 'Administrador RRHH' | 'Especialista de Nómina' | 'Auditor Legal';
+  rol: 'Administrador RRHH' | 'Especialista de Nómina' | 'Auditor Legal' | 'Administrador ERP' | 'Propietario';
   accion: string;
-  modulo: 'Nómina' | 'Expedientes' | 'Prestaciones' | 'Archivos Gubernamentales' | 'Seguridad' | 'Configuración';
+  modulo: 'Nómina' | 'Expedientes' | 'Prestaciones' | 'Archivos Gubernamentales' | 'Seguridad' | 'Configuración' | 'Contabilidad' | 'Empresas';
   detalles: string;
   ip: string;
   cifrado: boolean;
@@ -362,4 +482,13 @@ export interface AppUser {
   nivelAcceso: string;
   descripcionAcceso: string;
   permisos: string[];
+}
+
+export interface CreateAppUserInput {
+  username: string;
+  email: string;
+  password: string;
+  nombre: string;
+  cargo: string;
+  rol: AppUserRole;
 }

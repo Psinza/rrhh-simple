@@ -1,0 +1,46 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: rrhh_simple
+      POSTGRES_USER: rrhh_app
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Run the platform launcher to create local secrets}
+    volumes:
+      - rrhh-simple-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rrhh_app -d rrhh_simple"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  app:
+    build:
+      context: .
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: 4000
+      SERVE_STATIC: "true"
+      ALLOWED_ORIGIN: http://127.0.0.1:4000
+      JWT_SECRET: ${JWT_SECRET:?Run the platform launcher to create local secrets}
+      DATABASE_URL: postgresql://rrhh_app:${POSTGRES_PASSWORD}@db:5432/rrhh_simple
+      DATABASE_SSL: "false"
+    ports:
+      - "127.0.0.1:4000:4000"
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:4000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+volumes:
+  rrhh-simple-postgres-data:

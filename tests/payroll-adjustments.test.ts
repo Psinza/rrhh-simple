@@ -109,6 +109,7 @@ test('aplica los conceptos vigentes del período al recibo y calcula el neto cor
     adjustments.loanInstallmentByEmployee[employee.id],
     adjustments.purchaseDeductionByEmployee[employee.id] + weeklyAssignmentDeduction,
     false,
+    0,
     adjustments.commissionByEmployee[employee.id]
   );
 
