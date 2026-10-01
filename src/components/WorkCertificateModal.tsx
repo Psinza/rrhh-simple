@@ -135,8 +135,8 @@ export function WorkCertificateModal({
           </div>
         </div>
 
-        <div className="print-document p-4 sm:p-6 border border-slate-200 rounded-xl bg-white space-y-5 font-serif text-slate-900 leading-relaxed text-xs shadow-xs">
-          <div className="text-center border-b-2 border-slate-900 pb-6 space-y-2">
+        <div className="print-document work-certificate-document p-4 sm:p-6 border border-slate-200 rounded-xl bg-white space-y-5 font-serif text-slate-900 leading-relaxed text-xs shadow-xs">
+          <div className="text-center border-b-2 border-slate-900 pb-4 space-y-2">
             {company.logoUrl && (
               <div className="flex justify-center mb-2">
                 <img
@@ -166,7 +166,7 @@ export function WorkCertificateModal({
             </p>
           </div>
 
-          <div className="text-justify space-y-4 text-slate-800 leading-loose text-base">
+          <div className="text-justify space-y-4 text-slate-800 leading-relaxed text-sm">
             <p>
               Por medio de la presente se hace constar que el (la) ciudadano(a){' '}
               <strong>
@@ -202,7 +202,7 @@ export function WorkCertificateModal({
             </p>
           </div>
 
-          <div className="pt-8 pb-3 flex justify-center text-center font-sans">
+          <div className="pt-6 pb-2 flex justify-center text-center font-sans">
             <div className="space-y-2 w-64">
               <div className="h-12 border-b border-slate-400"></div>
               <p className="text-xs font-bold">{signer.nombre}</p>

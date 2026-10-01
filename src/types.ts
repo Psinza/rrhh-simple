@@ -258,6 +258,13 @@ export interface PayrollItem {
     currency: MoneyCurrency;
     amountBs: number;
   }[];
+  adelantosSueldoDetalle?: {
+    advanceId: string;
+    description: string;
+    amountOriginal: number;
+    currency: MoneyCurrency;
+    amountBs: number;
+  }[];
   deduccionAusencias?: number;
   ausenciasDeducidasDetalle?: {
     attendanceEventId: string;
@@ -375,6 +382,18 @@ export interface EmployeeLoanDeduction {
   currency: MoneyCurrency;
   amountBs: number;
   exchangeRate?: number;
+}
+
+export interface EmployeeSalaryAdvance {
+  id: string;
+  employeeId: string;
+  employeeName: string;
+  description: string;
+  amountBs: number;
+  currency: MoneyCurrency;
+  amountOriginal: number;
+  createdAt: string;
+  deductionHistory: EmployeeLoanDeduction[];
 }
 
 export interface SocialBenefitsReport {

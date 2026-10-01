@@ -1,6 +1,6 @@
 import { doc, getDoc, setDoc, collection, getDocs, writeBatch } from 'firebase/firestore';
 import { firestoreDb } from './firebase';
-import { Employee, CompanySettings, AppUser, AuditLog, PayrollPeriod, SalesRecord, ProductAssignment, ProductPurchase, EmployeeLoan, AccountingAccount, AccountingPeriod, JournalEntry, CompanyBranch } from '../types';
+import { Employee, CompanySettings, AppUser, AuditLog, PayrollPeriod, SalesRecord, ProductAssignment, ProductPurchase, EmployeeLoan, EmployeeSalaryAdvance, AccountingAccount, AccountingPeriod, JournalEntry, CompanyBranch } from '../types';
 import { initialCompanySettings, initialEmployees } from '../data/initialData';
 import { predefinedUsers } from '../data/authUsers';
 import { createAccountingPeriods, initialAccountingAccounts } from '../data/accountingInitialData';
@@ -16,6 +16,7 @@ export interface DatabaseState {
   productAssignments: ProductAssignment[];
   productPurchases: ProductPurchase[];
   employeeLoans: EmployeeLoan[];
+  employeeSalaryAdvances: EmployeeSalaryAdvance[];
   socialBenefits: any[];
   auditLogs: AuditLog[];
   currencyRates: { date: string; rate: number; source?: string }[];
@@ -54,6 +55,7 @@ class LightweightDatabase {
         productAssignments: [],
         productPurchases: [],
         employeeLoans: [],
+        employeeSalaryAdvances: [],
         socialBenefits: [],
         auditLogs: [],
         currencyRates: [],
@@ -137,6 +139,7 @@ class LightweightDatabase {
         productAssignments: [],
         productPurchases: [],
         employeeLoans: [],
+        employeeSalaryAdvances: [],
         socialBenefits: [],
         auditLogs: [],
         currencyRates: [],
@@ -166,6 +169,12 @@ class LightweightDatabase {
         const state = JSON.parse(raw) as DatabaseState;
         return {
           ...state,
+          employeeSalaryAdvances: Array.isArray(state.employeeSalaryAdvances)
+            ? state.employeeSalaryAdvances.map((advance) => ({
+              ...advance,
+              deductionHistory: Array.isArray(advance.deductionHistory) ? advance.deductionHistory : [],
+            }))
+            : [],
           branches: Array.isArray(state.branches) ? state.branches : [],
           accountingAccounts: Array.isArray(state.accountingAccounts)
             ? state.accountingAccounts
@@ -270,6 +279,7 @@ class LightweightDatabase {
       productAssignments: [],
       productPurchases: [],
       employeeLoans: [],
+      employeeSalaryAdvances: [],
       socialBenefits: [],
       auditLogs: [],
       currencyRates: [],
@@ -296,9 +306,18 @@ class LightweightDatabase {
     if (!parsed.company || !Array.isArray(parsed.employees) || !Array.isArray(parsed.users)) {
       throw new Error('El archivo no tiene la estructura de base de datos válida de RRHH-Simple.');
     }
-    this.saveLocal(parsed);
-    await this.syncToCloud(parsed);
-    return parsed;
+    const normalized: DatabaseState = {
+      ...parsed,
+      employeeSalaryAdvances: Array.isArray(parsed.employeeSalaryAdvances)
+        ? parsed.employeeSalaryAdvances.map((advance) => ({
+          ...advance,
+          deductionHistory: Array.isArray(advance.deductionHistory) ? advance.deductionHistory : [],
+        }))
+        : [],
+    };
+    this.saveLocal(normalized);
+    await this.syncToCloud(normalized);
+    return normalized;
   }
 
   /**

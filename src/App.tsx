@@ -38,6 +38,7 @@ import {
   ProductAssignment,
   ProductPurchase,
   EmployeeLoan,
+  EmployeeSalaryAdvance,
   AccountingAccount,
   AccountingPeriod,
   CompanyBranch,
@@ -59,6 +60,7 @@ import {
   isLoanPrincipalProductDeduction,
   synchronizeLoanDeductionHistory,
 } from './utils/employeeLoanDeductions';
+import { calculateSalaryAdvancePayrollDeduction, getSalaryAdvanceOutstandingBs, synchronizeSalaryAdvanceDeductionHistory } from './utils/employeeSalaryAdvances';
 import { createPayrollPeriod, PayrollHalf } from './utils/payrollPeriods';
 import { getPayrollApprovalBlockReason } from './utils/payrollOperationGuards';
 
@@ -151,6 +153,9 @@ export default function App() {
   const [productAssignments, setProductAssignments] = useState<ProductAssignment[]>([]);
   const [productPurchases, setProductPurchases] = useState<ProductPurchase[]>([]);
   const [employeeLoans, setEmployeeLoans] = useState<EmployeeLoan[]>([]);
+  const [employeeSalaryAdvances, setEmployeeSalaryAdvances] = useState<EmployeeSalaryAdvance[]>(
+    () => lightweightDb.loadLocal()?.employeeSalaryAdvances || [],
+  );
   const [branches, setBranches] = useState<CompanyBranch[]>(() => lightweightDb.loadLocal()?.branches || []);
   const [accountingAccounts, setAccountingAccounts] = useState<AccountingAccount[]>(
     () => lightweightDb.loadLocal()?.accountingAccounts || initialAccountingAccounts
@@ -298,6 +303,7 @@ export default function App() {
         if (dbState.productAssignments) setProductAssignments(dbState.productAssignments);
         if (dbState.productPurchases) setProductPurchases(dbState.productPurchases);
         if (dbState.employeeLoans) setEmployeeLoans(dbState.employeeLoans);
+        if (dbState.employeeSalaryAdvances) setEmployeeSalaryAdvances(dbState.employeeSalaryAdvances);
         setBranches(dbState.branches || []);
         setAccountingAccounts(dbState.accountingAccounts || initialAccountingAccounts);
         setAccountingPeriods(dbState.accountingPeriods || createAccountingPeriods(new Date().getFullYear()));
@@ -335,6 +341,7 @@ export default function App() {
       productAssignments,
       productPurchases,
       employeeLoans,
+      employeeSalaryAdvances,
       socialBenefits: [],
       auditLogs,
       currencyRates: lightweightDb.loadLocal()?.currencyRates || [],
@@ -349,7 +356,7 @@ export default function App() {
     } catch (e) {
       // Ignore quota error
     }
-  }, [company, employees, users, payroll, payrollHistory, auditLogs, sales, productAssignments, productPurchases, employeeLoans, branches, accountingAccounts, accountingPeriods, journalEntries]);
+  }, [company, employees, users, payroll, payrollHistory, auditLogs, sales, productAssignments, productPurchases, employeeLoans, employeeSalaryAdvances, branches, accountingAccounts, accountingPeriods, journalEntries]);
 
   const handleDataRestored = (restored: Partial<DatabaseState>) => {
     if (restored.company) setCompany(restored.company);
@@ -357,6 +364,7 @@ export default function App() {
     if (restored.productAssignments) setProductAssignments(restored.productAssignments);
     if (restored.productPurchases) setProductPurchases(restored.productPurchases);
     if (restored.employeeLoans) setEmployeeLoans(restored.employeeLoans);
+    if (restored.employeeSalaryAdvances) setEmployeeSalaryAdvances(restored.employeeSalaryAdvances);
     if (restored.branches) setBranches(restored.branches);
     if (restored.accountingAccounts) setAccountingAccounts(restored.accountingAccounts);
     if (restored.accountingPeriods) setAccountingPeriods(restored.accountingPeriods);
@@ -392,6 +400,7 @@ export default function App() {
       productAssignments,
       productPurchases,
       employeeLoans,
+      employeeSalaryAdvances,
       socialBenefits: storedState?.socialBenefits || [],
       auditLogs,
       currencyRates: storedState?.currencyRates || [],
@@ -583,6 +592,7 @@ export default function App() {
       setCompany((previous) => ({ ...previous, tasaBCV_USD: rate }));
     }
     setEmployeeLoans((previous) => synchronizeLoanDeductionHistory(previous, approvedPayroll, savedRate));
+    setEmployeeSalaryAdvances((previous) => synchronizeSalaryAdvanceDeductionHistory(previous, approvedPayroll, savedRate));
     addAuditLog(
       'Aprobación Ejecutiva de Nómina',
       'Nómina',
@@ -696,6 +706,7 @@ export default function App() {
       setCompany((previous) => ({ ...previous, tasaBCV_USD: exchangeRate }));
     }
     setEmployeeLoans((previous) => synchronizeLoanDeductionHistory(previous, payrollWithRate, exchangeRate));
+    setEmployeeSalaryAdvances((previous) => synchronizeSalaryAdvanceDeductionHistory(previous, payrollWithRate, exchangeRate));
     if (approvalInvalidated) {
       addAuditLog(
         'Aprobación de nómina invalidada',
@@ -736,12 +747,23 @@ export default function App() {
   const handleAddAssignment = (item: ProductAssignment) => setProductAssignments((previous) => [item, ...previous]);
   const handleAddPurchase = (item: ProductPurchase) => setProductPurchases((previous) => [item, ...previous]);
   const handleAddLoan = (item: EmployeeLoan) => setEmployeeLoans((previous) => [item, ...previous]);
+  const handleAddSalaryAdvance = (item: EmployeeSalaryAdvance) => setEmployeeSalaryAdvances((previous) => [item, ...previous]);
   const handleUpdateAssignment = (item: ProductAssignment) => setProductAssignments((previous) => previous.map((current) => current.id === item.id ? item : current));
   const handleUpdatePurchase = (item: ProductPurchase) => setProductPurchases((previous) => previous.map((current) => current.id === item.id ? item : current));
   const handleUpdateLoan = (item: EmployeeLoan) => setEmployeeLoans((previous) => previous.map((current) => current.id === item.id ? item : current));
+  const handleUpdateSalaryAdvance = (item: EmployeeSalaryAdvance) => setEmployeeSalaryAdvances((previous) => previous.map((current) => current.id === item.id ? item : current));
   const handleDeleteAssignment = (id: string) => { if (window.confirm('¿Eliminar esta asignación?')) setProductAssignments((previous) => previous.filter((item) => item.id !== id)); };
   const handleDeletePurchase = (id: string) => { if (window.confirm('¿Eliminar esta compra? El descuento dejará de aplicarse en nómina.')) setProductPurchases((previous) => previous.filter((item) => item.id !== id)); };
   const handleDeleteLoan = (id: string) => { if (window.confirm('¿Eliminar este préstamo? La cuota dejará de aplicarse en nómina.')) setEmployeeLoans((previous) => previous.filter((item) => item.id !== id)); };
+  const handleDeleteSalaryAdvance = (id: string) => {
+    if (employeeSalaryAdvances.find((item) => item.id === id)?.deductionHistory?.length) {
+      window.alert('No se puede eliminar un adelanto que ya tiene deducciones en nómina.');
+      return;
+    }
+    if (window.confirm('¿Eliminar este adelanto? Dejará de descontarse en nómina.')) {
+      setEmployeeSalaryAdvances((previous) => previous.filter((item) => item.id !== id));
+    }
+  };
 
   const getLoanDeductionsForRate = (exchangeRate: number) => {
     const details = employeeLoans.reduce<Record<string, NonNullable<PayrollItem['prestamosAnticiposDetalle']>>>((totals, loan) => {
@@ -767,6 +789,33 @@ export default function App() {
     for (const employeeId of Object.keys(details)) {
       installments[employeeId] = details[employeeId]
         .reduce((total, deduction) => total + deduction.amountBs, 0);
+    }
+    return { details, installments };
+  };
+  const getSalaryAdvanceDeductionsForRate = (exchangeRate: number) => {
+    const details = employeeSalaryAdvances.reduce<Record<string, NonNullable<PayrollItem['adelantosSueldoDetalle']>>>((totals, advance) => {
+      const currentPayrollDeduction = (advance.deductionHistory || []).find((entry) => entry.payrollPeriodId === payroll.id);
+      if (advance.createdAt.slice(0, 10) > payroll.fechaFin.slice(0, 10) && !currentPayrollDeduction) return totals;
+      const { amountBs, amountOriginal, currency } = calculateSalaryAdvancePayrollDeduction(
+        advance,
+        payroll.id,
+        exchangeRate,
+        getSalaryAdvanceOutstandingBs(advance, exchangeRate, payroll.id),
+      );
+      if (amountBs <= 0) return totals;
+      (totals[advance.employeeId] ||= []).push({
+        advanceId: advance.id,
+        description: advance.description,
+        amountOriginal,
+        currency,
+        amountBs,
+      });
+      return totals;
+    }, {});
+    const installments: Record<string, number> = {};
+    for (const employeeId of Object.keys(details)) {
+      const advances = details[employeeId];
+      installments[employeeId] = advances.reduce((total, advance) => total + advance.amountBs, 0);
     }
     return { details, installments };
   };
@@ -1363,6 +1412,7 @@ export default function App() {
               bcvRateSync={bcvRateSync}
               onRefreshBcvRate={refreshBcvRate}
               getLoanDeductionsForRate={getLoanDeductionsForRate}
+              getSalaryAdvanceDeductionsForRate={getSalaryAdvanceDeductionsForRate}
               currentUser={currentUser}
               onOpenSlip={(item) => setSelectedSlip(item)}
               onUpdatePayroll={handleUpdatePayroll}
@@ -1384,15 +1434,19 @@ export default function App() {
               assignments={productAssignments}
               purchases={productPurchases}
               loans={employeeLoans}
+              salaryAdvances={employeeSalaryAdvances}
               onAddAssignment={handleAddAssignment}
               onAddPurchase={handleAddPurchase}
               onAddLoan={handleAddLoan}
+              onAddSalaryAdvance={handleAddSalaryAdvance}
               onUpdateAssignment={handleUpdateAssignment}
               onUpdatePurchase={handleUpdatePurchase}
               onUpdateLoan={handleUpdateLoan}
+              onUpdateSalaryAdvance={handleUpdateSalaryAdvance}
               onDeleteAssignment={handleDeleteAssignment}
               onDeletePurchase={handleDeletePurchase}
               onDeleteLoan={handleDeleteLoan}
+              onDeleteSalaryAdvance={handleDeleteSalaryAdvance}
               exchangeRate={company.tasaBCV_USD}
             />
           )}

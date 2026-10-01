@@ -48,6 +48,10 @@ interface PayrollModuleProps {
     details: Record<string, NonNullable<PayrollItem['prestamosAnticiposDetalle']>>;
     installments: Record<string, number>;
   };
+  getSalaryAdvanceDeductionsForRate: (exchangeRate: number) => {
+    details: Record<string, NonNullable<PayrollItem['adelantosSueldoDetalle']>>;
+    installments: Record<string, number>;
+  };
   onOpenSlip?: (item: PayrollItem) => void;
   onOpenPayslip?: (item: PayrollItem) => void;
   onApprovePayroll: () => Promise<void>;
@@ -67,6 +71,7 @@ export function PayrollModule({
   bcvRateSync,
   onRefreshBcvRate,
   getLoanDeductionsForRate,
+  getSalaryAdvanceDeductionsForRate,
   onOpenSlip,
   onOpenPayslip,
   onApprovePayroll,
@@ -129,8 +134,19 @@ export function PayrollModule({
       };
     })
   ));
+  const salaryAdvancePreview = getSalaryAdvanceDeductionsForRate(previewRate);
+  const salaryAdvancePreviewDetails = Object.entries(salaryAdvancePreview.details).flatMap(([employeeId, details]) => (
+    details.map((advance) => {
+      const employee = activeEmployees.find((candidate) => candidate.id === employeeId);
+      return {
+        ...advance,
+        employeeName: employee ? `${employee.primerNombre} ${employee.primerApellido}` : 'Colaborador',
+      };
+    })
+  ));
   const previewDeductions = absencePreview.reduce((sum, absence) => sum + absence.amountBs, 0)
     + loanPreviewDetails.reduce((sum, loan) => sum + loan.amountBs, 0)
+    + salaryAdvancePreviewDetails.reduce((sum, advance) => sum + advance.amountBs, 0)
     + Object.values(productDeductionByEmployee || {}).reduce((sum, amount) => sum + amount, 0);
 
   useEffect(() => {
@@ -182,6 +198,7 @@ export function PayrollModule({
       const { rate, historical } = await onRefreshBcvRate(payroll.fechaPago);
       const payrollCompany = { ...company, tasaBCV_USD: rate };
       const loanDeductions = getLoanDeductionsForRate(rate);
+      const salaryAdvanceDeductions = getSalaryAdvanceDeductionsForRate(rate);
       const activeEmployees = (
         employees && employees.length > 0
           ? employees
@@ -198,7 +215,10 @@ export function PayrollModule({
           activeFrequency,
           rate,
         );
-        const calc = calculatePayrollDeductionsAndContributions(
+        const productDeduction = productDeductionByEmployee
+          ? productDeductionByEmployee[employee.id] || 0
+          : 'deduccionesProductos' in source ? source.deduccionesProductos : 0;
+        const baseCalc = calculatePayrollDeductionsAndContributions(
           employee,
           payrollCompany,
           activeFrequency,
@@ -207,12 +227,37 @@ export function PayrollModule({
           'bonoProductividad' in source ? source.bonoProductividad : 0,
           'viaticos' in source ? source.viaticos : 0,
           loanDeductions.installments[employee.id] || 0,
-          productDeductionByEmployee
-            ? productDeductionByEmployee[employee.id] || 0
-            : 'deduccionesProductos' in source ? source.deduccionesProductos : 0,
+          productDeduction,
           aplicarRetencionesGubernamentales,
           absenceDeduction.totalBs,
         );
+        let remainingAdvanceCapacityBs = Math.max(0, baseCalc.netoCobrarBs);
+        const advanceDetails = (salaryAdvanceDeductions.details[employee.id] || []).flatMap((advance) => {
+          const amountBs = Math.min(advance.amountBs, remainingAdvanceCapacityBs);
+          remainingAdvanceCapacityBs -= amountBs;
+          if (amountBs <= 0) return [];
+          return [{
+            ...advance,
+            amountBs,
+            amountOriginal: advance.currency === 'USD' && rate > 0 ? amountBs / rate : amountBs,
+          }];
+        });
+        const advanceDeductionBs = advanceDetails.reduce((sum, advance) => sum + advance.amountBs, 0);
+        const calc = advanceDeductionBs > 0
+          ? calculatePayrollDeductionsAndContributions(
+            employee,
+            payrollCompany,
+            activeFrequency,
+            'horasExtrasDiurnas' in source ? source.horasExtrasDiurnas : 0,
+            'horasExtrasNocturnas' in source ? source.horasExtrasNocturnas : 0,
+            'bonoProductividad' in source ? source.bonoProductividad : 0,
+            'viaticos' in source ? source.viaticos : 0,
+            (loanDeductions.installments[employee.id] || 0) + advanceDeductionBs,
+            productDeduction,
+            aplicarRetencionesGubernamentales,
+            absenceDeduction.totalBs,
+          )
+          : baseCalc;
 
         const baseItem = 'employee' in source ? source : {
           id: `slip-${employee.id}-${payroll.id}`,
@@ -228,6 +273,7 @@ export function PayrollModule({
           ...calc,
           ausenciasDeducidasDetalle: absenceDeduction.details,
           prestamosAnticiposDetalle: loanDeductions.details[employee.id] || [],
+          adelantosSueldoDetalle: advanceDetails,
           employee: {
             ...employee,
             frecuenciaPago: activeFrequency,
@@ -477,7 +523,7 @@ export function PayrollModule({
               {' '}Tasa guardada del cálculo: Bs. {payroll.tasaBCV_USD?.toFixed(8) ?? 'pendiente'} por USD.
             </p>
             <p className="mt-1 text-xs text-slate-600">
-              Revisión previa: {absencePreview.length} ausencia(s) y {loanPreviewDetails.length} cuota(s) de préstamo · Deducciones estimadas: {formatBs(previewDeductions)}.
+              Revisión previa: {absencePreview.length} ausencia(s), {loanPreviewDetails.length} cuota(s) de préstamo y {salaryAdvancePreviewDetails.length} adelanto(s) · Deducciones estimadas: {formatBs(previewDeductions)}.
               {' '}Las ausencias se descuentan únicamente si su fecha cae dentro del rango indicado.
             </p>
             {approvalBlockReason && (
@@ -486,7 +532,7 @@ export function PayrollModule({
                 <span>{approvalBlockReason}</span>
               </p>
             )}
-            {(absencePreview.length > 0 || loanPreviewDetails.length > 0 || previewDeductions > 0) && (
+            {(absencePreview.length > 0 || loanPreviewDetails.length > 0 || salaryAdvancePreviewDetails.length > 0 || previewDeductions > 0) && (
               <details className="mt-2 text-xs text-slate-700">
                 <summary className="cursor-pointer font-semibold">Ver detalle de deducciones estimadas</summary>
                 <ul className="mt-2 space-y-1 pl-4">
@@ -498,6 +544,11 @@ export function PayrollModule({
                   {loanPreviewDetails.map((loan) => (
                     <li key={loan.loanId}>
                       {loan.employeeName} · {loan.description}: cuota {formatBs(loan.amountBs)}.
+                    </li>
+                  ))}
+                  {salaryAdvancePreviewDetails.map((advance) => (
+                    <li key={advance.advanceId}>
+                      {advance.employeeName} · {advance.description}: adelanto {formatBs(advance.amountBs)}.
                     </li>
                   ))}
                   {activeEmployees.filter((employee) => (productDeductionByEmployee?.[employee.id] || 0) > 0).map((employee) => (
@@ -625,7 +676,7 @@ export function PayrollModule({
               <p><strong>Rango:</strong> {payroll.fechaInicio} al {payroll.fechaFin}</p>
               <p><strong>Colaboradores:</strong> {payroll.items.length || activeEmployees.length}</p>
               <p><strong>Tasa almacenada:</strong> Bs. {payroll.tasaBCV_USD?.toFixed(8) ?? 'pendiente'} por USD</p>
-              <p><strong>Deducciones revisadas:</strong> {formatBs(previewDeductions)} ({absencePreview.length} ausencia(s), {loanPreviewDetails.length} cuota(s) de préstamo)</p>
+              <p><strong>Deducciones revisadas:</strong> {formatBs(previewDeductions)} ({absencePreview.length} ausencia(s), {loanPreviewDetails.length} cuota(s) de préstamo, {salaryAdvancePreviewDetails.length} adelanto(s))</p>
             </div>
             {operationError && <p role="alert" className="text-xs text-rose-700">{operationError}</p>}
             <div className="flex justify-end gap-2">

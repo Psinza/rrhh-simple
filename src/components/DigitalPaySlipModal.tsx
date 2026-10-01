@@ -258,6 +258,16 @@ export function DigitalPaySlipModal({
                     <td className="py-1.5 px-3 text-right text-amber-800 font-medium">{formatBs(deduction.amountBs)}</td>
                   </tr>
                 ))}
+                {(item.adelantosSueldoDetalle || []).map((advance) => (
+                  <tr key={advance.advanceId}>
+                    <td className="py-1.5 px-3 font-mono text-slate-500 text-[11px]">118</td>
+                    <td className="py-1.5 px-3 text-slate-700">
+                      Adelanto de sueldo: {advance.description} ({advance.currency === 'USD' ? `${formatUSD(advance.amountOriginal)} USD` : formatBs(advance.amountOriginal)})
+                    </td>
+                    <td className="py-1.5 px-3 text-right text-slate-400">-</td>
+                    <td className="py-1.5 px-3 text-right text-amber-800 font-medium">{formatBs(advance.amountBs)}</td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
