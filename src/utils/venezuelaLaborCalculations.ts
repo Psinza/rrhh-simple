@@ -219,7 +219,8 @@ export function calculatePayrollDeductionsAndContributions(
   prestamosAnticipos: number = 0,
   deduccionesProductos: number = 0,
   aplicarRetencionesGubernamentales: boolean = true,
-  deduccionAusencias: number = 0
+  deduccionAusencias: number = 0,
+  comisionesVentas: number = 0
 ): Omit<PayrollItem, 'id' | 'employeeId' | 'employee' | 'fechaGeneracion' | 'firmadoDigitalmente' | 'hashCriptografico'> {
 
   const retencionesGubernamentalesActivas = aplicarRetencionesGubernamentales && employee.cestaticketAplica !== false;
@@ -245,7 +246,7 @@ export function calculatePayrollDeductionsAndContributions(
   const feriadosTrabajados = 0;
 
   const totalAsignacionesSalariales =
-    sueldoBasePeriodo + montoHorasExtrasDiurnas + montoHorasExtrasNocturnas + feriadosTrabajados + bonoProductividad;
+    sueldoBasePeriodo + montoHorasExtrasDiurnas + montoHorasExtrasNocturnas + feriadosTrabajados + bonoProductividad + comisionesVentas;
   const totalAsignacionesNoSalariales = viaticos;
   const totalAsignaciones = totalAsignacionesSalariales + totalAsignacionesNoSalariales;
 
@@ -285,7 +286,7 @@ export function calculatePayrollDeductionsAndContributions(
     viaticosMoneda: employee.viaticosMoneda || 'BS',
     feriadosTrabajados,
     bonoProductividad,
-    comisionesVentas: bonoProductividad,
+    comisionesVentas,
     deduccionesProductos,
     totalAsignacionesSalariales,
     totalAsignacionesNoSalariales,

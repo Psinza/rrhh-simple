@@ -56,7 +56,10 @@ interface PayrollModuleProps {
   onOpenPayslip?: (item: PayrollItem) => void;
   onApprovePayroll: () => Promise<void>;
   onConfirmBankFile: () => void;
+  commissionByEmployee?: Record<string, number>;
+  commissionSaleIdsByEmployee?: Record<string, string[]>;
   productDeductionByEmployee?: Record<string, number>;
+  assignmentMonthlyByEmployee?: Record<string, number>;
 }
 
 export function PayrollModule({
@@ -76,7 +79,10 @@ export function PayrollModule({
   onOpenPayslip,
   onApprovePayroll,
   onConfirmBankFile,
-  productDeductionByEmployee,
+  commissionByEmployee = {},
+  commissionSaleIdsByEmployee = {},
+  productDeductionByEmployee = {},
+  assignmentMonthlyByEmployee = {},
 }: PayrollModuleProps) {
   const [activeFrequency, setActiveFrequency] = useState<'semanal' | 'quincenal' | 'mensual'>(
     payroll.items[0]?.employee?.frecuenciaPago || 'mensual'
@@ -208,6 +214,10 @@ export function PayrollModule({
       const sourceItems = activeEmployees.length > 0 ? activeEmployees : payroll.items;
       const recalculatedItems = sourceItems.map((source) => {
         const employee = 'employee' in source ? source.employee : source;
+        const previousItem = 'employee' in source
+          ? source
+          : payroll.items.find((item) => item.employeeId === employee.id);
+        const assignmentFactor = activeFrequency === 'semanal' ? 1 / 4 : activeFrequency === 'quincenal' ? 1 / 2 : 1;
         const absenceDeduction = getUnjustifiedAbsenceDeduction(
           employee,
           payroll.fechaInicio,
@@ -215,21 +225,24 @@ export function PayrollModule({
           activeFrequency,
           rate,
         );
-        const productDeduction = productDeductionByEmployee
-          ? productDeductionByEmployee[employee.id] || 0
-          : 'deduccionesProductos' in source ? source.deduccionesProductos : 0;
+        const productDeduction = productDeductionByEmployee[employee.id] !== undefined
+          || assignmentMonthlyByEmployee[employee.id] !== undefined
+          ? (productDeductionByEmployee[employee.id] || 0)
+            + (assignmentMonthlyByEmployee[employee.id] || 0) * assignmentFactor
+          : previousItem?.deduccionesProductos || 0;
         const baseCalc = calculatePayrollDeductionsAndContributions(
           employee,
           payrollCompany,
           activeFrequency,
-          'horasExtrasDiurnas' in source ? source.horasExtrasDiurnas : 0,
-          'horasExtrasNocturnas' in source ? source.horasExtrasNocturnas : 0,
-          'bonoProductividad' in source ? source.bonoProductividad : 0,
-          'viaticos' in source ? source.viaticos : 0,
+          previousItem?.horasExtrasDiurnas ?? employee.horasExtrasDiurnasPendientes ?? 0,
+          previousItem?.horasExtrasNocturnas ?? employee.horasExtrasNocturnasPendientes ?? 0,
+          previousItem?.bonoProductividad || 0,
+          employee.viaticosPendientes || previousItem?.viaticos || 0,
           loanDeductions.installments[employee.id] || 0,
           productDeduction,
           aplicarRetencionesGubernamentales,
           absenceDeduction.totalBs,
+          commissionByEmployee[employee.id] || 0,
         );
         let remainingAdvanceCapacityBs = Math.max(0, baseCalc.netoCobrarBs);
         const advanceDetails = (salaryAdvanceDeductions.details[employee.id] || []).flatMap((advance) => {
@@ -248,18 +261,19 @@ export function PayrollModule({
             employee,
             payrollCompany,
             activeFrequency,
-            'horasExtrasDiurnas' in source ? source.horasExtrasDiurnas : 0,
-            'horasExtrasNocturnas' in source ? source.horasExtrasNocturnas : 0,
-            'bonoProductividad' in source ? source.bonoProductividad : 0,
-            'viaticos' in source ? source.viaticos : 0,
+            previousItem?.horasExtrasDiurnas ?? employee.horasExtrasDiurnasPendientes ?? 0,
+            previousItem?.horasExtrasNocturnas ?? employee.horasExtrasNocturnasPendientes ?? 0,
+            previousItem?.bonoProductividad || 0,
+            employee.viaticosPendientes || previousItem?.viaticos || 0,
             (loanDeductions.installments[employee.id] || 0) + advanceDeductionBs,
             productDeduction,
             aplicarRetencionesGubernamentales,
             absenceDeduction.totalBs,
+            commissionByEmployee[employee.id] || 0,
           )
           : baseCalc;
 
-        const baseItem = 'employee' in source ? source : {
+        const baseItem = previousItem || {
           id: `slip-${employee.id}-${payroll.id}`,
           employeeId: employee.id,
           employee,
@@ -274,6 +288,8 @@ export function PayrollModule({
           ausenciasDeducidasDetalle: absenceDeduction.details,
           prestamosAnticiposDetalle: loanDeductions.details[employee.id] || [],
           adelantosSueldoDetalle: advanceDetails,
+          commissionSaleIds: commissionSaleIdsByEmployee[employee.id] || previousItem?.commissionSaleIds || [],
+          viaticosOriginal: employee.viaticosPendientesOriginal ?? previousItem?.viaticosOriginal ?? employee.viaticosPendientes ?? 0,
           employee: {
             ...employee,
             frecuenciaPago: activeFrequency,

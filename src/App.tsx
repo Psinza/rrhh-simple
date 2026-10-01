@@ -63,6 +63,7 @@ import {
 import { calculateSalaryAdvancePayrollDeduction, getSalaryAdvanceOutstandingBs, synchronizeSalaryAdvanceDeductionHistory } from './utils/employeeSalaryAdvances';
 import { createPayrollPeriod, PayrollHalf } from './utils/payrollPeriods';
 import { getPayrollApprovalBlockReason } from './utils/payrollOperationGuards';
+import { buildPayrollAdjustmentMaps } from './utils/payrollAdjustments';
 
 // Subcomponents
 import { LoginScreen } from './components/LoginScreen';
@@ -593,6 +594,14 @@ export default function App() {
     }
     setEmployeeLoans((previous) => synchronizeLoanDeductionHistory(previous, approvedPayroll, savedRate));
     setEmployeeSalaryAdvances((previous) => synchronizeSalaryAdvanceDeductionHistory(previous, approvedPayroll, savedRate));
+    const paidSaleIds = new Set(payroll.items.flatMap((item) => item.commissionSaleIds || []));
+    if (paidSaleIds.size > 0) {
+      setSales((previous) => previous.map((sale) =>
+        paidSaleIds.has(sale.id) && sale.estatus === 'Pendiente'
+          ? { ...sale, estatus: 'Liquidada' }
+          : sale
+      ));
+    }
     addAuditLog(
       'Aprobación Ejecutiva de Nómina',
       'Nómina',
@@ -819,23 +828,18 @@ export default function App() {
     }
     return { details, installments };
   };
-  const productDeductionByEmployee = productAssignments.reduce<Record<string, number>>((totals, assignment) => {
-    if (
-      assignment.status === 'Asignado'
-      && !isLoanPrincipalProductDeduction(assignment.employeeId, assignment.product, assignment.amountBs, employeeLoans)
-    ) {
-      totals[assignment.employeeId] = (totals[assignment.employeeId] || 0) + assignment.amountBs;
-    }
-    return totals;
-  }, {});
-  productPurchases.forEach((purchase) => {
-    if (
-      purchase.employeeId
-      && !isLoanPrincipalProductDeduction(purchase.employeeId, purchase.product, purchase.amountBs, employeeLoans)
-    ) {
-      productDeductionByEmployee[purchase.employeeId] = (productDeductionByEmployee[purchase.employeeId] || 0) + purchase.amountBs;
-    }
-  });
+  const payrollAdjustments = buildPayrollAdjustmentMaps(
+    payroll,
+    sales,
+    productAssignments.filter((assignment) => (
+      !isLoanPrincipalProductDeduction(assignment.employeeId, assignment.product, assignment.amountBs, employeeLoans)
+    )),
+    productPurchases.filter((purchase) => (
+      !purchase.employeeId
+      || !isLoanPrincipalProductDeduction(purchase.employeeId, purchase.product, purchase.amountBs, employeeLoans)
+    )),
+    employeeLoans,
+  );
 
   const handleSaveCompany = (updatedCompany: CompanySettings) => {
     if (updatedCompany.tasaBCV_USD !== company.tasaBCV_USD && company.tasaBCV_USD > 0) {
@@ -1420,7 +1424,10 @@ export default function App() {
               onCreatePayrollPeriod={handleCreatePayrollPeriod}
               onApprovePayroll={handleApprovePayrollByOwner}
               onConfirmBankFile={handleConfirmPayrollBankFile}
-              productDeductionByEmployee={productDeductionByEmployee}
+              commissionByEmployee={payrollAdjustments.commissionByEmployee}
+              commissionSaleIdsByEmployee={payrollAdjustments.commissionSaleIdsByEmployee}
+              productDeductionByEmployee={payrollAdjustments.purchaseDeductionByEmployee}
+              assignmentMonthlyByEmployee={payrollAdjustments.assignmentMonthlyByEmployee}
             />
           )}
 
