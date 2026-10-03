@@ -12,7 +12,7 @@ import {
   Download,
 } from 'lucide-react';
 import { CompanySettings, Employee, PayrollPeriod, LegalNotification } from '../types';
-import { formatBs, formatUSD, calculateSocialBenefits, getSalaryInEmployeeCurrency } from '../utils/venezuelaLaborCalculations';
+import { formatBs, formatUSD, calculateSocialBenefits, getSalaryInEmployeeCurrency, normalizeSalaryToBs } from '../utils/venezuelaLaborCalculations';
 
 interface DashboardOverviewProps {
   company: CompanySettings;
@@ -35,7 +35,10 @@ export function DashboardOverview({
 }: DashboardOverviewProps) {
   // Cálculos consolidados en tiempo real
   const activeEmployees = employees.filter((e) => e.status === 'activo');
-  const totalSalariosBase = activeEmployees.reduce((acc, e) => acc + e.salarioMensualBase, 0);
+  const totalSalariosBase = activeEmployees.reduce(
+    (acc, employee) => acc + normalizeSalaryToBs(employee, company.tasaBCV_USD),
+    0
+  );
   const totalCestaticket = activeEmployees.reduce(
     (acc, e) => acc + (e.cestaticketAplica === false ? 0 : (e.cestaticketMensual || company.montoCestaticketNacional)),
     0
@@ -52,12 +55,13 @@ export function DashboardOverview({
   // Aportes patronales estimados mensuales (IVSS 10% promedio sobre tope, FAOV 2%, INCES 2%, RPE 2%)
   const topeIvssMensual = company.salarioMinimoNacional * 5;
   const aportesPatronalesMensuales = activeEmployees.reduce((acc, e) => {
-    const baseSujeta = Math.min(e.salarioMensualBase, topeIvssMensual);
+    const salarioMensualBaseBs = normalizeSalaryToBs(e, company.tasaBCV_USD);
+    const baseSujeta = Math.min(salarioMensualBaseBs, topeIvssMensual);
     const semanal = (baseSujeta * 12) / 52;
     const ivss = semanal * (company.nivelRiesgoIVSS / 100) * company.lunesDelMesActual;
     const rpe = semanal * 0.02 * company.lunesDelMesActual;
-    const faov = e.salarioMensualBase * 0.02;
-    const inces = e.salarioMensualBase * 0.02;
+    const faov = salarioMensualBaseBs * 0.02;
+    const inces = salarioMensualBaseBs * 0.02;
     return acc + ivss + rpe + faov + inces;
   }, 0);
 
@@ -90,7 +94,7 @@ export function DashboardOverview({
               {formatBs(totalNominaEstimadaBs)}
             </div>
             <div className="text-xs text-slate-500 mt-1 truncate">
-              Quincena Actual • Ref. {formatUSD(totalNominaEstimadaUSD)}
+              Semana Actual • Ref. {formatUSD(totalNominaEstimadaUSD)}
             </div>
           </div>
 
@@ -226,42 +230,45 @@ export function DashboardOverview({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {employees.slice(0, 5).map((emp) => (
-                  <tr key={emp.id} className="hover:bg-slate-50 transition-colors">
-                    <td className="py-3 px-3">
-                      <div className="font-bold text-slate-900 text-xs sm:text-sm">
-                        {emp.primerNombre} {emp.primerApellido}
-                      </div>
-                      <div className="text-[11px] text-slate-400">{emp.email}</div>
-                    </td>
-                    <td className="py-3 px-3">
-                      <span className="font-mono text-xs font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded">
-                        {emp.cedula}
-                      </span>
-                    </td>
-                    <td className="py-3 px-3">
-                      <div className="text-xs font-medium text-slate-800">{emp.cargo}</div>
-                      <div className="text-[10px] text-slate-400">{emp.departamento}</div>
-                    </td>
-                    <td className="py-3 px-3 text-xs text-slate-600">{emp.fechaIngreso}</td>
-                    <td className="py-3 px-3 text-right">
-                      <div className="font-mono font-bold text-slate-900 text-xs">
-                        {formatBs(emp.salarioMensualBase)}
-                      </div>
-                      <div className="text-[10px] text-slate-500 font-mono">
-                        {formatUSD(getSalaryInEmployeeCurrency(emp, company.tasaBCV_USD))}
-                      </div>
-                    </td>
-                    <td className="py-3 px-3 text-center">
-                      <button
-                        onClick={() => onOpenEmployeeDetail(emp)}
-                        className="text-blue-600 text-xs font-bold hover:underline"
-                      >
-                        Expediente
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                {employees.slice(0, 5).map((emp) => {
+                  const salaryBaseBs = normalizeSalaryToBs(emp, company.tasaBCV_USD);
+                  return (
+                    <tr key={emp.id} className="hover:bg-slate-50 transition-colors">
+                      <td className="py-3 px-3">
+                        <div className="font-bold text-slate-900 text-xs sm:text-sm">
+                          {emp.primerNombre} {emp.primerApellido}
+                        </div>
+                        <div className="text-[11px] text-slate-400">{emp.email}</div>
+                      </td>
+                      <td className="py-3 px-3">
+                        <span className="font-mono text-xs font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded">
+                          {emp.cedula}
+                        </span>
+                      </td>
+                      <td className="py-3 px-3">
+                        <div className="text-xs font-medium text-slate-800">{emp.cargo}</div>
+                        <div className="text-[10px] text-slate-400">{emp.departamento}</div>
+                      </td>
+                      <td className="py-3 px-3 text-xs text-slate-600">{emp.fechaIngreso}</td>
+                      <td className="py-3 px-3 text-right">
+                        <div className="font-mono font-bold text-slate-900 text-xs">
+                          {formatBs(salaryBaseBs)}
+                        </div>
+                        <div className="text-[10px] text-slate-500 font-mono">
+                          {formatUSD(getSalaryInEmployeeCurrency(emp, company.tasaBCV_USD))}
+                        </div>
+                      </td>
+                      <td className="py-3 px-3 text-center">
+                        <button
+                          onClick={() => onOpenEmployeeDetail(emp)}
+                          className="text-blue-600 text-xs font-bold hover:underline"
+                        >
+                          Expediente
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

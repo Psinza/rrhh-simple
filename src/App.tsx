@@ -36,6 +36,8 @@ import {
   ProductAssignment,
   ProductPurchase,
   EmployeeLoan,
+  AbsenceRecord,
+  CashAdvanceRecord,
 } from './types';
 import {
   initialEmployees,
@@ -48,6 +50,7 @@ import { predefinedUsers } from './data/authUsers';
 import { getApiBase } from './services/api';
 import { lightweightDb, DatabaseState } from './services/lightweightDb';
 import { buildPayrollAdjustmentMaps } from './utils/payrollAdjustments';
+import { getMondayDate, normalizeImportedEmployeeSalaries } from './utils/venezuelaLaborCalculations';
 
 // Subcomponents
 import { LoginScreen } from './components/LoginScreen';
@@ -106,6 +109,8 @@ export default function App() {
   const [productAssignments, setProductAssignments] = useState<ProductAssignment[]>([]);
   const [productPurchases, setProductPurchases] = useState<ProductPurchase[]>([]);
   const [employeeLoans, setEmployeeLoans] = useState<EmployeeLoan[]>([]);
+  const [absences, setAbsences] = useState<AbsenceRecord[]>([]);
+  const [cashAdvances, setCashAdvances] = useState<CashAdvanceRecord[]>([]);
   const [lastBackupTime, setLastBackupTime] = useState('10:45 AM');
 
   useEffect(() => {
@@ -135,8 +140,13 @@ export default function App() {
   useEffect(() => {
     lightweightDb.initDatabase().then((dbState) => {
       if (dbState) {
-        if (dbState.company) setCompany(dbState.company);
-        if (dbState.employees && dbState.employees.length > 0) setEmployees(dbState.employees);
+        if (dbState.company) {
+          const dailyRate = lightweightDb.getCurrencyRateForDate();
+          setCompany(dailyRate ? { ...dbState.company, tasaBCV_USD: dailyRate.rate } : dbState.company);
+        }
+        if (dbState.employees && dbState.employees.length > 0) {
+          setEmployees(normalizeImportedEmployeeSalaries(dbState.employees, dbState.company?.tasaBCV_USD));
+        }
         if (dbState.users && dbState.users.length > 0) {
           const dbUserIds = new Set(dbState.users.map((user) => user.id));
           setUsers([...dbState.users, ...predefinedUsers.filter((user) => !dbUserIds.has(user.id))]);
@@ -150,6 +160,8 @@ export default function App() {
         if (dbState.productAssignments) setProductAssignments(dbState.productAssignments);
         if (dbState.productPurchases) setProductPurchases(dbState.productPurchases);
         if (dbState.employeeLoans) setEmployeeLoans(dbState.employeeLoans);
+        if (dbState.absences) setAbsences(dbState.absences);
+        if (dbState.cashAdvances) setCashAdvances(dbState.cashAdvances);
       }
     });
 
@@ -183,6 +195,8 @@ export default function App() {
       productAssignments,
       productPurchases,
       employeeLoans,
+      absences,
+      cashAdvances,
       socialBenefits: [],
       auditLogs,
       currencyRates: lightweightDb.loadLocal()?.currencyRates || [],
@@ -193,7 +207,7 @@ export default function App() {
     } catch (e) {
       // Ignore quota error
     }
-  }, [company, employees, users, payroll, auditLogs, sales, productAssignments, productPurchases, employeeLoans]);
+  }, [company, employees, users, payroll, auditLogs, sales, productAssignments, productPurchases, employeeLoans, absences, cashAdvances]);
 
   const handleDataRestored = (restored: DatabaseState) => {
     if (restored.company) setCompany(restored.company);
@@ -201,6 +215,8 @@ export default function App() {
     if (restored.productAssignments) setProductAssignments(restored.productAssignments);
     if (restored.productPurchases) setProductPurchases(restored.productPurchases);
     if (restored.employeeLoans) setEmployeeLoans(restored.employeeLoans);
+    if (restored.absences) setAbsences(restored.absences);
+    if (restored.cashAdvances) setCashAdvances(restored.cashAdvances);
     if (restored.sales) setSales(restored.sales);
     if (restored.users) {
       setUsers(restored.users);
@@ -328,6 +344,27 @@ export default function App() {
   };
 
   const handleApprovePayrollByOwner = () => {
+    if (payroll.estatus === 'Aprobada') return;
+    const loanBalancesToApply = Object.fromEntries(payroll.items.map((item) => [item.employeeId, item.prestamosAnticipos]));
+    setEmployeeLoans((previous) => previous.map((loan) => {
+      const weekOfOrigin = loan.deductionWeekStart || getMondayDate(loan.createdAt);
+      const remainingForEmployee = loanBalancesToApply[loan.employeeId] || 0;
+      if (loan.status !== 'Activo' || weekOfOrigin > payroll.fechaInicio || remainingForEmployee <= 0) return loan;
+      const amountApplied = Math.min(loan.installmentBs, loan.outstandingBs, remainingForEmployee);
+      const outstandingBs = Math.max(0, loan.outstandingBs - amountApplied);
+      loanBalancesToApply[loan.employeeId] -= amountApplied;
+      return { ...loan, outstandingBs, status: outstandingBs === 0 ? 'Cancelado' : 'Activo' };
+    }));
+    const employeesWithCashAdvance = new Set(payroll.items.filter((item) => item.adelantoEfectivo > 0).map((item) => item.employeeId));
+    setCashAdvances((previous) => previous.filter((advance) => (
+      advance.deductionWeekStart !== payroll.fechaInicio || !employeesWithCashAdvance.has(advance.employeeId)
+    )));
+    setProductAssignments((previous) => previous.map((assignment) => {
+      const scheduledWeek = assignment.deductionWeekStart || getMondayDate(`${assignment.month}-01`);
+      return assignment.status === 'Asignado' && scheduledWeek === payroll.fechaInicio
+        ? { ...assignment, status: 'Entregado' }
+        : assignment;
+    }));
     setPayroll((prev) => ({
       ...prev,
       estatus: 'Aprobada',
@@ -349,6 +386,7 @@ export default function App() {
 
   // Handlers for employees
   const handleSaveEmployee = (newEmp: Employee) => {
+    setSelectedDetailEmployee((current) => current?.id === newEmp.id ? newEmp : current);
     setEmployees((prev) => {
       const exists = prev.some((e) => e.id === newEmp.id);
       if (exists) {
@@ -413,18 +451,24 @@ export default function App() {
   const handleDeleteAssignment = (id: string) => { if (window.confirm('¿Eliminar esta asignación?')) setProductAssignments((previous) => previous.filter((item) => item.id !== id)); };
   const handleDeletePurchase = (id: string) => { if (window.confirm('¿Eliminar esta compra? El descuento dejará de aplicarse en nómina.')) setProductPurchases((previous) => previous.filter((item) => item.id !== id)); };
   const handleDeleteLoan = (id: string) => { if (window.confirm('¿Eliminar este préstamo? La cuota dejará de aplicarse en nómina.')) setEmployeeLoans((previous) => previous.filter((item) => item.id !== id)); };
+  const handleAddAbsence = (item: AbsenceRecord) => setAbsences((previous) => [item, ...previous]);
+  const handleUpdateAbsence = (item: AbsenceRecord) => setAbsences((previous) => previous.map((current) => current.id === item.id ? item : current));
+  const handleDeleteAbsence = (id: string) => { if (window.confirm('¿Eliminar esta inasistencia?')) setAbsences((previous) => previous.filter((item) => item.id !== id)); };
+  const handleAddCashAdvance = (item: CashAdvanceRecord) => setCashAdvances((previous) => [item, ...previous]);
+  const handleUpdateCashAdvance = (item: CashAdvanceRecord) => setCashAdvances((previous) => previous.map((current) => current.id === item.id ? item : current));
+  const handleDeleteCashAdvance = (id: string) => { if (window.confirm('¿Eliminar este avance? Dejará de descontarse de la nómina.')) setCashAdvances((previous) => previous.filter((item) => item.id !== id)); };
 
   const payrollAdjustments = buildPayrollAdjustmentMaps(payroll, sales, productAssignments, productPurchases, employeeLoans);
 
   const handleSaveCompany = (updatedCompany: CompanySettings) => {
     if (updatedCompany.tasaBCV_USD !== company.tasaBCV_USD && company.tasaBCV_USD > 0) {
       setEmployees((previous) => previous.map((employee) => {
-        if (employee.salarioMoneda !== 'USD' || employee.salarioMensualBaseOriginal) return employee;
+        if (employee.salarioMoneda !== 'USD' || employee.salarioMensualBaseOriginal || employee.salarioMensualUSD) return employee;
         const storedSalary = Number(employee.salarioMensualBase) || 0;
         const originalSalary = storedSalary > 0 && storedSalary < 1000
           ? storedSalary
           : storedSalary / company.tasaBCV_USD;
-        return { ...employee, salarioMensualBaseOriginal: originalSalary };
+        return { ...employee, salarioMensualBaseOriginal: originalSalary, salarioMensualUSD: originalSalary };
       }));
     }
     setCompany(updatedCompany);
@@ -433,7 +477,9 @@ export default function App() {
 
   const handleRestoreBackup = (backupData: any) => {
     if (backupData.company) setCompany(backupData.company);
-    if (backupData.employees) setEmployees(backupData.employees);
+    if (backupData.employees) {
+      setEmployees(normalizeImportedEmployeeSalaries(backupData.employees, backupData.company?.tasaBCV_USD));
+    }
     if (backupData.payroll) setPayroll(backupData.payroll);
     addAuditLog('Restauración de Respaldo', 'Seguridad', `Restauración completa de la base de datos desde respaldo JSON`);
   };
@@ -821,7 +867,7 @@ export default function App() {
                     Bienvenido, {currentUser.nombre}
                   </h2>
                   <p className="text-xs text-slate-300 max-w-2xl mt-0.5">
-                    Supervisión directa de compromisos laborales, nómina quincenal en Bs. y divisas (Tasa Oficial BCV: Bs. {company.tasaBCV_USD.toFixed(2)}) y pasivos sociales LOTTT.
+                    Supervisión directa de compromisos laborales, nómina semanal en Bs. y divisas (Tasa Oficial BCV: Bs. {company.tasaBCV_USD.toFixed(2)}) y pasivos sociales LOTTT.
                   </p>
                 </div>
               </div>
@@ -833,7 +879,7 @@ export default function App() {
                     className="flex items-center gap-2 px-4 py-2 rounded-lg bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold shadow-md transition-all active:scale-95"
                   >
                     <CheckCircle2 className="w-4 h-4" />
-                    <span>Aprobar Nómina Quincenal</span>
+                    <span>Aprobar Nómina Semanal</span>
                   </button>
                 ) : (
                   <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-xs font-bold">
@@ -970,6 +1016,8 @@ export default function App() {
                           loanInstallmentByEmployee={payrollAdjustments.loanInstallmentByEmployee}
                           productDeductionByEmployee={payrollAdjustments.purchaseDeductionByEmployee}
                           assignmentMonthlyByEmployee={payrollAdjustments.assignmentMonthlyByEmployee}
+                          absences={absences}
+                          cashAdvances={cashAdvances}
                         />
           )}
 
@@ -983,6 +1031,8 @@ export default function App() {
               assignments={productAssignments}
               purchases={productPurchases}
               loans={employeeLoans}
+              absences={absences}
+              cashAdvances={cashAdvances}
               onAddAssignment={handleAddAssignment}
               onAddPurchase={handleAddPurchase}
               onAddLoan={handleAddLoan}
@@ -992,6 +1042,12 @@ export default function App() {
               onDeleteAssignment={handleDeleteAssignment}
               onDeletePurchase={handleDeletePurchase}
               onDeleteLoan={handleDeleteLoan}
+              onAddAbsence={handleAddAbsence}
+              onUpdateAbsence={handleUpdateAbsence}
+              onDeleteAbsence={handleDeleteAbsence}
+              onAddCashAdvance={handleAddCashAdvance}
+              onUpdateCashAdvance={handleUpdateCashAdvance}
+              onDeleteCashAdvance={handleDeleteCashAdvance}
               exchangeRate={company.tasaBCV_USD}
             />
           )}

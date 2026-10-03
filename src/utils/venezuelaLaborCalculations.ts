@@ -40,6 +40,22 @@ export function formatUSD(value: number): string {
   }).format(Number(value) || 0);
 }
 
+export function getMondayDate(date: string): string {
+  const monday = new Date(`${date.slice(0, 10)}T00:00:00Z`);
+  monday.setUTCDate(monday.getUTCDate() - ((monday.getUTCDay() + 6) % 7));
+  return monday.toISOString().slice(0, 10);
+}
+
+export function countWeekdaysInRange(startDate: string, endDate: string): number {
+  const start = new Date(`${startDate.slice(0, 10)}T00:00:00Z`);
+  const end = new Date(`${endDate.slice(0, 10)}T00:00:00Z`);
+  let weekdays = 0;
+  for (const day = new Date(start); day <= end; day.setUTCDate(day.getUTCDate() + 1)) {
+    if (day.getUTCDay() >= 1 && day.getUTCDay() <= 5) weekdays += 1;
+  }
+  return weekdays;
+}
+
 export function formatMoneyWithEmployeeCurrency(
   value: number,
   displayCurrency: 'BS' | 'USD',
@@ -61,8 +77,9 @@ export function normalizeSalaryToBs(employee: Partial<Employee>, exchangeRate: n
   }
 
   if (employee.salarioMoneda === 'USD') {
-    if (Number(employee.salarioMensualBaseOriginal) > 0) {
-      return Number(employee.salarioMensualBaseOriginal) * exchangeRate;
+    const originalSalary = Number(employee.salarioMensualBaseOriginal ?? employee.salarioMensualUSD);
+    if (originalSalary > 0) {
+      return originalSalary * exchangeRate;
     }
     const probableLegacyRawUsd = storedSalary < 1000 && storedSalary > 0;
     return probableLegacyRawUsd ? storedSalary * exchangeRate : storedSalary;
@@ -72,8 +89,9 @@ export function normalizeSalaryToBs(employee: Partial<Employee>, exchangeRate: n
 }
 
 export function getSalaryInEmployeeCurrency(employee: Partial<Employee>, exchangeRate: number): number {
-  if (employee.salarioMoneda === 'USD' && Number(employee.salarioMensualBaseOriginal) > 0) {
-    return Number(employee.salarioMensualBaseOriginal);
+  const originalSalary = Number(employee.salarioMensualBaseOriginal ?? employee.salarioMensualUSD);
+  if (employee.salarioMoneda === 'USD' && originalSalary > 0) {
+    return originalSalary;
   }
 
   if (employee.salarioMoneda === 'USD' && exchangeRate > 0) {
@@ -85,6 +103,37 @@ export function getSalaryInEmployeeCurrency(employee: Partial<Employee>, exchang
 
 function storedSalaryInBs(employee: Partial<Employee>): number {
   return Number(employee.salarioMensualBase) || 0;
+}
+
+export function normalizeImportedEmployeeSalaries(employees: Employee[], exchangeRate: number): Employee[] {
+  if (!Number.isFinite(exchangeRate) || exchangeRate <= 0) {
+    return employees;
+  }
+
+  return employees.map((employee) => {
+    if (employee.salarioMoneda !== 'USD') {
+      return employee;
+    }
+
+    const storedSalary = Number(employee.salarioMensualBase) || 0;
+    const originalUsdSalary = Number(employee.salarioMensualBaseOriginal ?? employee.salarioMensualUSD);
+    const salaryInUsd = Number.isFinite(originalUsdSalary) && originalUsdSalary > 0
+      ? originalUsdSalary
+      : storedSalary > 0 && storedSalary < 1000
+        ? storedSalary
+        : storedSalary / exchangeRate;
+
+    if (!Number.isFinite(salaryInUsd) || salaryInUsd <= 0) {
+      return employee;
+    }
+
+    return {
+      ...employee,
+      salarioMensualBase: salaryInUsd * exchangeRate,
+      salarioMensualBaseOriginal: salaryInUsd,
+      salarioMensualUSD: salaryInUsd,
+    };
+  });
 }
 
 export function canDeclareIntegralSalary(employee: Partial<Employee>): boolean {
@@ -157,7 +206,7 @@ export function calculateSocialBenefits(
   company: CompanySettings
 ): SocialBenefitsReport {
   const tenure = calculateTenure(employee.fechaIngreso);
-  const salarioBase = Number(employee.salarioMensualBase) || 0;
+  const salarioBase = normalizeSalaryToBs(employee, company.tasaBCV_USD);
   const salarioDiarioNormal = salarioBase / 30;
   const diasGarantiaAcumulados = 15;
   const diasAdicionalesAntiguedad = Math.max(0, tenure.anios * 2);
@@ -210,14 +259,27 @@ export function calculatePayrollDeductionsAndContributions(
   prestamosAnticipos: number = 0,
   deduccionesProductos: number = 0,
   aplicarRetencionesGubernamentales: boolean = true,
-  comisionesVentas: number = 0
+  ...weeklyAdjustments: number[]
 ): Omit<PayrollItem, 'id' | 'employeeId' | 'employee' | 'fechaGeneracion' | 'firmadoDigitalmente' | 'hashCriptografico'> {
+  let deduccionInasistencias = 0;
+  let adelantoEfectivo = 0;
+  let diasTrabajadosOverride: number | undefined;
+  let comisionesVentas = 0;
+  if (weeklyAdjustments.length === 1) {
+    comisionesVentas = weeklyAdjustments[0] || 0;
+  } else {
+    deduccionInasistencias = weeklyAdjustments[0] || 0;
+    adelantoEfectivo = weeklyAdjustments[1] || 0;
+    diasTrabajadosOverride = weeklyAdjustments[2];
+    comisionesVentas = weeklyAdjustments[3] || 0;
+  }
 
   const retencionesGubernamentalesActivas = aplicarRetencionesGubernamentales && employee.cestaticketAplica !== false;
   const tasaBCV = company.tasaBCV_USD > 0 ? company.tasaBCV_USD : 1;
   const salarioMensualBaseBs = getSalaryBaseInBs(employee, tasaBCV);
 
   const factorPeriodo = frecuencia === 'semanal' ? 1 / 4 : frecuencia === 'quincenal' ? 1 / 2 : 1;
+  const diasTrabajados = diasTrabajadosOverride ?? (frecuencia === 'semanal' ? 5 : frecuencia === 'quincenal' ? 15 : 30);
   const sueldoBasePeriodo = salarioMensualBaseBs * factorPeriodo;
   const salarioMensualEnBs = salarioMensualBaseBs;
   const lunes = frecuencia === 'semanal' ? 1 : frecuencia === 'quincenal' ? Math.round(company.lunesDelMesActual / 2) : company.lunesDelMesActual;
@@ -251,7 +313,8 @@ export function calculatePayrollDeductionsAndContributions(
 
   const otrasDeducciones = 0;
   const totalDeducciones =
-    retencionIVSS + retencionParoForzoso + retencionFAOV + retencionISLR + prestamosAnticipos + deduccionesProductos + otrasDeducciones;
+    retencionIVSS + retencionParoForzoso + retencionFAOV + retencionISLR + prestamosAnticipos +
+    deduccionesProductos + deduccionInasistencias + adelantoEfectivo + otrasDeducciones;
 
   const netoCobrarBs = totalAsignaciones - totalDeducciones;
   const netoCobrarUSD = tasaBCV > 0 ? netoCobrarBs / tasaBCV : 0;
@@ -264,7 +327,7 @@ export function calculatePayrollDeductionsAndContributions(
   const totalAportesPatronales = aportePatronalIVSS + aportePatronalRPE + aportePatronalFAOV + aportePatronalINCES;
 
   return {
-    diasTrabajados: frecuencia === 'semanal' ? 5 : frecuencia === 'quincenal' ? 15 : 30,
+    diasTrabajados,
     horasExtrasDiurnas,
     horasExtrasNocturnas,
     sueldoBasePeriodo,
@@ -286,6 +349,8 @@ export function calculatePayrollDeductionsAndContributions(
     retencionFAOV,
     retencionISLR,
     prestamosAnticipos,
+    deduccionInasistencias,
+    adelantoEfectivo,
     otrasDeducciones,
     totalDeducciones,
     netoCobrarBs,

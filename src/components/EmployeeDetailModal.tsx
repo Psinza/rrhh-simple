@@ -17,6 +17,7 @@ import {
   Download,
   Upload,
   Trash2,
+  Pencil,
 } from 'lucide-react';
 import { Employee, CompanySettings, WorkHistoryEvent, SocialBenefitsAdvance, EmployeeDocument, EmployeeDocumentType, MoneyCurrency, SalesRecord, ProductAssignment, ProductPurchase, EmployeeLoan, EmployeePaymentMethod } from '../types';
 import {
@@ -26,6 +27,7 @@ import {
   formatBs,
   formatUSD,
   formatMoneyWithEmployeeCurrency,
+  normalizeSalaryToBs,
 } from '../utils/venezuelaLaborCalculations';
 
 interface EmployeeDetailModalProps {
@@ -67,7 +69,9 @@ export function EmployeeDetailModal({
   // New Advance Request State
   const [showAddAdvance, setShowAddAdvance] = useState(false);
   const [advanceMonto, setAdvanceMonto] = useState('');
+  const [advanceMoneda, setAdvanceMoneda] = useState<MoneyCurrency>('BS');
   const [advanceMotivo, setAdvanceMotivo] = useState<SocialBenefitsAdvance['motivo']>('Adquisición de Vivienda');
+  const [editingAdvanceId, setEditingAdvanceId] = useState<string | null>(null);
 
   // Editable personal data state (for RRHH/Admin)
   const [editMode, setEditMode] = useState(false);
@@ -86,7 +90,9 @@ export function EmployeeDetailModal({
   const [editHorasNocturnas, setEditHorasNocturnas] = useState(String(employee.horasExtrasNocturnasPendientes || 0));
   const [editViaticos, setEditViaticos] = useState(String(employee.viaticosMoneda === 'USD' ? (employee.viaticosPendientesOriginal || 0) : (employee.viaticosPendientes || 0)));
   const [editViaticosMoneda, setEditViaticosMoneda] = useState<MoneyCurrency>(employee.viaticosMoneda || 'BS');
-  const [editSalario, setEditSalario] = useState(String(employee.salarioMoneda === 'USD' ? (employee.salarioMensualBaseOriginal || employee.salarioMensualBase / company.tasaBCV_USD) : employee.salarioMensualBase));
+  const [editSalario, setEditSalario] = useState(String(employee.salarioMoneda === 'USD'
+    ? employee.salarioMensualBaseOriginal ?? employee.salarioMensualBase / company.tasaBCV_USD
+    : employee.salarioMensualBase));
   const [editSalarioMoneda, setEditSalarioMoneda] = useState<MoneyCurrency>(employee.salarioMoneda || 'BS');
   const [editCestaticketAplica, setEditCestaticketAplica] = useState(employee.cestaticketAplica !== false);
   const [editCestaticket, setEditCestaticket] = useState(String(employee.cestaticketMoneda === 'USD' ? employee.cestaticketMensual / company.tasaBCV_USD : employee.cestaticketMensual));
@@ -135,8 +141,9 @@ export function EmployeeDetailModal({
   const tenure = calculateTenure(employee.fechaIngreso);
   const displayCurrency = employee.salarioMoneda || 'BS';
   const displayCurrencyLabel = displayCurrency === 'USD' ? 'USD' : 'Bs.';
+  const salaryBaseBs = normalizeSalaryToBs(employee, company.tasaBCV_USD);
   const integral = calculateIntegralSalary(
-    employee.salarioMensualBase,
+    salaryBaseBs,
     tenure.anios,
     employee.diasUtilidadesAnuales || company.diasUtilidadesEmpresa
   );
@@ -193,6 +200,9 @@ export function EmployeeDetailModal({
     }
 
     const newSalaryNum = eventNuevoSalario ? parseFloat(eventNuevoSalario) : undefined;
+    const newSalaryBs = newSalaryNum === undefined
+      ? undefined
+      : newSalaryNum * (employee.salarioMoneda === 'USD' ? company.tasaBCV_USD : 1);
 
     const newEvent: WorkHistoryEvent = {
       id: `hist-${Date.now()}`,
@@ -200,14 +210,18 @@ export function EmployeeDetailModal({
       tipo: eventTipo,
       titulo: eventTitulo,
       descripcion: eventDescripcion,
-      salarioAnterior: newSalaryNum ? employee.salarioMensualBase : undefined,
-      nuevoSalario: newSalaryNum,
+      salarioAnterior: newSalaryBs !== undefined ? salaryBaseBs : undefined,
+      nuevoSalario: newSalaryBs,
       registradoPor: currentUser?.nombre || 'RRHH Sistema',
     };
 
     const updatedEmployee: Employee = {
       ...employee,
-      salarioMensualBase: newSalaryNum ? newSalaryNum : employee.salarioMensualBase,
+      ...(newSalaryBs !== undefined && {
+        salarioMensualBase: newSalaryBs,
+        salarioMensualBaseOriginal: employee.salarioMoneda === 'USD' ? newSalaryNum : undefined,
+        salarioMensualUSD: employee.salarioMoneda === 'USD' ? newSalaryNum : undefined,
+      }),
       historialLaboral: [newEvent, ...employee.historialLaboral],
     };
 
@@ -226,13 +240,17 @@ export function EmployeeDetailModal({
       return;
     }
 
-    const monto = parseFloat(advanceMonto);
-    if (!monto || monto <= 0) return;
+    const montoOriginal = parseFloat(advanceMonto);
+    const monto = advanceMoneda === 'USD' ? montoOriginal * company.tasaBCV_USD : montoOriginal;
+    if (!montoOriginal || montoOriginal <= 0) return;
 
-    if (monto > benefits.disponibleParaAnticipo) {
+    const existingAdvance = employee.anticiposPrestaciones?.find((advance) => advance.id === editingAdvanceId);
+    const disponibleParaEdicion = benefits.disponibleParaAnticipo + (existingAdvance?.monto || 0);
+
+    if (monto > disponibleParaEdicion) {
       alert(
         `El monto solicitado (${formatBs(monto)}) supera el límite legal del 75% disponible (${formatBs(
-          benefits.disponibleParaAnticipo
+          disponibleParaEdicion
         )}) según el Art. 144 de la LOTTT.`
       );
       return;
@@ -241,9 +259,11 @@ export function EmployeeDetailModal({
     const pct = Math.round((monto / benefits.montoGarantiaTotal) * 100);
 
     const newAdvance: SocialBenefitsAdvance = {
-      id: `ant-${Date.now()}`,
-      fecha: new Date().toISOString().split('T')[0],
+      id: editingAdvanceId || `ant-${Date.now()}`,
+      fecha: existingAdvance?.fecha || new Date().toISOString().split('T')[0],
       monto,
+      moneda: advanceMoneda,
+      montoOriginal: montoOriginal,
       motivo: advanceMotivo,
       porcentajeDelFondo: pct,
       aprobadoPor: currentUser?.nombre || 'Dirección de Talento Humano',
@@ -251,12 +271,31 @@ export function EmployeeDetailModal({
 
     const updatedEmployee: Employee = {
       ...employee,
-      anticiposPrestaciones: [...(employee.anticiposPrestaciones || []), newAdvance],
+      anticiposPrestaciones: editingAdvanceId
+        ? (employee.anticiposPrestaciones || []).map((advance) => advance.id === editingAdvanceId ? newAdvance : advance)
+        : [...(employee.anticiposPrestaciones || []), newAdvance],
     };
 
     onUpdateEmployee(updatedEmployee);
     setShowAddAdvance(false);
     setAdvanceMonto('');
+    setEditingAdvanceId(null);
+  };
+
+  const handleEditAdvance = (advance: SocialBenefitsAdvance) => {
+    setEditingAdvanceId(advance.id);
+    setAdvanceMoneda(advance.moneda || 'BS');
+    setAdvanceMonto(String(advance.montoOriginal ?? advance.monto));
+    setAdvanceMotivo(advance.motivo);
+    setShowAddAdvance(true);
+  };
+
+  const handleDeleteAdvance = (advanceId: string) => {
+    if (!window.confirm('¿Eliminar este anticipo de prestaciones?')) return;
+    onUpdateEmployee({
+      ...employee,
+      anticiposPrestaciones: (employee.anticiposPrestaciones || []).filter((advance) => advance.id !== advanceId),
+    });
   };
 
   return (
@@ -333,6 +372,7 @@ export function EmployeeDetailModal({
                           cargasFamiliares: parseInt(editCargasFamiliares) || 0,
                           salarioMensualBase: (Number(editSalario) || 0) * (editSalarioMoneda === 'USD' ? company.tasaBCV_USD : 1),
                           salarioMensualBaseOriginal: Number(editSalario) || 0,
+                          salarioMensualUSD: editSalarioMoneda === 'USD' ? Number(editSalario) || 0 : undefined,
                           salarioMoneda: editSalarioMoneda,
                           cestaticketAplica: editCestaticketAplica,
                           cestaticketMensual: editCestaticketAplica ? (Number(editCestaticket) || 0) * (editCestaticketMoneda === 'USD' ? company.tasaBCV_USD : 1) : 0,
@@ -371,7 +411,9 @@ export function EmployeeDetailModal({
                         setEditHorasNocturnas(String(employee.horasExtrasNocturnasPendientes || 0));
                         setEditViaticos(String(employee.viaticosMoneda === 'USD' ? (employee.viaticosPendientesOriginal || 0) : (employee.viaticosPendientes || 0)));
                         setEditViaticosMoneda(employee.viaticosMoneda || 'BS');
-                        setEditSalario(String(employee.salarioMoneda === 'USD' ? (employee.salarioMensualBaseOriginal || employee.salarioMensualBase / company.tasaBCV_USD) : employee.salarioMensualBase));
+                        setEditSalario(String(employee.salarioMoneda === 'USD'
+                          ? employee.salarioMensualBaseOriginal ?? employee.salarioMensualBase / company.tasaBCV_USD
+                          : employee.salarioMensualBase));
                         setEditSalarioMoneda(employee.salarioMoneda || 'BS');
                         setEditCestaticketAplica(employee.cestaticketAplica !== false);
                         setEditCestaticket(String(employee.cestaticketMoneda === 'USD' ? employee.cestaticketMensual / company.tasaBCV_USD : employee.cestaticketMensual));
@@ -575,7 +617,12 @@ export function EmployeeDetailModal({
                 </div>
                 {(currentUser?.rol === 'rrhh' || currentUser?.rol === 'admin_sistema') ? (
                   <button
-                    onClick={() => setShowAddAdvance(!showAddAdvance)}
+                    onClick={() => {
+                      setEditingAdvanceId(null);
+                      setAdvanceMonto('');
+                      setAdvanceMoneda('BS');
+                      setShowAddAdvance(!showAddAdvance);
+                    }}
                     className="flex items-center gap-1 text-xs font-semibold px-3 py-1.5 bg-sky-600 hover:bg-sky-500 text-white rounded-lg transition-all"
                   >
                     <Plus className="w-3.5 h-3.5" /> Solicitar Anticipo
@@ -594,15 +641,22 @@ export function EmployeeDetailModal({
               {/* Formulario nuevo anticipo */}
               {showAddAdvance && (
                 <form onSubmit={handleAddAdvance} className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-3 text-xs">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <div>
-                      <label className="block font-medium text-slate-700 mb-1">Monto Solicitado (Bs.) *</label>
+                      <label className="block font-medium text-slate-700 mb-1">Moneda</label>
+                      <select value={advanceMoneda} onChange={(e) => setAdvanceMoneda(e.target.value as MoneyCurrency)} className="w-full p-2 bg-white border border-slate-300 rounded-lg">
+                        <option value="BS">Bolívares (Bs.)</option>
+                        <option value="USD">Dólares (USD)</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block font-medium text-slate-700 mb-1">Monto Solicitado ({advanceMoneda === 'USD' ? 'USD' : 'Bs.'}) *</label>
                       <input
                         type="number"
                         step="0.01"
                         required
-                        max={benefits.disponibleParaAnticipo}
-                        placeholder={`Máx: ${benefits.disponibleParaAnticipo.toFixed(2)}`}
+                        max={(benefits.disponibleParaAnticipo + (employee.anticiposPrestaciones?.find((advance) => advance.id === editingAdvanceId)?.monto || 0)) / (advanceMoneda === 'USD' ? company.tasaBCV_USD : 1)}
+                        placeholder={`Máx: ${((benefits.disponibleParaAnticipo + (employee.anticiposPrestaciones?.find((advance) => advance.id === editingAdvanceId)?.monto || 0)) / (advanceMoneda === 'USD' ? company.tasaBCV_USD : 1)).toFixed(2)}`}
                         value={advanceMonto}
                         onChange={(e) => setAdvanceMonto(e.target.value)}
                         className="w-full p-2 bg-white border border-slate-300 rounded-lg font-semibold"
@@ -634,7 +688,7 @@ export function EmployeeDetailModal({
                       type="submit"
                       className="px-4 py-1.5 font-bold bg-sky-600 hover:bg-sky-500 text-white rounded-lg shadow-xs"
                     >
-                      Aprobar y Registrar Anticipo
+                      {editingAdvanceId ? 'Guardar cambios' : 'Aprobar y Registrar Anticipo'}
                     </button>
                   </div>
                 </form>
@@ -644,7 +698,7 @@ export function EmployeeDetailModal({
               {(employee.anticiposPrestaciones || []).length > 0 ? (
                 <div className="divide-y divide-slate-100 text-xs">
                   {(employee.anticiposPrestaciones || []).map((ant) => (
-                    <div key={ant.id} className="py-2.5 flex items-center justify-between">
+                    <div key={ant.id} className="py-2.5 flex items-center justify-between gap-3">
                       <div>
                         <div className="font-semibold text-slate-800">{ant.motivo}</div>
                         <div className="text-[11px] text-slate-400">
@@ -652,9 +706,13 @@ export function EmployeeDetailModal({
                         </div>
                       </div>
                       <div className="text-right">
-                        <span className="font-bold text-slate-900">{formatMoneyWithEmployeeCurrency(ant.monto, displayCurrency, company.tasaBCV_USD)}</span>
-                        <div className="text-[10px] text-slate-500">({ant.porcentajeDelFondo}% del fondo)</div>
+                        <span className="font-bold text-slate-900">{formatBs(ant.monto)}</span>
+                        <div className="text-[10px] text-slate-500">{formatUSD(ant.monto / company.tasaBCV_USD)} • {ant.porcentajeDelFondo}% del fondo</div>
                       </div>
+                      {(currentUser?.rol === 'rrhh' || currentUser?.rol === 'admin_sistema') && <div className="flex shrink-0">
+                        <button type="button" title="Editar anticipo" onClick={() => handleEditAdvance(ant)} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded"><Pencil className="w-3.5 h-3.5" /></button>
+                        <button type="button" title="Eliminar anticipo" onClick={() => handleDeleteAdvance(ant.id)} className="p-1.5 text-red-600 hover:bg-red-50 rounded"><Trash2 className="w-3.5 h-3.5" /></button>
+                      </div>}
                     </div>
                   ))}
                 </div>
@@ -764,13 +822,13 @@ export function EmployeeDetailModal({
                 {eventTipo === 'Aumento Salarial' && (
                   <div>
                     <label className="block font-medium text-slate-700 mb-1">
-                      Nuevo Salario Mensual Base (Bs.) * (Actual: {formatBs(employee.salarioMensualBase)})
+                      Nuevo Salario Mensual Base ({displayCurrencyLabel}) *
                     </label>
                     <input
                       type="number"
                       step="0.01"
                       required
-                      placeholder="Ej. 42000.00"
+                      placeholder={displayCurrency === 'USD' ? 'Ej. 200.00' : 'Ej. 42000.00'}
                       value={eventNuevoSalario}
                       onChange={(e) => setEventNuevoSalario(e.target.value)}
                       className="w-full p-2 bg-white border border-slate-300 rounded-lg font-semibold"

@@ -28,14 +28,109 @@
       position: static !important;
       width: 100% !important;
       max-width: none !important;
+      min-width: 0 !important;
       margin: 0 !important;
-      padding: 0 !important;
+      padding: 2mm !important;
       box-sizing: border-box !important;
       transform: none !important;
+      zoom: 1 !important;
       writing-mode: horizontal-tb !important;
       direction: ltr !important;
       overflow: visible !important;
       height: auto !important;
+      min-height: 0 !important;
+      border: 0 !important;
+      border-radius: 0 !important;
+      box-shadow: none !important;
+      font-size: 9pt !important;
+      line-height: 1.25 !important;
+      color: #000 !important;
+      break-inside: avoid-page !important;
+      page-break-inside: avoid !important;
+      overflow-wrap: anywhere !important;
+    }
+    .print-document,
+    .print-document * {
+      box-sizing: border-box !important;
+      min-width: 0 !important;
+      max-width: 100% !important;
+      overflow-wrap: anywhere !important;
+    }
+    .print-document .flex > * {
+      min-width: 0 !important;
+    }
+    .print-document > * + * {
+      margin-top: 2mm !important;
+    }
+    .print-document .space-y-3 > * + *,
+    .print-document .space-y-4 > * + *,
+    .print-document .space-y-5 > * + * {
+      margin-top: 1.5mm !important;
+    }
+    .print-document .text-base {
+      font-size: 9pt !important;
+      line-height: 1.28 !important;
+    }
+    .print-document .text-lg {
+      font-size: 13pt !important;
+      line-height: 1.15 !important;
+    }
+    .print-document .text-xl {
+      font-size: 11pt !important;
+      line-height: 1.15 !important;
+    }
+    .print-document .text-2xl {
+      font-size: 14pt !important;
+      line-height: 1.15 !important;
+    }
+    .print-document .leading-loose {
+      line-height: 1.28 !important;
+    }
+    .print-document .pb-6,
+    .print-document .pb-8 {
+      padding-bottom: 2mm !important;
+    }
+    .print-document .pt-6,
+    .print-document .pt-8 {
+      padding-top: 2mm !important;
+    }
+    .print-document .p-3,
+    .print-document .p-4,
+    .print-document .p-6 {
+      padding: 1.5mm !important;
+    }
+    .print-document .gap-6,
+    .print-document .gap-5,
+    .print-document .gap-4 {
+      gap: 2mm !important;
+    }
+    .print-document .gap-3,
+    .print-document .gap-2 {
+      gap: 1mm !important;
+    }
+    .print-document .overflow-x-auto {
+      overflow: visible !important;
+    }
+    .print-document table {
+      width: 100% !important;
+      table-layout: fixed !important;
+      border-collapse: collapse !important;
+      font-size: 8pt !important;
+    }
+    .print-document th,
+    .print-document td {
+      padding: 1mm !important;
+      overflow-wrap: anywhere !important;
+    }
+    .print-document img {
+      max-height: 18mm !important;
+      max-width: 35mm !important;
+    }
+    .print-document tr,
+    .print-document .grid,
+    .print-document .text-center {
+      break-inside: avoid !important;
+      page-break-inside: avoid !important;
     }
     html,
     body {
@@ -58,8 +153,9 @@
     }
     .print-card {
       box-shadow: none !important;
-      border: 1px solid #cbd5e1 !important;
-      page-break-inside: avoid;
+      border: 0 !important;
+      page-break-inside: avoid !important;
+      break-inside: avoid-page !important;
       max-height: none !important;
       overflow: visible !important;
       margin: 0 !important;
@@ -68,7 +164,7 @@
       padding: 0 !important;
       box-sizing: border-box !important;
     }
-    .fixed.inset-0 { position: static !important; display: block !important; padding: 0 !important; background: white !important; }
-    @page { size: auto; margin: 10mm; }
+    .fixed.inset-0 { position: static !important; display: block !important; width: 100% !important; min-width: 0 !important; padding: 0 !important; margin: 0 !important; background: white !important; }
+    @page { size: letter portrait; margin: 10mm; }
   }
 }

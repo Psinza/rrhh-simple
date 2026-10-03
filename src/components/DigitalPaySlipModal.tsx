@@ -29,7 +29,8 @@ export function DigitalPaySlipModal({
   const [signatureDate, setSignatureDate] = useState(item.firmaFecha || new Date().toLocaleString('es-VE'));
   const salaryDisplayCurrency = item.employee.salarioMoneda || 'BS';
   const normalizedSalaryBaseBs = normalizeSalaryToBs(item.employee, company.tasaBCV_USD);
-  const slipCurrencyLabel = salaryDisplayCurrency === 'USD' ? 'USD' : 'Bs.';
+  const otherAssignments = Math.max(0, item.totalAsignaciones - item.sueldoBasePeriodo);
+  const salaryCurrencyLabel = salaryDisplayCurrency === 'USD' ? 'USD' : 'Bs.';
   const slipReferenceCurrencyLabel = 'USD';
   const paymentMethodLabels: Record<string, string> = {
     transferencia: 'Transferencia bancaria',
@@ -146,8 +147,10 @@ export function DigitalPaySlipModal({
             <div>
               <span className="text-slate-500 block">Salario Mensual Base:</span>
               <strong className="text-slate-900">
-                {formatMoneyWithEmployeeCurrency(normalizedSalaryBaseBs, salaryDisplayCurrency, company.tasaBCV_USD)}
-                <span className="ml-1 text-[10px] align-middle font-bold text-slate-500">({slipCurrencyLabel})</span>
+              {salaryDisplayCurrency === 'USD' && item.employee.salarioMensualUSD !== undefined && Number.isFinite(item.employee.salarioMensualUSD)
+                ? formatUSD(item.employee.salarioMensualUSD)
+                : formatMoneyWithEmployeeCurrency(normalizedSalaryBaseBs, salaryDisplayCurrency, company.tasaBCV_USD)}
+              <span className="ml-1 text-[10px] align-middle font-bold text-slate-500">({salaryCurrencyLabel})</span>
               </strong>
             </div>
             <div>
@@ -164,80 +167,42 @@ export function DigitalPaySlipModal({
             <table className="w-full text-left text-xs">
               <thead className="bg-slate-100 border-b border-slate-200 font-bold text-slate-700 text-[10px] uppercase">
                 <tr>
-                  <th className="py-2 px-3 w-16">Código</th>
-                  <th className="py-2 px-3">Concepto Laboral</th>
-                  <th className="py-2 px-3 text-right">Asignaciones (Bs.)</th>
-                  <th className="py-2 px-3 text-right">Deducciones (Bs.)</th>
+                  <th className="py-2 px-3">Concepto</th>
+                  <th className="py-2 px-3 text-right">Asignaciones</th>
+                  <th className="py-2 px-3 text-right">Deducciones</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 <tr>
-                  <td className="py-1.5 px-3 font-mono text-slate-500 text-[11px]">001</td>
-                  <td className="py-1.5 px-3">Sueldo Base del Período ({item.diasTrabajados} días)</td>
-                  <td className="py-1.5 px-3 text-right font-medium">{formatBs(item.sueldoBasePeriodo)}</td>
-                  <td className="py-1.5 px-3 text-right text-slate-400">-</td>
+                  <td className="py-2 px-3">Sueldo semanal (1/4 del salario mensual)</td>
+                  <td className="py-2 px-3 text-right font-medium">{formatBs(item.sueldoBasePeriodo)}<div className="text-[10px] text-slate-500">{formatUSD(item.sueldoBasePeriodo / company.tasaBCV_USD)}</div></td>
+                  <td className="py-2 px-3 text-right text-slate-400">-</td>
                 </tr>
-
-                {item.horasExtrasDiurnas > 0 && (
-                  <tr>
-                    <td className="py-1.5 px-3 font-mono text-slate-500 text-[11px]">005</td>
-                    <td className="py-1.5 px-3">Horas Extras Diurnas ({item.horasExtrasDiurnas} hrs recargo 50% LOTTT)</td>
-                    <td className="py-1.5 px-3 text-right font-medium">{formatBs(item.montoHorasExtrasDiurnas)}</td>
-                    <td className="py-1.5 px-3 text-right text-slate-400">-</td>
-                  </tr>
-                )}
-
-                {item.horasExtrasNocturnas > 0 && (
-                  <tr>
-                    <td className="py-1.5 px-3 font-mono text-slate-500 text-[11px]">006</td>
-                    <td className="py-1.5 px-3">Horas Extras Nocturnas ({item.horasExtrasNocturnas} hrs recargo 50%+30% nocturno)</td>
-                    <td className="py-1.5 px-3 text-right font-medium">{formatBs(item.montoHorasExtrasNocturnas)}</td>
-                    <td className="py-1.5 px-3 text-right text-slate-400">-</td>
-                  </tr>
-                )}
-
-                {item.comisionesVentas > 0 && (
-                  <tr>
-                    <td className="py-1.5 px-3 font-mono text-slate-500 text-[11px]">020</td>
-                    <td className="py-1.5 px-3 font-medium text-violet-900">Comisión por ventas generadas</td>
-                    <td className="py-1.5 px-3 text-right font-medium text-violet-700">{formatBs(item.comisionesVentas)}</td>
-                    <td className="py-1.5 px-3 text-right text-slate-400">-</td>
-                  </tr>
-                )}
-
-                {item.viaticos > 0 && (
-                  <tr>
-                    <td className="py-1.5 px-3 font-mono text-slate-500 text-[11px]">021</td>
-                    <td className="py-1.5 px-3">Viáticos del período ({item.viaticosMoneda === 'USD' ? 'USD' : 'Bs.'})</td>
-                    <td className="py-1.5 px-3 text-right font-medium">{item.viaticosMoneda === 'USD' ? `$${(item.viaticosOriginal || 0).toFixed(2)} / ${formatBs(item.viaticos)}` : formatBs(item.viaticos)}</td>
-                    <td className="py-1.5 px-3 text-right text-slate-400">-</td>
-                  </tr>
-                )}
-
-                {item.retencionISLR > 0 && (
-                  <tr>
-                    <td className="py-1.5 px-3 font-mono text-slate-500 text-[11px]">104</td>
-                    <td className="py-1.5 px-3 text-slate-700">Retención Impuesto Sobre la Renta (ISLR Forma AR-I)</td>
-                    <td className="py-1.5 px-3 text-right text-slate-400">-</td>
-                    <td className="py-1.5 px-3 text-right text-amber-800 font-medium">{formatBs(item.retencionISLR)}</td>
-                  </tr>
-                )}
-                {item.deduccionesProductos > 0 && (
-                  <tr>
-                    <td className="py-1.5 px-3 font-mono text-slate-500 text-[11px]">115</td>
-                    <td className="py-1.5 px-3 text-slate-700">Deducción por productos solicitados</td>
-                    <td className="py-1.5 px-3 text-right text-slate-400">-</td>
-                    <td className="py-1.5 px-3 text-right text-amber-800 font-medium">{formatBs(item.deduccionesProductos)}</td>
-                  </tr>
-                )}
-                {item.prestamosAnticipos > 0 && (
-                  <tr>
-                    <td className="py-1.5 px-3 font-mono text-slate-500 text-[11px]">116</td>
-                    <td className="py-1.5 px-3 text-slate-700">Cuota de préstamo solicitado</td>
-                    <td className="py-1.5 px-3 text-right text-slate-400">-</td>
-                    <td className="py-1.5 px-3 text-right text-amber-800 font-medium">{formatBs(item.prestamosAnticipos)}</td>
-                  </tr>
-                )}
+                {otherAssignments > 0 && <tr>
+                  <td className="py-2 px-3">Asignaciones del período</td>
+                  <td className="py-2 px-3 text-right font-medium">{formatBs(otherAssignments)}<div className="text-[10px] text-slate-500">{formatUSD(otherAssignments / company.tasaBCV_USD)}</div></td>
+                  <td className="py-2 px-3 text-right text-slate-400">-</td>
+                </tr>}
+                {item.deduccionInasistencias > 0 && <tr>
+                  <td className="py-2 px-3">Deducción por inasistencias</td>
+                  <td className="py-2 px-3 text-right text-slate-400">-</td>
+                  <td className="py-2 px-3 text-right font-medium text-amber-800">{formatBs(item.deduccionInasistencias)}<div className="text-[10px] text-amber-700">{formatUSD(item.deduccionInasistencias / company.tasaBCV_USD)}</div></td>
+                </tr>}
+                {item.prestamosAnticipos > 0 && <tr>
+                  <td className="py-2 px-3">Cuota acordada de préstamo</td>
+                  <td className="py-2 px-3 text-right text-slate-400">-</td>
+                  <td className="py-2 px-3 text-right font-medium text-amber-800">{formatBs(item.prestamosAnticipos)}<div className="text-[10px] text-amber-700">{formatUSD(item.prestamosAnticipos / company.tasaBCV_USD)}</div></td>
+                </tr>}
+                {item.adelantoEfectivo > 0 && <tr>
+                  <td className="py-2 px-3">Avance de sueldo en efectivo</td>
+                  <td className="py-2 px-3 text-right text-slate-400">-</td>
+                  <td className="py-2 px-3 text-right font-medium text-amber-800">{formatBs(item.adelantoEfectivo)}<div className="text-[10px] text-amber-700">{formatUSD(item.adelantoEfectivo / company.tasaBCV_USD)}</div></td>
+                </tr>}
+                {item.deduccionesProductos > 0 && <tr>
+                  <td className="py-2 px-3">Compras y productos asignados</td>
+                  <td className="py-2 px-3 text-right text-slate-400">-</td>
+                  <td className="py-2 px-3 text-right font-medium text-amber-800">{formatBs(item.deduccionesProductos)}<div className="text-[10px] text-amber-700">{formatUSD(item.deduccionesProductos / company.tasaBCV_USD)}</div></td>
+                </tr>}
               </tbody>
             </table>
           </div>
@@ -248,14 +213,14 @@ export function DigitalPaySlipModal({
                 <span>Total Asignaciones Devengadas:</span>
                 <strong className="text-slate-900">
                   {formatBs(item.totalAsignaciones)}
-                  <span className="ml-1 text-[10px] align-middle font-bold text-slate-500">({slipCurrencyLabel})</span>
+                  <span className="ml-1 text-[10px] align-middle font-bold text-slate-500">(Bs.)</span>
                 </strong>
               </div>
               <div className="flex justify-between text-slate-600">
-                <span>Total Retenciones Legales:</span>
+                <span>Total deducciones:</span>
                 <strong className="text-amber-800">
                   -{formatBs(item.totalDeducciones)}
-                  <span className="ml-1 text-[10px] align-middle font-bold text-amber-600">({slipCurrencyLabel})</span>
+                  <span className="ml-1 text-[10px] align-middle font-bold text-amber-600">(Bs.)</span>
                 </strong>
               </div>
             </div>
@@ -266,7 +231,7 @@ export function DigitalPaySlipModal({
               </span>
               <div className="text-2xl font-black text-emerald-900 mt-0.5">
                 {formatBs(item.netoCobrarBs)}
-                <span className="ml-2 text-[10px] align-middle font-bold text-emerald-700">({slipCurrencyLabel})</span>
+                <span className="ml-2 text-[10px] align-middle font-bold text-emerald-700">(Bs.)</span>
               </div>
               <span className="text-[11px] text-emerald-700 font-semibold">
                 Equivalente Ref. BCV: {formatUSD(item.netoCobrarUSD)}

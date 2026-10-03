@@ -1,0 +1,292 @@
+const { Pool } = require('pg');
+const bcrypt = require('bcryptjs');
+
+// The DATABASE_URL (or POSTGRES_URL) will be used if provided, otherwise it will fail or try defaults.
+// In Supabase, you can find the connection string and set it in your environment variables.
+const connectionString = process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.POSTGRES_PRISMA_URL;
+const useSsl = /^(1|true|require)$/i.test(process.env.DATABASE_SSL || process.env.PGSSLMODE || '');
+
+const pool = new Pool({
+  connectionString,
+  ssl: useSsl ? { rejectUnauthorized: false } : false
+});
+
+// Helper to convert SQLite `?` params into Postgres `$1, $2, ...`
+function replaceParams(sql) {
+  let i = 1;
+  return sql.replace(/\?/g, () => `$${i++}`);
+}
+
+async function runAsync(sql, params = []) {
+  const pgSql = replaceParams(sql);
+  const result = await pool.query(pgSql, params);
+  return result;
+}
+
+async function allAsync(sql, params = []) {
+  const pgSql = replaceParams(sql);
+  const result = await pool.query(pgSql, params);
+  return result.rows;
+}
+
+async function init() {
+  if (!connectionString) {
+    throw new Error('Falta DATABASE_URL para conectar con PostgreSQL.');
+  }
+
+  // Use runAsync with the postgres syntax for table creation
+  await runAsync(`CREATE TABLE IF NOT EXISTS users (
+    id TEXT PRIMARY KEY,
+    username TEXT UNIQUE,
+    email TEXT UNIQUE,
+    password_hash TEXT,
+    nombre TEXT,
+    cargo TEXT,
+    rol TEXT,
+    rolTitulo TEXT,
+    avatar TEXT,
+    badgeColor TEXT,
+    nivelAcceso TEXT,
+    descripcionAcceso TEXT,
+    permisos TEXT
+  );`);
+
+  // Employee file attachments are stored separately to keep the employee record
+  // small and allow each document type to be queried independently.
+  await runAsync(`CREATE TABLE IF NOT EXISTS employee_documents (
+    id TEXT PRIMARY KEY,
+    employee_id TEXT NOT NULL,
+    document_type TEXT NOT NULL,
+    file_name TEXT NOT NULL,
+    mime_type TEXT NOT NULL,
+    data_url TEXT NOT NULL,
+    size_bytes INTEGER NOT NULL DEFAULT 0,
+    uploaded_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+  );`);
+  await runAsync(`CREATE INDEX IF NOT EXISTS idx_employee_documents_employee
+    ON employee_documents (employee_id);`);
+
+  await runAsync(`CREATE TABLE IF NOT EXISTS sales_records (
+    id TEXT PRIMARY KEY,
+    seller_id TEXT NOT NULL,
+    seller_name TEXT NOT NULL,
+    sale_date DATE NOT NULL,
+    customer TEXT NOT NULL,
+    reference TEXT NOT NULL,
+    amount_bs NUMERIC(14, 2) NOT NULL CHECK (amount_bs >= 0),
+    commission_percentage NUMERIC(7, 4) NOT NULL CHECK (commission_percentage >= 0),
+    commission_bs NUMERIC(14, 2) NOT NULL CHECK (commission_bs >= 0),
+    status TEXT NOT NULL DEFAULT 'Pendiente'
+      CHECK (status IN ('Pendiente', 'Liquidada')),
+    observations TEXT
+  );`);
+  await runAsync(`CREATE INDEX IF NOT EXISTS idx_sales_records_seller_date
+    ON sales_records (seller_id, sale_date);`);
+  await runAsync(`ALTER TABLE sales_records
+    ADD COLUMN IF NOT EXISTS currency TEXT NOT NULL DEFAULT 'BS'
+      CHECK (currency IN ('BS', 'USD')),
+    ADD COLUMN IF NOT EXISTS amount_original NUMERIC(14, 2);`);
+
+  await runAsync(`CREATE TABLE IF NOT EXISTS payroll_adjustments (
+    id TEXT PRIMARY KEY,
+    employee_id TEXT NOT NULL,
+    payroll_period_id TEXT,
+    overtime_day_hours NUMERIC(8, 2) NOT NULL DEFAULT 0 CHECK (overtime_day_hours >= 0),
+    overtime_night_hours NUMERIC(8, 2) NOT NULL DEFAULT 0 CHECK (overtime_night_hours >= 0),
+    travel_allowance_bs NUMERIC(14, 2) NOT NULL DEFAULT 0 CHECK (travel_allowance_bs >= 0),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+  );`);
+  await runAsync(`CREATE INDEX IF NOT EXISTS idx_payroll_adjustments_employee
+    ON payroll_adjustments (employee_id, payroll_period_id);`);
+
+  await runAsync(`CREATE TABLE IF NOT EXISTS product_assignments (
+    id TEXT PRIMARY KEY,
+    employee_id TEXT NOT NULL,
+    employee_name TEXT NOT NULL,
+    product TEXT NOT NULL,
+    quantity NUMERIC(12, 2) NOT NULL CHECK (quantity > 0),
+    amount_bs NUMERIC(14, 2) NOT NULL CHECK (amount_bs >= 0),
+    assignment_month TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'Asignado'
+      CHECK (status IN ('Asignado', 'Entregado'))
+  );`);
+  await runAsync(`CREATE TABLE IF NOT EXISTS product_purchases (
+    id TEXT PRIMARY KEY,
+    product TEXT NOT NULL,
+    supplier TEXT NOT NULL,
+    quantity NUMERIC(12, 2) NOT NULL CHECK (quantity > 0),
+    amount_bs NUMERIC(14, 2) NOT NULL CHECK (amount_bs >= 0),
+    purchase_date DATE NOT NULL,
+    notes TEXT
+  );`);
+  await runAsync(`CREATE TABLE IF NOT EXISTS employee_loans (
+    id TEXT PRIMARY KEY,
+    employee_id TEXT NOT NULL,
+    employee_name TEXT NOT NULL,
+    description TEXT NOT NULL,
+    principal_bs NUMERIC(14, 2) NOT NULL CHECK (principal_bs > 0),
+    installment_bs NUMERIC(14, 2) NOT NULL CHECK (installment_bs > 0),
+    outstanding_bs NUMERIC(14, 2) NOT NULL CHECK (outstanding_bs >= 0),
+    status TEXT NOT NULL DEFAULT 'Activo'
+      CHECK (status IN ('Activo', 'Cancelado')),
+    created_at DATE NOT NULL
+  );`);
+  await runAsync(`ALTER TABLE product_assignments
+    ADD COLUMN IF NOT EXISTS currency TEXT NOT NULL DEFAULT 'BS'
+      CHECK (currency IN ('BS', 'USD')),
+    ADD COLUMN IF NOT EXISTS amount_original NUMERIC(14, 2);`);
+  await runAsync(`ALTER TABLE product_purchases
+    ADD COLUMN IF NOT EXISTS currency TEXT NOT NULL DEFAULT 'BS'
+      CHECK (currency IN ('BS', 'USD')),
+    ADD COLUMN IF NOT EXISTS amount_original NUMERIC(14, 2);`);
+  await runAsync(`ALTER TABLE employee_loans
+    ADD COLUMN IF NOT EXISTS currency TEXT NOT NULL DEFAULT 'BS'
+      CHECK (currency IN ('BS', 'USD')),
+    ADD COLUMN IF NOT EXISTS principal_original NUMERIC(14, 2),
+    ADD COLUMN IF NOT EXISTS installment_currency TEXT NOT NULL DEFAULT 'BS'
+      CHECK (installment_currency IN ('BS', 'USD')),
+    ADD COLUMN IF NOT EXISTS installment_original NUMERIC(14, 2);`);
+
+  // Estado completo de la aplicación (empleados, nómina, ventas, préstamos, etc.).
+  // Se guarda como un único documento JSONB: es lo que el frontend ya maneja como "DatabaseState".
+  await runAsync(`CREATE TABLE IF NOT EXISTS app_state (
+    id TEXT PRIMARY KEY,
+    data JSONB NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+  );`);
+
+  const seedUsers = [
+      {
+        id: 'user-admin',
+        username: 'psinza',
+        email: 'petersinza@gmail.com',
+        password: 'Salamalenco23*',
+        nombre: 'Ing. Pedro Sinza',
+        cargo: 'Administrador de Sistemas & TI',
+        rol: 'admin_sistema',
+        rolTitulo: 'Administrador del Sistema',
+        avatar: 'PS',
+        badgeColor: 'bg-blue-600 text-white',
+        nivelAcceso: 'Nivel 3 - Root TI & Ciberseguridad',
+        descripcionAcceso: 'Control total sobre respaldos cifrados, base de datos ligera, auditoría forense, parámetros fiscales, tasas BCV y seguridad del sistema.',
+        permisos: JSON.stringify([
+          'Gestión de Base de Datos Ligera y Nube',
+          'Gestión y Auditoría Forense',
+          'Respaldos y Restauración Cifrada (AES-256 / SQL)',
+          'Configuración de Empresa y Tasas BCV',
+          'Monitoreo de Integridad del Sistema',
+          'Acceso Global a Todos los Módulos',
+          'Dashboard de RRHH y Dashboard de Dueño',
+        ]),
+      },
+      {
+        id: 'user-rrhh',
+        username: 'rrhh',
+        email: 'rrhh@talentove.com',
+        password: 'rrhh2026**',
+        nombre: 'Lic. Dubraska',
+        cargo: 'Gerente de Recursos Humanos',
+        rol: 'rrhh',
+        rolTitulo: 'Gerente de RRHH',
+        avatar: 'VS',
+        badgeColor: 'bg-emerald-600 text-white',
+        nivelAcceso: 'Nivel 2 - Gestión Operativa RRHH',
+        descripcionAcceso: 'Control operativo integral de personal: expedientes 14-02, elaboración de nómina quincenal, prestaciones LOTTT y archivos parafiscales.',
+        permisos: JSON.stringify([
+          'Gestión de Expedientes y Ficha 14-02',
+          'Cálculo Quincenal y Mensual de Nómina',
+          'Generación y Firma Digital de Recibos LOTTT',
+          'Liquidaciones y Fondo de Prestaciones (Art. 142)',
+          'Generación TXT para IVSS TIUNA, FAOV y INCES',
+          'Emisión de Constancias de Trabajo Oficiales',
+        ]),
+      },
+      {
+        id: 'user-dueno',
+        username: 'jacobo',
+        email: 'industriacouture@gmail.com',
+        password: 'jacobo',
+        nombre: 'JACOB AGAI BENZAQUEN',
+        cargo: 'Director General & Propietario',
+        rol: 'dueno',
+        rolTitulo: 'Dueño de la Empresa',
+        avatar: 'JA',
+        badgeColor: 'bg-amber-600 text-white',
+        nivelAcceso: 'Nivel 1 - Alta Dirección & Accionista',
+        descripcionAcceso: 'Visión ejecutiva de costos laborales (Bs. y USD BCV), aprobación de nómina, supervisión de pasivos laborales acumulados y reportes financieros.',
+        permisos: JSON.stringify([
+          'Dashboard Ejecutivo con Costos BCV (USD / Bs.)',
+          'Visualización del módulo de RRHH',
+          'Visualización del módulo de Dueño',
+          'Aprobación y Autorización de Desembolso de Nómina',
+          'Supervisión de Pasivos Laborales y Fideicomiso',
+          'Reporte Consolidado de Costo Empresa',
+        ]),
+      },
+      {
+        id: 'user-dueno-elias',
+        username: 'elias',
+        email: 'elias.agai@industriacouture.com',
+        password: 'elias',
+        nombre: 'ELIAS AGAI',
+        cargo: 'Director General & Propietario',
+        rol: 'dueno',
+        rolTitulo: 'Dueño de la Empresa',
+        avatar: 'EA',
+        badgeColor: 'bg-amber-600 text-white',
+        nivelAcceso: 'Nivel 1 - Alta Dirección & Accionista',
+        descripcionAcceso: 'Visión ejecutiva de costos laborales, aprobación de nómina, supervisión de pasivos laborales y reportes financieros.',
+        permisos: JSON.stringify([
+          'Dashboard Ejecutivo con Costos BCV (USD / Bs.)',
+          'Visualización del módulo de RRHH',
+          'Visualización del módulo de Dueño',
+          'Aprobación y Autorización de Desembolso de Nómina',
+          'Supervisión de Pasivos Laborales y Fideicomiso',
+          'Reporte Consolidado de Costo Empresa',
+        ]),
+      },
+    ];
+
+  for (const u of seedUsers) {
+    const hash = await bcrypt.hash(u.password, 10);
+    await runAsync(
+      `INSERT INTO users (id, username, email, password_hash, nombre, cargo, rol, rolTitulo, avatar, badgeColor, nivelAcceso, descripcionAcceso, permisos)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
+       ON CONFLICT(id) DO NOTHING`,
+      [
+        u.id,
+        u.username,
+        u.email,
+        hash,
+        u.nombre,
+        u.cargo,
+        u.rol,
+        u.rolTitulo,
+        u.avatar,
+        u.badgeColor,
+        u.nivelAcceso,
+        u.descripcionAcceso,
+        u.permisos,
+      ]
+    );
+  }
+}
+
+async function getAppState() {
+  const rows = await allAsync("SELECT data, updated_at FROM app_state WHERE id = 'main'");
+  return rows[0] || null;
+}
+
+async function saveAppState(data) {
+  await runAsync(
+    `INSERT INTO app_state (id, data, updated_at) VALUES ('main', ?::jsonb, now())
+     ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data, updated_at = now()`,
+    [JSON.stringify(data)]
+  );
+}
+
+async function close() {
+  await pool.end();
+}
+
+module.exports = { db: pool, init, runAsync, allAsync, getAppState, saveAppState, close };

@@ -5,7 +5,7 @@ import {
   AuditLog,
   PayrollPeriod,
 } from '../types';
-import { calculatePayrollDeductionsAndContributions } from '../utils/venezuelaLaborCalculations';
+import { calculatePayrollDeductionsAndContributions, getMondayDate } from '../utils/venezuelaLaborCalculations';
 
 export const initialCompanySettings: CompanySettings = {
   razonSocial: 'INDUSTRIAS COUTURE 2618 C.A.',
@@ -120,11 +120,15 @@ export const initialAuditLogs: AuditLog[] = [
  * Genera un período de nómina inicial precalculado
  */
 export function buildInitialPayrollPeriod(company: CompanySettings, employees: Employee[]): PayrollPeriod {
+  const fechaInicio = getMondayDate(new Date().toISOString().slice(0, 10));
+  const fechaFinDate = new Date(`${fechaInicio}T00:00:00Z`);
+  fechaFinDate.setUTCDate(fechaFinDate.getUTCDate() + 4);
+  const fechaFin = fechaFinDate.toISOString().slice(0, 10);
   const items = employees.map((emp) => {
     const calc = calculatePayrollDeductionsAndContributions(
       emp,
       company,
-      'quincenal',
+      'semanal',
       emp.horasExtrasDiurnasPendientes,
       emp.horasExtrasNocturnasPendientes,
       0,
@@ -135,14 +139,13 @@ export function buildInitialPayrollPeriod(company: CompanySettings, employees: E
     );
 
     return {
-      id: `slip-${emp.id}-ago2026-q2`,
+      id: `slip-${emp.id}-${fechaInicio}`,
       employeeId: emp.id,
       employee: emp,
       ...calc,
-      fechaGeneracion: '2026-08-30',
-      firmadoDigitalmente: true,
-      firmaFecha: '2026-08-30 17:00:00',
-      hashCriptografico: `SHA256-${emp.cedula.replace(/[^0-9]/g, '')}-20260830-${Math.random().toString(36).substring(2, 8).toUpperCase()}`,
+      fechaGeneracion: fechaFin,
+      firmadoDigitalmente: false,
+      hashCriptografico: `SHA256-${emp.cedula.replace(/[^0-9]/g, '')}-${fechaInicio}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`,
     };
   });
 
@@ -152,15 +155,15 @@ export function buildInitialPayrollPeriod(company: CompanySettings, employees: E
   const totalCostoEmpresaBs = totalNominaBs + totalCestaticketBs + totalAportesPatronalesBs;
 
   return {
-    id: 'period-2026-08-q2',
-    nombre: '2da Quincena de Agosto 2026',
-    tipo: '1ra Quincena',
-    mes: 'Agosto',
-    anio: 2026,
-    fechaInicio: '2026-08-16',
-    fechaFin: '2026-08-31',
-    fechaPago: '2026-08-30',
-    estatus: 'Aprobada',
+    id: `period-${fechaInicio}`,
+    nombre: `Semana del ${fechaInicio} al ${fechaFin}`,
+    tipo: 'Semanal',
+    mes: new Intl.DateTimeFormat('es-VE', { month: 'long', timeZone: 'UTC' }).format(new Date(`${fechaInicio}T00:00:00Z`)),
+    anio: Number(fechaInicio.slice(0, 4)),
+    fechaInicio,
+    fechaFin,
+    fechaPago: fechaFin,
+    estatus: 'Borrador',
     items,
     totalNominaBs,
     totalCestaticketBs,

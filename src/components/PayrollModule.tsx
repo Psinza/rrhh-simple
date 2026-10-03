@@ -9,14 +9,24 @@ import {
   Landmark,
   Download,
 } from 'lucide-react';
-import { CompanySettings, Employee, PayrollItem, PayrollPeriod } from '../types';
+import { AbsenceRecord, CashAdvanceRecord, CompanySettings, Employee, EmployeeLoan, PayrollItem, PayrollPeriod, ProductAssignment, ProductPurchase } from '../types';
+import { lightweightDb } from '../services/lightweightDb';
 import {
   calculatePayrollDeductionsAndContributions,
+  countWeekdaysInRange,
   formatBs,
   formatUSD,
+  getMondayDate,
+  getSalaryBaseInBs,
 } from '../utils/venezuelaLaborCalculations';
 import { buildBankPayrollFile, defaultSourceIdentifier, downloadBankPayrollFile } from '../utils/bankPayrollFile';
 import { downloadBankPayrollWorkbook, downloadPayrollSummaryCsv } from '../utils/payrollSpreadsheet';
+import {
+  buildBankTransferCsv,
+  buildBankTransferTxt,
+  buildPayrollSummaryCsv,
+  downloadTextFile,
+} from '../utils/payrollExports';
 
 interface PayrollModuleProps {
   company: CompanySettings;
@@ -32,7 +42,18 @@ interface PayrollModuleProps {
   loanInstallmentByEmployee?: Record<string, number>;
   productDeductionByEmployee?: Record<string, number>;
   assignmentMonthlyByEmployee?: Record<string, number>;
+  loans?: EmployeeLoan[];
+  assignments?: ProductAssignment[];
+  purchases?: ProductPurchase[];
+  absences?: AbsenceRecord[];
+  cashAdvances?: CashAdvanceRecord[];
 }
+
+const getFriday = (monday: string): string => {
+  const date = new Date(`${monday}T00:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + 4);
+  return date.toISOString().slice(0, 10);
+};
 
 export function PayrollModule({
   company,
@@ -48,13 +69,20 @@ export function PayrollModule({
   loanInstallmentByEmployee = {},
   productDeductionByEmployee = {},
   assignmentMonthlyByEmployee = {},
+  loans = [],
+  assignments = [],
+  purchases = [],
+  absences = [],
+  cashAdvances = [],
 }: PayrollModuleProps) {
-  const [activeFrequency, setActiveFrequency] = useState<'semanal' | 'quincenal' | 'mensual'>(
-    payroll.items[0]?.employee?.frecuenciaPago || 'mensual'
-  );
+  const activeFrequency = 'semanal';
+  const [weekStart, setWeekStart] = useState(() => getMondayDate(payroll.fechaInicio || new Date().toISOString().slice(0, 10)));
+  const [originAccount, setOriginAccount] = useState('');
+  const [originIdType, setOriginIdType] = useState<'J' | 'V' | 'E'>('J');
+  const [originIdNumber, setOriginIdNumber] = useState('');
   const [filterDept, setFilterDept] = useState<string>('todos');
-  const [aplicarRetencionesGubernamentales, setAplicarRetencionesGubernamentales] = useState(true);
   const [showApprovedNotice, setShowApprovedNotice] = useState(false);
+  const [aplicarRetencionesGubernamentales, setAplicarRetencionesGubernamentales] = useState(true);
   const defaultIdentifier = defaultSourceIdentifier(company);
   const [showBankExport, setShowBankExport] = useState(false);
   const [sourceAccount, setSourceAccount] = useState('');
@@ -94,7 +122,55 @@ export function PayrollModule({
     }
   };
 
+  const handleExportBankTxt = () => {
+    try {
+      const contents = buildBankTransferTxt(payroll.items, originAccount, originIdType, originIdNumber);
+      downloadTextFile(contents, `nomina_bancaria_${payroll.fechaInicio}.txt`, 'text/plain;charset=utf-8');
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : 'No se pudo generar el TXT bancario.');
+    }
+  };
+
+  const handleExportBankCsv = () => {
+    try {
+      const contents = buildBankTransferCsv(payroll.items, company.tasaBCV_USD, originAccount, originIdType, originIdNumber);
+      downloadTextFile(contents, `nomina_bancaria_${payroll.fechaInicio}.csv`, 'text/csv;charset=utf-8');
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : 'No se pudo generar el archivo del banco.');
+    }
+  };
+
+  const handleExportSummaryCsv = () => {
+    try {
+      const contents = buildPayrollSummaryCsv(payroll.items, payroll, company.tasaBCV_USD);
+      downloadTextFile(contents, `resumen_nomina_${payroll.fechaInicio}.csv`, 'text/csv;charset=utf-8');
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : 'No se pudo generar el resumen de nómina.');
+    }
+  };
+
   const handleRecalculate = () => {
+    if (payroll.estatus === 'Aprobada' && getMondayDate(weekStart) === payroll.fechaInicio) {
+      window.alert('La semana ya fue aprobada. Seleccione otra semana para generar un nuevo período.');
+      return;
+    }
+    const dailyRate = lightweightDb.getCurrencyRateForDate();
+    const exchangeRate = dailyRate?.rate || company.tasaBCV_USD;
+    if (!dailyRate) {
+      window.alert('No existe una tasa BCV registrada para hoy. Se utilizará la tasa vigente configurada; registre la tasa oficial del día antes del próximo recálculo.');
+    }
+    if (!Number.isFinite(exchangeRate) || exchangeRate <= 0) {
+      window.alert('La tasa BCV vigente no es válida. Registre una tasa positiva antes de recalcular la nómina.');
+      return;
+    }
+    const payrollCompany = { ...company, tasaBCV_USD: exchangeRate };
+    const periodStart = getMondayDate(weekStart);
+    const periodEnd = getFriday(periodStart);
+    const diasHabiles = countWeekdaysInRange(periodStart, periodEnd);
+    if (diasHabiles === 0) {
+      window.alert('Seleccione una semana con días hábiles de lunes a viernes.');
+      return;
+    }
     const activeEmployees = (employees && employees.length > 0 ? employees : payroll.items.map((item) => item.employee))
       .filter((emp) => emp.status === 'activo');
 
@@ -104,21 +180,58 @@ export function PayrollModule({
       const previousItem = 'employee' in source
         ? source
         : payroll.items.find((item) => item.employeeId === employee.id);
-      const assignmentFactor = activeFrequency === 'semanal' ? 1 / 4 : activeFrequency === 'quincenal' ? 1 / 2 : 1;
-      const deduccionesProductos = productDeductionByEmployee[employee.id] !== undefined || assignmentMonthlyByEmployee[employee.id] !== undefined
-        ? (productDeductionByEmployee[employee.id] || 0) + (assignmentMonthlyByEmployee[employee.id] || 0) * assignmentFactor
-        : previousItem?.deduccionesProductos || 0;
+      const employeeLoans = loans.filter((loan) => loan.employeeId === employee.id && loan.status === 'Activo');
+      const scheduledLoanDeduction = employeeLoans.reduce((sum, loan) => {
+        const firstWeek = loan.deductionWeekStart || getMondayDate(loan.createdAt);
+        return firstWeek <= periodStart ? sum + Math.min(loan.installmentBs, loan.outstandingBs) : sum;
+      }, 0);
+      const loanDeduction = loans.length > 0
+        ? scheduledLoanDeduction
+        : loanInstallmentByEmployee[employee.id] || 0;
+      const payrollMonth = periodStart.slice(0, 7);
+      const scheduledAssignmentDeduction = assignments
+        .filter((assignment) => assignment.employeeId === employee.id && assignment.status === 'Asignado')
+        .reduce((sum, assignment) => {
+          if (assignment.deductionWeekStart) {
+            return sum + (assignment.deductionWeekStart === periodStart ? assignment.amountBs : 0);
+          }
+          return sum + (assignment.month === payrollMonth ? assignment.amountBs / 4 : 0);
+        }, 0);
+      const scheduledPurchaseDeduction = purchases
+        .filter((purchase) => purchase.employeeId === employee.id)
+        .filter((purchase) => purchase.deductionWeekStart
+          ? purchase.deductionWeekStart === periodStart
+          : getMondayDate(purchase.purchaseDate) === periodStart)
+        .reduce((sum, purchase) => sum + purchase.amountBs, 0);
+      const productAssignmentDeduction = assignments.length > 0
+        ? scheduledAssignmentDeduction
+        : (assignmentMonthlyByEmployee[employee.id] || 0) / 4;
+      const productPurchaseDeduction = purchases.length > 0
+        ? scheduledPurchaseDeduction
+        : productDeductionByEmployee[employee.id] || 0;
+      const deduccionesProductos = productAssignmentDeduction + productPurchaseDeduction;
+      const absenceDays = Math.min(diasHabiles, absences
+        .filter((absence) => absence.employeeId === employee.id && absence.date >= periodStart && absence.date <= periodEnd)
+        .filter((absence) => countWeekdaysInRange(absence.date, absence.date) > 0)
+        .reduce((sum, absence) => sum + absence.days, 0));
+      const absenceDeduction = (getSalaryBaseInBs(employee, exchangeRate) / 30) * absenceDays;
+      const cashAdvanceDeduction = cashAdvances
+        .filter((advance) => advance.employeeId === employee.id && advance.deductionWeekStart === periodStart)
+        .reduce((sum, advance) => sum + advance.amountBs, 0);
       const calc = calculatePayrollDeductionsAndContributions(
         employee,
-        company,
+        payrollCompany,
         activeFrequency,
         previousItem?.horasExtrasDiurnas ?? employee.horasExtrasDiurnasPendientes ?? 0,
         previousItem?.horasExtrasNocturnas ?? employee.horasExtrasNocturnasPendientes ?? 0,
         previousItem?.bonoProductividad || 0,
         employee.viaticosPendientes || 0,
-        loanInstallmentByEmployee[employee.id] || 0,
+        loanDeduction,
         deduccionesProductos,
         aplicarRetencionesGubernamentales,
+        absenceDeduction,
+        cashAdvanceDeduction,
+        diasHabiles,
         commissionByEmployee[employee.id] || 0
       );
 
@@ -145,8 +258,16 @@ export function PayrollModule({
 
     onUpdatePayroll({
       ...payroll,
+      id: `period-${periodStart}`,
+      nombre: `Semana del ${periodStart} al ${periodEnd}`,
+      mes: new Intl.DateTimeFormat('es-VE', { month: 'long', timeZone: 'UTC' }).format(new Date(`${periodStart}T00:00:00Z`)),
+      anio: Number(periodStart.slice(0, 4)),
+      fechaInicio: periodStart,
+      fechaFin: periodEnd,
+      fechaPago: periodEnd,
       items: recalculatedItems,
-      tipo: activeFrequency === 'semanal' ? 'Semanal' : activeFrequency === 'quincenal' ? '1ra Quincena' : 'Mensual',
+      tipo: 'Semanal',
+      estatus: 'Calculada',
       totalNominaBs: recalculatedItems.reduce((sum, i) => sum + i.totalAsignaciones, 0),
       totalCestaticketBs: recalculatedItems.reduce((sum, i) => sum + i.cestaticketPeriodo, 0),
       totalAportesPatronalesBs: recalculatedItems.reduce((sum, i) => sum + i.totalAportesPatronales, 0),
@@ -172,12 +293,7 @@ export function PayrollModule({
   const totalNetoPagarPeriodo = filteredItems.reduce((acc, i) => acc + i.netoCobrarBs, 0);
   const payrollDepartments = Array.from(new Set(payroll.items.map((item) => item.employee.departamento)));
 
-  const frequencySummary =
-    activeFrequency === 'semanal'
-      ? 'Semanal • 1 mes dividido en 4 semanas'
-      : activeFrequency === 'quincenal'
-        ? 'Quincenal • 1 mes dividido en 2 quincenas'
-        : 'Mensual • 1 pago por mes completo';
+  const frequencySummary = 'Semanal • días hábiles de lunes a viernes';
 
   return (
     <div className="space-y-6">
@@ -212,14 +328,11 @@ export function PayrollModule({
             <FileSpreadsheet className="w-3.5 h-3.5" /> Resumen CSV
           </button>
           <div className="flex flex-col gap-1">
-            <label className="text-xs text-slate-600 font-semibold">Tipo de nómina
-              <select value={activeFrequency} onChange={(e) => setActiveFrequency(e.target.value as 'semanal' | 'quincenal' | 'mensual')} className="ml-2 px-2 py-2 text-xs bg-slate-50 border border-slate-200 rounded">
-                <option value="semanal">Semanal - Obreros</option>
-                <option value="quincenal">Quincenal - Administrativos</option>
-                <option value="mensual">Mensual</option>
-              </select>
+            <span className="text-xs text-slate-600 font-semibold">Nómina semanal • lunes a viernes</span>
+            <label className="text-[10px] text-slate-500">Lunes de la semana
+              <input type="date" value={weekStart} onChange={(event) => { if (event.target.value) setWeekStart(getMondayDate(event.target.value)); }} className="ml-2 px-2 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded" />
             </label>
-            <span className="ml-2 text-[10px] font-medium text-slate-500">{frequencySummary}</span>
+            <span className="ml-2 text-[10px] font-medium text-slate-500">{frequencySummary} • cierre: {getFriday(weekStart)}</span>
           </div>
 
           {hayEmpleadosConCestaticket && (
@@ -273,18 +386,54 @@ export function PayrollModule({
         </div>
       </div>
 
+      <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm space-y-3">
+        <div>
+          <h2 className="text-sm font-bold text-slate-900">Archivo de pago bancario</h2>
+          <p className="text-xs text-slate-500">TXT fijo de 46 caracteres; las transferencias usan el neto a pagar en Bs.</p>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <label className="text-xs font-semibold text-slate-700">Cuenta origen (20 dígitos)
+            <input inputMode="numeric" maxLength={20} value={originAccount} onChange={(event) => setOriginAccount(event.target.value.replace(/\D/g, '').slice(0, 20))} className="mt-1 w-full rounded border border-slate-300 px-2 py-2 font-mono" placeholder="01911234567898745632" />
+          </label>
+          <label className="text-xs font-semibold text-slate-700">Tipo de identificador
+            <select value={originIdType} onChange={(event) => setOriginIdType(event.target.value as 'J' | 'V' | 'E')} className="mt-1 w-full rounded border border-slate-300 px-2 py-2">
+              <option value="J">J - Jurídico</option>
+              <option value="V">V - Venezolano</option>
+              <option value="E">E - Extranjero</option>
+            </select>
+          </label>
+          <label className="text-xs font-semibold text-slate-700">Identificador (9 dígitos)
+            <input inputMode="numeric" maxLength={9} value={originIdNumber} onChange={(event) => setOriginIdNumber(event.target.value.replace(/\D/g, '').slice(0, 9))} className="mt-1 w-full rounded border border-slate-300 px-2 py-2 font-mono" placeholder="409644669" />
+          </label>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <button type="button" onClick={handleExportBankTxt} disabled={payroll.items.length === 0} className="inline-flex items-center gap-2 rounded bg-slate-900 px-3 py-2 text-xs font-bold text-white hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50">
+            <Download className="h-4 w-4" /> Generar TXT
+          </button>
+          <button type="button" onClick={handleExportBankCsv} disabled={payroll.items.length === 0} className="inline-flex items-center gap-2 rounded border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50">
+            <Download className="h-4 w-4" /> Generar Excel del banco
+          </button>
+          <button type="button" onClick={handleExportSummaryCsv} disabled={payroll.items.length === 0} className="inline-flex items-center gap-2 rounded border border-emerald-300 bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-800 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-50">
+            <Download className="h-4 w-4" /> Resumen de nómina CSV
+          </button>
+        </div>
+      </section>
+
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
           <div className="flex items-center gap-2 text-[10px] uppercase tracking-wide text-slate-500"><Wallet className="w-3.5 h-3.5" /> Total nómina</div>
           <div className="mt-2 text-xl font-black text-slate-900">{formatBs(payroll.totalNominaBs || filteredItems.reduce((s, i) => s + i.totalAsignaciones, 0))}</div>
+          <div className="text-xs text-slate-500">{formatUSD((payroll.totalNominaBs || filteredItems.reduce((s, i) => s + i.totalAsignaciones, 0)) / company.tasaBCV_USD)}</div>
         </div>
         <div className="rounded-xl border border-slate-200 bg-amber-50 p-4">
           <div className="flex items-center gap-2 text-[10px] uppercase tracking-wide text-amber-700"><Landmark className="w-3.5 h-3.5" /> Deducciones</div>
           <div className="mt-2 text-xl font-black text-amber-800">{formatBs(totalDeduccionesPeriodo)}</div>
+          <div className="text-xs text-amber-700">{formatUSD(totalDeduccionesPeriodo / company.tasaBCV_USD)}</div>
         </div>
         <div className="rounded-xl border border-slate-200 bg-emerald-50 p-4">
           <div className="flex items-center gap-2 text-[10px] uppercase tracking-wide text-emerald-700"><Users className="w-3.5 h-3.5" /> Neto a pagar</div>
           <div className="mt-2 text-xl font-black text-emerald-900">{formatBs(totalNetoPagarPeriodo)}</div>
+          <div className="text-xs text-emerald-700">{formatUSD(totalNetoPagarPeriodo / company.tasaBCV_USD)}</div>
         </div>
       </div>
 
@@ -326,8 +475,8 @@ export function PayrollModule({
                       <div className="text-[10px] text-slate-500">{item.employee.cedula}</div>
                     </td>
                     <td className="px-3 py-3 text-slate-600">{item.employee.cargo}</td>
-                    <td className="px-3 py-3 font-medium text-slate-900">{formatBs(item.sueldoBasePeriodo)}</td>
-                    <td className="px-3 py-3 font-bold text-emerald-700">{formatBs(item.netoCobrarBs)}</td>
+                    <td className="px-3 py-3 font-medium text-slate-900">{formatBs(item.sueldoBasePeriodo)}<div className="text-[10px] text-slate-500">{formatUSD(item.sueldoBasePeriodo / company.tasaBCV_USD)}</div></td>
+                    <td className="px-3 py-3 font-bold text-emerald-700">{formatBs(item.netoCobrarBs)}<div className="text-[10px] font-normal text-emerald-600">{formatUSD(item.netoCobrarUSD)}</div></td>
                     <td className="px-3 py-3">
                       <button
                         onClick={() => {

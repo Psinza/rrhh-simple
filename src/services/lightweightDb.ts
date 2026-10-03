@@ -1,8 +1,15 @@
 import { doc, getDoc, setDoc, collection, getDocs, writeBatch } from 'firebase/firestore';
 import { firestoreDb } from './firebase';
-import { Employee, CompanySettings, AppUser, AuditLog, PayrollPeriod, SalesRecord, ProductAssignment, ProductPurchase, EmployeeLoan } from '../types';
+import { Employee, CompanySettings, AppUser, AuditLog, PayrollPeriod, SalesRecord, ProductAssignment, ProductPurchase, EmployeeLoan, AbsenceRecord, CashAdvanceRecord } from '../types';
 import { initialCompanySettings, initialEmployees } from '../data/initialData';
 import { predefinedUsers } from '../data/authUsers';
+import { getApiBase } from './api';
+import { normalizeImportedEmployeeSalaries } from '../utils/venezuelaLaborCalculations';
+
+// En la versión de escritorio (Electron) el proceso principal expone `window.rrhhDesktop`.
+// Ahí PostgreSQL es la fuente de verdad; localStorage queda solo como caché.
+const isDesktop = (): boolean =>
+  typeof window !== 'undefined' && (window as any).rrhhDesktop?.isDesktop === true;
 
 export interface DatabaseState {
   version: string;
@@ -15,6 +22,8 @@ export interface DatabaseState {
   productAssignments: ProductAssignment[];
   productPurchases: ProductPurchase[];
   employeeLoans: EmployeeLoan[];
+  absences: AbsenceRecord[];
+  cashAdvances: CashAdvanceRecord[];
   socialBenefits: any[];
   auditLogs: AuditLog[];
   currencyRates: { date: string; rate: number; source?: string }[];
@@ -26,6 +35,78 @@ class LightweightDatabase {
   private storageKey = 'rrhh_simple_database_v3';
   private syncStatus: DbSyncStatus = 'local_active';
   private statusListeners: Array<(status: DbSyncStatus, message?: string) => void> = [];
+
+  // ── Persistencia en PostgreSQL (solo escritorio) ──
+  private lastState: DatabaseState | null = null;
+  private remoteReady = false;
+  private hydratePromise: Promise<void> | null = null;
+  private pushTimer: ReturnType<typeof setTimeout> | null = null;
+  private pushChain: Promise<void> = Promise.resolve();
+
+  private async hydrateFromServer(): Promise<void> {
+    if (!this.hydratePromise) {
+      this.hydratePromise = (async () => {
+        try {
+          const resp = await fetch(`${getApiBase()}/api/state`, { credentials: 'include' });
+          if (resp.ok) {
+            const body = await resp.json();
+            if (body?.state && body.state.employees) {
+              this.lastState = body.state as DatabaseState;
+              try { localStorage.setItem(this.storageKey, JSON.stringify(this.lastState)); } catch { /* caché opcional */ }
+            }
+            this.remoteReady = true;
+          } else if (resp.status === 404) {
+            // Base de datos nueva: se sube el estado inicial en cuanto haya uno
+            this.remoteReady = true;
+            const local = this.loadLocal();
+            if (local) void this.pushNow(local);
+          } else {
+            this.hydratePromise = null; // reintentar en la próxima llamada
+          }
+        } catch (e) {
+          console.warn('No se pudo leer el estado desde PostgreSQL:', e);
+          this.hydratePromise = null;
+        }
+      })();
+    }
+    return this.hydratePromise;
+  }
+
+  private pushNow(state: DatabaseState): Promise<void> {
+    this.pushChain = this.pushChain.then(async () => {
+      try {
+        const resp = await fetch(`${getApiBase()}/api/state`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ state }),
+        });
+        if (!resp.ok) console.warn('PostgreSQL rechazó el guardado:', resp.status);
+      } catch (e) {
+        console.warn('No se pudo guardar en PostgreSQL:', e);
+      }
+    });
+    return this.pushChain;
+  }
+
+  private schedulePush(state: DatabaseState) {
+    if (this.pushTimer) clearTimeout(this.pushTimer);
+    this.pushTimer = setTimeout(() => {
+      this.pushTimer = null;
+      void this.pushNow(state);
+    }, 700);
+  }
+
+  /** Fuerza el guardado pendiente (lo usa Electron antes de cerrar la aplicación). */
+  public async flushRemote(): Promise<void> {
+    if (this.pushTimer && this.lastState) {
+      clearTimeout(this.pushTimer);
+      this.pushTimer = null;
+      await this.pushNow(this.lastState);
+    } else {
+      await this.pushChain;
+    }
+  }
 
   constructor() {
     this.initDatabase();
@@ -44,6 +125,8 @@ class LightweightDatabase {
         productAssignments: [],
         productPurchases: [],
         employeeLoans: [],
+        absences: [],
+        cashAdvances: [],
         socialBenefits: [],
         auditLogs: [],
         currencyRates: [],
@@ -101,6 +184,7 @@ class LightweightDatabase {
    * Initializes local storage and checks Firestore connection
    */
   public async initDatabase(): Promise<DatabaseState> {
+    if (isDesktop()) await this.hydrateFromServer();
     let state = this.loadLocal();
     if (!state) {
       state = {
@@ -114,6 +198,8 @@ class LightweightDatabase {
         productAssignments: [],
         productPurchases: [],
         employeeLoans: [],
+        absences: [],
+        cashAdvances: [],
         socialBenefits: [],
         auditLogs: [],
         currencyRates: [],
@@ -133,6 +219,7 @@ class LightweightDatabase {
    * Reads from localStorage cache
    */
   public loadLocal(): DatabaseState | null {
+    if (isDesktop() && this.lastState) return this.lastState;
     try {
       const raw = localStorage.getItem(this.storageKey);
       if (raw) {
@@ -150,6 +237,10 @@ class LightweightDatabase {
   public saveLocal(state: DatabaseState): void {
     try {
       state.timestamp = new Date().toISOString();
+      if (isDesktop()) {
+        this.lastState = state;
+        if (this.remoteReady) this.schedulePush(state);
+      }
       localStorage.setItem(this.storageKey, JSON.stringify(state));
     } catch (e) {
       console.error('Error al escribir en base de datos local:', e);
@@ -254,6 +345,7 @@ class LightweightDatabase {
     if (!parsed.company || !Array.isArray(parsed.employees) || !Array.isArray(parsed.users)) {
       throw new Error('El archivo no tiene la estructura de base de datos válida de RRHH-Simple.');
     }
+    parsed.employees = normalizeImportedEmployeeSalaries(parsed.employees, parsed.company.tasaBCV_USD);
     this.saveLocal(parsed);
     await this.syncToCloud(parsed);
     return parsed;
@@ -404,3 +496,8 @@ class LightweightDatabase {
 }
 
 export const lightweightDb = new LightweightDatabase();
+
+// Lo invoca la versión de escritorio antes de cerrar la ventana para no perder el último cambio.
+if (typeof window !== 'undefined') {
+  (window as any).__rrhhFlushState = () => lightweightDb.flushRemote();
+}

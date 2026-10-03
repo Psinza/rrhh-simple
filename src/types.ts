@@ -42,6 +42,8 @@ export interface SocialBenefitsAdvance {
   id: string;
   fecha: string;
   monto: number;
+  moneda?: MoneyCurrency;
+  montoOriginal?: number;
   motivo: 'Adquisición de Vivienda' | 'Liberación de Hipoteca' | 'Educación' | 'Gastos Médicos y Hospitalarios';
   porcentajeDelFondo: number;
   aprobadoPor: string;
@@ -87,6 +89,7 @@ export interface Employee {
   salarioMensualBase: number; // Se almacena en Bs. para cálculos internos
   salarioMoneda?: MoneyCurrency; // Si se registró en USD/BS por el usuario
   salarioMensualBaseOriginal?: number; // Importe capturado en la moneda elegida; evita que la tasa BCV cambie el salario USD mostrado
+  salarioMensualUSD?: number; // Alias legado conservado al importar respaldos JSON
   frecuenciaPago: PayrollFrequency;
   cestaticketMensual: number; // Se almacena en Bs. para cálculos internos
   cestaticketMoneda?: MoneyCurrency; // Si se registró en USD/BS por el usuario
@@ -170,6 +173,8 @@ export interface PayrollItem {
   comisionesVentas: number;
   commissionSaleIds?: string[];
   deduccionesProductos: number;
+  deduccionInasistencias: number;
+  adelantoEfectivo: number;
   totalAsignacionesSalariales: number;
   totalAsignacionesNoSalariales: number;
   totalAsignaciones: number;
@@ -244,6 +249,7 @@ export interface ProductAssignment {
   currency?: MoneyCurrency;
   amountOriginal?: number;
   month: string;
+  deductionWeekStart?: string;
   status: 'Asignado' | 'Entregado';
 }
 
@@ -258,6 +264,7 @@ export interface ProductPurchase {
   currency?: MoneyCurrency;
   amountOriginal?: number;
   purchaseDate: string;
+  deductionWeekStart?: string;
   notes?: string;
 }
 
@@ -274,6 +281,28 @@ export interface EmployeeLoan {
   installmentOriginal?: number;
   outstandingBs: number;
   status: 'Activo' | 'Cancelado';
+  createdAt: string;
+  deductionWeekStart?: string;
+}
+
+export interface AbsenceRecord {
+  id: string;
+  employeeId: string;
+  employeeName: string;
+  date: string;
+  days: number;
+  reason?: string;
+}
+
+export interface CashAdvanceRecord {
+  id: string;
+  employeeId: string;
+  employeeName: string;
+  description: string;
+  amountBs: number;
+  currency: MoneyCurrency;
+  amountOriginal: number;
+  deductionWeekStart: string;
   createdAt: string;
 }
 

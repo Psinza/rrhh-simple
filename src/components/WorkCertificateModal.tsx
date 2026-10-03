@@ -35,17 +35,15 @@ export function WorkCertificateModal({
   const signer = authorities.find((user) => user.id === firmaId) || authorities[0];
 
   const tenure = calculateTenure(employee.fechaIngreso);
+  const salaryBaseNormalizedBs = normalizeSalaryToBs(employee, company.tasaBCV_USD);
   const integral = calculateIntegralSalary(
-    employee.salarioMensualBase,
+    salaryBaseNormalizedBs,
     tenure.anios,
     employee.diasUtilidadesAnuales || company.diasUtilidadesEmpresa
   );
   const displayCurrency = employee.salarioMoneda || 'BS';
   const puedeDeclararIntegral = canDeclareIntegralSalary(employee);
 
-  const salaryBaseNormalizedBs = employee.salarioMoneda === 'USD'
-    ? normalizeSalaryToBs(employee, company.tasaBCV_USD)
-    : employee.salarioMensualBase;
   const salarioAMostrar = tipoSalario === 'basico' || !puedeDeclararIntegral ? salaryBaseNormalizedBs : integral.salarioIntegralMensual;
   const cestaticketMonto = employee.cestaticketMensual || company.montoCestaticketNacional;
   const salarioAMostrarDisplay = formatMoneyWithEmployeeCurrency(salarioAMostrar, displayCurrency, company.tasaBCV_USD);

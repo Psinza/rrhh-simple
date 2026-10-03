@@ -1,0 +1,57 @@
+{
+  "name": "rrhh-simple-desktop",
+  "productName": "RRHH Simple",
+  "version": "1.0.0",
+  "description": "RRHH Simple - Recursos Humanos y Nómina (aplicación de escritorio con PostgreSQL embebido)",
+  "author": "Psinza",
+  "private": true,
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win nsis --x64"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.6",
+    "express": "^4.21.2",
+    "jsonwebtoken": "^9.0.3",
+    "pg": "^8.16.3"
+  },
+  "devDependencies": {
+    "electron": "44.4.3",
+    "electron-builder": "^26.15.3"
+  },
+  "build": {
+    "appId": "ve.rrhh.simple",
+    "productName": "RRHH Simple",
+    "asar": false,
+    "directories": { "output": "release" },
+    "files": [
+      "main.js",
+      "preload.js",
+      "pg-manager.js",
+      "secrets.js",
+      "server/**/*",
+      "dist/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      { "from": "resources/pgsql", "to": "pgsql" }
+    ],
+    "win": {
+      "target": [{ "target": "nsis", "arch": ["x64"] }]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowElevation": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "deleteAppDataOnUninstall": false,
+      "shortcutName": "RRHH Simple",
+      "language": "3082"
+    }
+  }
+}

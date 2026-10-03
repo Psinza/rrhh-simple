@@ -23,6 +23,7 @@ import {
   formatMoneyWithEmployeeCurrency,
   canDeclareIntegralSalary,
   getSalaryInEmployeeCurrency,
+  normalizeSalaryToBs,
 } from '../utils/venezuelaLaborCalculations';
 
 interface EmployeesModuleProps {
@@ -80,7 +81,7 @@ export function EmployeesModule({
   const [formBanco, setFormBanco] = useState('Banco de Venezuela');
   const [formNumeroCuenta, setFormNumeroCuenta] = useState('');
   const [formCargas, setFormCargas] = useState('1');
-  const [formFrecuenciaPago, setFormFrecuenciaPago] = useState<PayrollFrequency>('quincenal');
+  const [formFrecuenciaPago, setFormFrecuenciaPago] = useState<PayrollFrequency>('semanal');
   const [formDocumentType, setFormDocumentType] = useState<EmployeeDocumentType>('Copia de cédula');
   const [formDocuments, setFormDocuments] = useState<EmployeeDocument[]>([]);
 
@@ -302,8 +303,9 @@ export function EmployeesModule({
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {filteredEmployees.map((emp) => {
           const tenure = calculateTenure(emp.fechaIngreso);
+          const salaryBaseBs = normalizeSalaryToBs(emp, company.tasaBCV_USD);
           const integral = calculateIntegralSalary(
-            emp.salarioMensualBase,
+            salaryBaseBs,
             tenure.anios,
             emp.diasUtilidadesAnuales || company.diasUtilidadesEmpresa
           );
@@ -362,7 +364,7 @@ export function EmployeesModule({
                     <span className="font-bold text-slate-900">
                       {emp.salarioMoneda === 'USD'
                         ? formatUSD(getSalaryInEmployeeCurrency(emp, company.tasaBCV_USD))
-                        : formatMoneyWithEmployeeCurrency(emp.salarioMensualBase, emp.salarioMoneda, company.tasaBCV_USD)}
+                        : formatMoneyWithEmployeeCurrency(salaryBaseBs, emp.salarioMoneda, company.tasaBCV_USD)}
                       <span className="ml-1 text-[10px] align-middle font-bold text-slate-500">({emp.salarioMoneda === 'USD' ? 'USD' : 'Bs.'})</span>
                     </span>
                   </div>
@@ -679,10 +681,8 @@ export function EmployeesModule({
               </div>
               <div>
                 <label className="block font-medium text-slate-700 mb-1">Frecuencia de pago</label>
-                <select value={formFrecuenciaPago} onChange={(e) => setFormFrecuenciaPago(e.target.value as PayrollFrequency)} className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg">
-                  <option value="semanal">Semanal (obreros)</option>
-                  <option value="quincenal">Quincenal (administrativos)</option>
-                  <option value="mensual">Mensual</option>
+                <select value={formFrecuenciaPago} onChange={(e) => setFormFrecuenciaPago(e.target.value as PayrollFrequency)} disabled className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg">
+                  <option value="semanal">Semanal (lunes a viernes)</option>
                 </select>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
